@@ -1,0 +1,580 @@
+/* ==================== PLACEHOLDER UNIFICATION ==================== */
+/* Solución directa y específica para unificar TODOS los placeholders */
+
+/* Reset completo de todos los estilos de placeholder */
+* {
+    --placeholder-color: var(--text-muted);
+    --placeholder-opacity: 0.85;
+}
+
+/* Regla universal más agresiva */
+input::placeholder,
+select::placeholder,
+textarea::placeholder,
+*::placeholder {
+    color: var(--placeholder-color) !important;
+    opacity: var(--placeholder-opacity) !important;
+    font-style: italic !important;
+    font-weight: 400 !important;
+}
+
+/* Específico por ID para asegurar que funcione */
+#vesselName::placeholder,
+#amspecRef::placeholder,
+#clientRef::placeholder,
+#clientName::placeholder,
+#productTypes::placeholder,
+#agent::placeholder,
+#pilotOnBoard::placeholder,
+#etb::placeholder,
+#etc::placeholder,
+#terminal::placeholder,
+#berth::placeholder,
+#surveyor::placeholder,
+#sampler::placeholder,
+#chemist::placeholder,
+#searchInput::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.85 !important;
+    font-style: italic !important;
+    font-weight: 400 !important;
+}
+
+/* Cross-browser específico por ID */
+#vesselName::-webkit-input-placeholder,
+#amspecRef::-webkit-input-placeholder,
+#clientRef::-webkit-input-placeholder,
+#clientName::-webkit-input-placeholder,
+#productTypes::-webkit-input-placeholder,
+#agent::-webkit-input-placeholder,
+#pilotOnBoard::-webkit-input-placeholder,
+#etb::-webkit-input-placeholder,
+#etc::-webkit-input-placeholder,
+#terminal::-webkit-input-placeholder,
+#berth::-webkit-input-placeholder,
+#surveyor::-webkit-input-placeholder,
+#sampler::-webkit-input-placeholder,
+#chemist::-webkit-input-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.85 !important;
+    font-style: italic !important;
+}
+
+#vesselName::-moz-placeholder,
+#amspecRef::-moz-placeholder,
+#clientRef::-moz-placeholder,
+#clientName::-moz-placeholder,
+#productTypes::-moz-placeholder,
+#agent::-moz-placeholder,
+#pilotOnBoard::-moz-placeholder,
+#etb::-moz-placeholder,
+#etc::-moz-placeholder,
+#terminal::-moz-placeholder,
+#berth::-moz-placeholder,
+#surveyor::-moz-placeholder,
+#sampler::-moz-placeholder,
+#chemist::-moz-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.85 !important;
+    font-style: italic !important;
+}
+
+#vesselName:-ms-input-placeholder,
+#amspecRef:-ms-input-placeholder,
+#clientRef:-ms-input-placeholder,
+#clientName:-ms-input-placeholder,
+#productTypes:-ms-input-placeholder,
+#agent:-ms-input-placeholder,
+#pilotOnBoard:-ms-input-placeholder,
+#etb:-ms-input-placeholder,
+#etc:-ms-input-placeholder,
+#terminal:-ms-input-placeholder,
+#berth:-ms-input-placeholder,
+#surveyor:-ms-input-placeholder,
+#sampler:-ms-input-placeholder,
+#chemist:-ms-input-placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.85 !important;
+    font-style: italic !important;
+}
+
+/* Estados de focus para cada campo específico */
+#vesselName:focus::placeholder,
+#amspecRef:focus::placeholder,
+#clientRef:focus::placeholder,
+#clientName:focus::placeholder,
+#productTypes:focus::placeholder,
+#agent:focus::placeholder,
+#pilotOnBoard:focus::placeholder,
+#etb:focus::placeholder,
+#etc:focus::placeholder,
+#terminal:focus::placeholder,
+#berth:focus::placeholder,
+#surveyor:focus::placeholder,
+#sampler:focus::placeholder,
+#chemist:focus::placeholder {
+    color: rgba(31, 181, 212, 0.6) !important;
+    opacity: 0.9 !important;
+    font-style: normal !important;
+    transform: translateX(3px) !important;
+}
+
+/* Para selects, también manejar las opciones */
+#productTypes option[value=""],
+#pilotOnBoard option[value=""],
+#surveyor option[value=""],
+#sampler option[value=""],
+#chemist option[value=""] {
+    color: var(--text-muted) !important;
+    font-style: italic !important;
+}
+
+/* Cuando el select no tiene valor seleccionado */
+#productTypes[value=""],
+#pilotOnBoard[value=""],
+#surveyor[value=""],
+#sampler[value=""],
+#chemist[value=""] {
+    color: var(--text-muted) !important;
+    font-style: italic !important;
+}
+
+/* Forzar color para datetime-local específicamente */
+input[type="datetime-local"]#etb,
+input[type="datetime-local"]#etc,
+input[type="datetime-local"]#pilotOnBoard {
+    color: var(--text-primary) !important;
+}
+
+input[type="datetime-local"]#etb:invalid,
+input[type="datetime-local"]#etc:invalid,
+input[type="datetime-local"]#pilotOnBoard:invalid {
+    color: var(--text-muted) !important;
+    font-style: italic !important;
+}
+
+/* Regla de último recurso - sobrescribe todo */
+.ship-form-input {
+    --placeholder-color: var(--text-muted) !important;
+}
+
+.ship-form-input::placeholder {
+    color: var(--placeholder-color) !important;
+    opacity: 0.85 !important;
+    font-style: italic !important;
+}
+
+/* ==================== MAIN CONTENT CONTAINER ==================== */
+.main-content {
+    min-height: 100vh;
+    padding-top: 120px;
+    background: var(--bg-primary);
+    position: relative;
+}
+
+/* ==================== FORM CONTAINER ==================== */
+.ship-form-container {
+    background: var(--bg-card);
+    backdrop-filter: var(--glass-backdrop);
+    border: 1px solid var(--border-dark);
+    border-radius: 20px;
+    margin: 2rem 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-xl);
+    position: relative;
+}
+
+/* Accent line at top */
+.ship-form-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--accent-gradient);
+    z-index: 1;
+}
+
+/* ==================== FORM HEADER ==================== */
+.ship-form-header {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    padding: 2rem 2.5rem;
+    border-bottom: 1px solid var(--border-dark);
+}
+
+.ship-form-title-container {
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.ship-form-icon {
+    width: 50px;
+    height: 50px;
+    background: var(--accent-gradient);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-glow);
+    color: white;
+    font-size: 1.25rem;
+}
+
+.ship-form-title-text {
+    font-size: 1.5rem;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.ship-form-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+    margin-top: 0.25rem;
+}
+
+/* ==================== FORM BODY ==================== */
+.ship-form-body {
+    padding: 2rem;
+}
+
+/* ==================== FORM ROWS ==================== */
+.ship-form-row {
+    margin-bottom: 1.5rem;
+}
+
+.ship-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+/* ==================== FORM FIELDS ==================== */
+.ship-form-field {
+    position: relative;
+}
+
+.ship-form-label {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: block;
+}
+
+.ship-form-label i {
+    color: var(--accent-primary);
+    margin-right: 0.5rem;
+}
+
+.ship-form-input {
+    background: var(--bg-primary) !important;
+    border: 2px solid var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+    padding: 0.875rem 1rem !important;
+    border-radius: 12px !important;
+    font-weight: 500 !important;
+    transition: var(--transition-smooth) !important;
+    font-size: 1rem !important;
+    width: 100% !important;
+}
+
+.ship-form-input::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.8 !important;
+}
+
+/* Focus effects */
+.ship-form-input:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 0.2rem rgba(31, 181, 212, 0.25) !important;
+    outline: none !important;
+}
+
+/* ==================== FORM ACTIONS ==================== */
+.ship-form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-dark);
+    margin-top: 1.5rem;
+}
+
+.ship-form-btn {
+    padding: 0.5rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: var(--transition-smooth);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ship-form-btn i {
+    margin-right: 0.5rem;
+}
+
+/* ==================== SEARCH SECTION ==================== */
+.ship-search-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-dark);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+    box-shadow: var(--shadow-md);
+}
+
+.ship-search-field {
+    position: relative;
+}
+
+.ship-search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    z-index: 2;
+}
+
+.ship-search-input {
+    padding-left: 3rem !important;
+    background: var(--bg-primary) !important;
+    border: 1px solid var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px !important;
+}
+
+.ship-search-input::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* ==================== TABLE SECTION ==================== */
+.ship-table-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-dark);
+    border-radius: 16px;
+    margin: 2rem 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+}
+
+.ship-table {
+    margin-bottom: 0 !important;
+}
+
+.ship-table thead {
+    background: var(--bg-tertiary);
+}
+
+.ship-table th {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    padding: 1rem !important;
+    border-bottom: 1px solid var(--border-dark) !important;
+}
+
+.ship-table tbody {
+    background: var(--bg-primary);
+}
+
+.ship-table td {
+    color: var(--text-primary) !important;
+    padding: 1rem !important;
+    border-bottom: 1px solid var(--border-dark) !important;
+}
+
+/* ==================== COMPONENT CONTAINERS ==================== */
+/* Estilos para contenedores de componentes personalizados */
+.multiselect-container,
+.singleselect-container,
+.datetime-picker-container {
+    position: relative;
+    width: 100%;
+}
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+@media (max-width: 768px) {
+    .ship-form-header {
+        padding: 1.5rem;
+    }
+    
+    .ship-form-body {
+        padding: 1.5rem;
+    }
+    
+    .ship-form-title-container {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+    
+    .ship-form-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+    
+    .ship-form-title-text {
+        font-size: 1.25rem;
+    }
+    
+    .ship-form-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .ship-form-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .ship-form-btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .ship-search-container {
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .ship-table-container {
+        margin: 1rem 0;
+    }
+    
+    .ship-table th,
+    .ship-table td {
+        padding: 0.75rem 0.5rem !important;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .ship-form-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .ship-form-input {
+        font-size: 0.9rem !important;
+        padding: 0.75rem !important;
+    }
+    
+    .ship-form-label {
+        font-size: 0.8rem;
+    }
+    
+    .ship-search-input {
+        font-size: 0.9rem !important;
+        padding: 0.75rem !important;
+        padding-left: 2.5rem !important;
+    }
+    
+    .ship-search-icon {
+        left: 0.75rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* ==================== UTILITY CLASSES ==================== */
+.ship-hidden {
+    display: none !important;
+}
+
+.ship-visible {
+    display: block !important;
+}
+
+.ship-flex {
+    display: flex !important;
+}
+
+.ship-grid {
+    display: grid !important;
+}
+
+/* Text utilities */
+.ship-text-center {
+    text-align: center !important;
+}
+
+.ship-text-left {
+    text-align: left !important;
+}
+
+.ship-text-right {
+    text-align: right !important;
+}
+
+/* Spacing utilities */
+.ship-mb-0 { margin-bottom: 0 !important; }
+.ship-mb-1 { margin-bottom: 0.5rem !important; }
+.ship-mb-2 { margin-bottom: 1rem !important; }
+.ship-mb-3 { margin-bottom: 1.5rem !important; }
+
+.ship-mt-0 { margin-top: 0 !important; }
+.ship-mt-1 { margin-top: 0.5rem !important; }
+.ship-mt-2 { margin-top: 1rem !important; }
+.ship-mt-3 { margin-top: 1.5rem !important; }
+
+.ship-p-0 { padding: 0 !important; }
+.ship-p-1 { padding: 0.5rem !important; }
+.ship-p-2 { padding: 1rem !important; }
+.ship-p-3 { padding: 1.5rem !important; }
+
+/* ==================== ANIMATION KEYFRAMES ==================== */
+@keyframes shipFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes shipSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes shipPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Apply animations */
+.ship-fade-in {
+    animation: shipFadeIn 0.3s ease-out;
+}
+
+.ship-slide-in {
+    animation: shipSlideIn 0.3s ease-out;
+}
+
+.ship-pulse {
+    animation: shipPulse 1.5s ease-in-out infinite;
+}

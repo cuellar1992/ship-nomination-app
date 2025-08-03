@@ -1,0 +1,387 @@
+/* ==================== SAMPLING ROSTER SPECIFIC STYLES ==================== */
+/* 🎨 Sampling Roster Unified Styles - Consistent with Ship Nominations */
+
+/* ==================== VESSEL INFO TABLE ==================== */
+.vessel-info-table {
+  margin-bottom: 0;
+}
+
+.vessel-info-table .info-label {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  font-weight: 600;
+  width: 180px; /* Cambiado de 220px a 180px */
+  text-align: right;
+  font-size: 0.85rem; /* Reducido de 0.9em para mayor densidad */
+  padding: 10px 8px 10px 6px; /* Padding ligeramente reducido */
+  vertical-align: middle;
+  position: relative;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.vessel-info-table .info-label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent-gradient);
+  box-shadow: 0 0 10px rgba(31, 181, 212, 0.4);
+}
+
+.vessel-info-table .info-label::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, 
+    rgba(31, 181, 212, 0.05) 0%, 
+    transparent 50%, 
+    rgba(31, 181, 212, 0.02) 100%);
+  pointer-events: none;
+}
+
+.vessel-info-table .info-value {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-dark);
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+
+.vessel-info-table .info-value input,
+.vessel-info-table .info-value select {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem; /* Reducido de 0.9em para mayor densidad */
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+.vessel-info-table .info-value input:focus,
+.vessel-info-table .info-value select:focus {
+  outline: 1px solid var(--accent-primary);
+  background: rgba(31, 181, 212, 0.1);
+  border-radius: 4px;
+}
+
+.vessel-info-table .info-value input[readonly] {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
+/* ==================== SAMPLING TABLES ==================== */
+.sampling-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0;
+}
+
+.sampling-table th {
+  background: var(--bg-tertiary);
+  padding: 10px 6px; /* Padding reducido para mayor densidad */
+  text-align: center;
+  font-weight: 600;
+  color: var(--text-primary);
+  border: 1px solid var(--border-dark);
+  font-size: 0.8rem; /* Reducido de 0.9rem para mayor densidad */
+  position: relative;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sampling-table th::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-gradient);
+}
+
+.sampling-table td {
+  padding: 8px 6px; /* Padding reducido para mayor densidad */
+  text-align: center;
+  border: 1px solid var(--border-dark);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8rem; /* Reducido de 0.85rem para mayor densidad */
+}
+
+.sampling-table tbody tr:hover {
+  background: rgba(31, 181, 212, 0.05);
+}
+
+.sampling-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sampling-table tbody tr:nth-child(even):hover {
+  background: rgba(31, 181, 212, 0.05);
+}
+
+/* ==================== LAYOUT ADJUSTMENTS ==================== */
+/* 📐 Container más compacto para Sampling Roster */
+.content-section .container {
+  max-width: 800px; /* Cambiado de 900px a 800px */
+}
+
+/* 📏 Ajuste de altura - Select Ship Nomination más cerca del navigation */
+.main-content {
+  padding-top: 20px; /* Reducido al mínimo para acercar contenido al navigation */
+}
+
+/* ==================== VISUAL HIERARCHY ==================== */
+/* 🎨 Jerarquía Visual - 3 tipos de secciones con colores diferenciados */
+.section-primary .ship-form-icon {
+  background: var(--accent-gradient);
+}
+
+.section-secondary .ship-form-icon {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+.section-tertiary .ship-form-icon {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+/* ==================== EMPTY STATES ==================== */
+/* 🎯 Empty States con iconos y mejor presentación */
+.empty-state {
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.empty-state i {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: var(--text-dim);
+  display: block;
+}
+
+/* ==================== ACTION BUTTONS ==================== */
+/* ⚡ Action Buttons integrados - Styling para el footer */
+.vessel-info-actions {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-dark);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ==================== SAMPLING ROSTER SPECIFIC STYLES ==================== */
+/* 🎨 Sampling Roster Unified Styles - Consistent with Ship Nominations */
+
+/* ... TODO EL CSS EXISTENTE PERMANECE IGUAL ... */
+
+/* ==================== ACTION BUTTONS ==================== */
+/* ⚡ Action Buttons integrados - Styling para el footer */
+.vessel-info-actions {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-dark);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ==================== SAVE STATUS INDICATOR ==================== */
+/* 💾 Save Status - Auto-save indicator with premium styling */
+.save-status {
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  min-height: 50px;
+  position: relative;
+  overflow: hidden;
+}
+
+.save-status::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.03) 0%, 
+    transparent 50%, 
+    rgba(255, 255, 255, 0.01) 100%);
+  pointer-events: none;
+}
+
+.save-status i {
+  font-size: 1.1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.save-status .save-text {
+  font-weight: 500;
+  font-size: 0.95rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* Estados específicos del Save Status */
+.save-status-success {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.1);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1);
+}
+
+.save-status-success i {
+  color: #22c55e;
+}
+
+.save-status-saving {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.save-status-saving i {
+  color: #3b82f6;
+}
+
+.save-status-warning {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+}
+
+.save-status-warning i {
+  color: #f59e0b;
+}
+
+/* Animaciones para Save Status */
+@keyframes pulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: scale(1.02);
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.save-status-saving {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.save-status-saving .fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Hover effect para Save Status */
+.save-status:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive Save Status */
+@media (max-width: 768px) {
+  .save-status {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    min-height: 45px;
+    border-radius: 8px;
+  }
+  
+  .save-status i {
+    font-size: 1rem;
+  }
+  
+  .save-status .save-text {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .save-status {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    min-height: 40px;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .save-status i {
+    font-size: 0.9rem;
+  }
+  
+  .save-status .save-text {
+    font-size: 0.8rem;
+  }
+}
+
+/* ==================== COMPACT SAVE STATUS ==================== */
+.save-status-compact {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  backdrop-filter: blur(5px);
+  transition: all 0.2s ease;
+  white-space: nowrap; /* Evita que el texto se divida en varias líneas */
+}
+
+.ship-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start; /* Alinea los items en la parte superior */
+  width: 100%;
+  position: relative;
+}
+
+/* Asegura que el título no se solape con el estado en móviles */
+@media (max-width: 768px) {
+  .ship-form-header {
+    flex-wrap: wrap;
+  }
+  
+  .save-status-compact {
+    order: 2;
+    margin-left: auto;
+    margin-top: 0.5rem;
+  }
+  
+  .ship-form-title-container {
+    order: 1;
+    width: 100%;
+  }
+}

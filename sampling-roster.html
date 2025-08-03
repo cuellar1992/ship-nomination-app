@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sampling Roster - Premium System</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Custom CSS -->
+    <link href="frontend/css/styles.css" rel="stylesheet" />
+    <link href="frontend/css/ship-nominations.css" rel="stylesheet" />
+    <link href="frontend/css/sampling-roster.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Navigation será insertada aquí por navigation.js -->
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Content Section -->
+      <section class="content-section">
+        <div class="container">
+          <!-- Ship Nomination Selector -->
+          <div class="ship-form-container section-primary">
+            <div class="ship-form-header">
+              <div class="ship-form-title-container">
+                <div class="ship-form-icon">
+                  <i class="fas fa-ship"></i>
+                </div>
+                <div>
+                  <div class="ship-form-title-text">Select Ship Nomination</div>
+                  <div class="ship-form-subtitle">
+                    Choose vessel from existing nominations to create sampling
+                    roster
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ship-form-body">
+              <div class="ship-form-row">
+                <div class="ship-form-field">
+                  <div
+                    id="shipNominationSelector"
+                    class="singleselect-container"
+                  >
+                    <!-- SingleSelect component will be rendered here -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bloque 1: Vessel Information -->
+          <div class="ship-form-container section-secondary">
+            <div
+              class="ship-form-header d-flex justify-content-between align-items-center"
+            >
+              <div class="ship-form-title-container">
+                <div class="ship-form-icon">
+                  <i class="fas fa-info-circle"></i>
+                </div>
+                <div>
+                  <div class="ship-form-title-text">Vessel Information</div>
+                  <div class="ship-form-subtitle">
+                    Ship nomination details and additional sampling information
+                  </div>
+                </div>
+              </div>
+              <!-- Save Status Indicator - Versión compacta alineada a la derecha -->
+              <div id="saveStatus" class="save-status-compact">
+                <i class="fas fa-check-circle text-success me-2"></i>
+                <span class="save-text">Saved</span>
+              </div>
+            </div>
+            <div class="ship-form-body">
+              <table class="vessel-info-table w-100">
+                <tbody>
+                  <tr>
+                    <td class="info-label">Vessel:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="vesselName"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Vessel name will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Berth:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="berthName"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Berth will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">AmSpec Ref:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="amspecRef"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="AmSpec reference will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">POB:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="pilotOnBoard"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Pilot on board time will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">ETB:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="etbTime"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Estimated time of berthing will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Start Discharge:</td>
+                    <td class="info-value">
+                      <div
+                        id="startDischarge"
+                        class="datetime-picker-container"
+                      >
+                        <!-- DateTimePicker component will be rendered here -->
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">ETC:</td>
+                    <td class="info-value">
+                      <div id="etcTime" class="datetime-picker-container">
+                        <!-- DateTimePicker component will be rendered here -->
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Discharge Time (Hrs):</td>
+                    <td class="info-value">
+                      <input
+                        type="number"
+                        id="dischargeTimeHours"
+                        class="ship-form-input"
+                        placeholder="Enter discharge duration in hours"
+                        min="1"
+                        max="200"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Cargo:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="cargoProducts"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Product types will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Surveyor:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="surveyorName"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Surveyor name will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Pre Discharge Testing:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="preDischargeChemist"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Chemist name will appear here"
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="info-label">Post Discharge Testing:</td>
+                    <td class="info-value">
+                      <input
+                        type="text"
+                        id="postDischargeChemist"
+                        class="ship-form-input"
+                        readonly
+                        placeholder="Chemist name will appear here"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- ⚡ Action Buttons integrados dentro del Vessel Information container -->
+            <div class="vessel-info-actions">
+              <button
+                type="button"
+                class="btn btn-outline-danger ship-form-btn"
+                id="clearRosterBtn"
+              >
+                <i class="fas fa-trash"></i>
+                CLEAR
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary-premium ship-form-btn"
+                id="autoGenerateBtn"
+              >
+                <i class="fas fa-magic"></i>
+                AUTO GENERATE
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary-premium ship-form-btn"
+                id="exportRosterBtn"
+              >
+                <i class="fas fa-file-excel"></i>
+                EXPORT
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary-premium ship-form-btn"
+                id="saveRosterBtn"
+                style="display: none"
+              >
+                <i class="fas fa-save"></i>
+                SAVE
+              </button>
+            </div>
+          </div>
+
+          <!-- Bloque 2: Office Sampling -->
+          <div class="ship-form-container section-secondary">
+            <div class="ship-form-header">
+              <div class="ship-form-title-container">
+                <div class="ship-form-icon">
+                  <i class="fas fa-building"></i>
+                </div>
+                <div>
+                  <div class="ship-form-title-text">Office Sampling</div>
+                  <div class="ship-form-subtitle">
+                    Office sampling schedule and personnel assignments
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ship-form-body">
+              <table class="sampling-table">
+                <thead>
+                  <tr>
+                    <th>WHO</th>
+                    <th>START OFFICE</th>
+                    <th>FINISH SAMPLING</th>
+                    <th>HOURS</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="officeSamplingTableBody">
+                  <!-- Dynamic rows will be added here -->
+                  <tr>
+                    <td colspan="5" class="empty-state">
+                      <i class="fas fa-clipboard-list"></i>
+                      Office sampling schedule will appear here after selecting
+                      a ship nomination
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Bloque 3: Line Sampling -->
+          <div class="ship-form-container section-tertiary">
+            <div class="ship-form-header">
+              <div class="ship-form-title-container">
+                <div class="ship-form-icon">
+                  <i class="fas fa-chart-line"></i>
+                </div>
+                <div>
+                  <div class="ship-form-title-text">Line Sampling Schedule</div>
+                  <div class="ship-form-subtitle">
+                    Line sampling schedule and resource allocation
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="ship-form-body">
+              <table class="sampling-table">
+                <thead>
+                  <tr>
+                    <th>WHO</th>
+                    <th>START LINE SAMPLING</th>
+                    <th>FINISH LINE SAMPLING</th>
+                    <th>HOURS</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody id="lineSamplingTableBody">
+                  <!-- Dynamic rows will be added here -->
+                  <tr>
+                    <td colspan="5" class="empty-state">
+                      <i class="fas fa-flask"></i>
+                      Line sampling schedule will appear here after selecting a
+                      ship nomination
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ✅ SCRIPTS EN ORDEN CORRECTO DE DEPENDENCIAS -->
+<!-- Bootstrap JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+<!-- 🌐 COMPONENTES COMPARTIDOS -->
+<script src="frontend/js/shared/NotificationService.js"></script>
+<script src="frontend/js/shared/singleselect.js"></script>
+<script src="frontend/js/shared/multiselect.js"></script>
+<script src="frontend/js/shared/DateTimePicker.js"></script>
+<script src="frontend/js/shared/DatePicker.js"></script>
+<script src="frontend/js/shared/ApiService.js"></script>
+<script src="frontend/js/shared/NavigationManager.js"></script>
+<script src="frontend/js/shared/SettingsManager.js"></script>
+
+<!-- 📦 MÓDULO SAMPLING ROSTER (incluye todos los módulos internos) -->
+<script type="module" src="frontend/js/samplingRoster/index.js"></script>
+  </body>
+</html>

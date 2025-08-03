@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ship Nominations - Premium System</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Base Styles -->
+    <link href="frontend/css/styles.css" rel="stylesheet" />
+
+    <!-- Ship Nominations Styles -->
+    <link href="frontend/css/ship-nominations.css" rel="stylesheet" />
+
+    <!-- SheetJS para exportación Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- ExcelJS para exportación Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  </head>
+  <body>
+    <!-- Navigation será insertada aquí por navigation.js -->
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Form Section -->
+      <div class="container">
+        <div class="ship-form-container" id="nominationForm">
+          <!-- Form Header -->
+          <div class="ship-form-header">
+            <h3 class="ship-form-title-container">
+              <div class="ship-form-icon">
+                <i class="fas fa-ship"></i>
+              </div>
+              <div>
+                <div class="ship-form-title-text">Ship Nomination</div>
+                <div class="ship-form-subtitle">
+                  Add or edit vessel nomination details
+                </div>
+              </div>
+            </h3>
+          </div>
+
+          <!-- Form Body -->
+          <div class="ship-form-body">
+            <form id="shipNominationForm">
+              <!-- Row 1: Vessel Name, AmSpec Reference #, Client Reference # -->
+              <div class="ship-form-row">
+                <div class="ship-form-grid">
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="vesselName">
+                      <i class="fas fa-ship"></i>Vessel Name
+                    </label>
+                    <input
+                      type="text"
+                      class="ship-form-input"
+                      id="vesselName"
+                      name="vesselName"
+                      required
+                      placeholder="Enter vessel name"
+                    />
+                  </div>
+
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="amspecRef">
+                      <i class="fas fa-barcode"></i>AmSpec Reference #
+                    </label>
+                    <input
+                      type="text"
+                      class="ship-form-input"
+                      id="amspecRef"
+                      name="amspecRef"
+                      required
+                      placeholder="AmSpec reference number"
+                    />
+                  </div>
+
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="clientRef">
+                      <i class="fas fa-hashtag"></i>Client Reference #
+                    </label>
+                    <input
+                      type="text"
+                      class="ship-form-input"
+                      id="clientRef"
+                      name="clientRef"
+                      placeholder="Client reference number"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 2: Client Name, Product Types, Agent -->
+              <div class="ship-form-row">
+                <div class="ship-form-grid">
+                  <!-- Client Name - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="clientName"></div>
+                  </div>
+                  <!-- Product Type - MultiSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="productTypes"></div>
+                  </div>
+
+                  <!-- Agent - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="agent"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 3: Pilot on Board, ETB, ETC - DateTimePicker Containers -->
+              <div class="ship-form-row">
+                <div class="ship-form-grid">
+                  <!-- Pilot on Board - DateTimePicker Container -->
+                  <div class="ship-form-field">
+                    <div id="pilotOnBoard"></div>
+                  </div>
+
+                  <!-- ETB - DateTimePicker Container -->
+                  <div class="ship-form-field">
+                    <div id="etb"></div>
+                  </div>
+
+                  <!-- ETC - DateTimePicker Container -->
+                  <div class="ship-form-field">
+                    <div id="etc"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 4: Terminal, Berth, Surveyor -->
+              <div class="ship-form-row">
+                <div class="ship-form-grid">
+                  <!-- Terminal - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="terminal"></div>
+                  </div>
+
+                  <!-- Berth - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="berth"></div>
+                  </div>
+
+                  <!-- Surveyor - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="surveyor"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 5: Sampler, Chemist -->
+              <div class="ship-form-row">
+                <div class="ship-form-grid">
+                  <!-- Sampler - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="sampler"></div>
+                  </div>
+
+                  <!-- Chemist - SingleSelect Container -->
+                  <div class="ship-form-field">
+                    <div id="chemist"></div>
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            <!-- Form Actions -->
+            <div class="ship-form-actions">
+              <button
+                type="button"
+                class="btn btn-secondary-premium ship-form-btn"
+                id="clearBtn"
+              >
+                <i class="fas fa-eraser"></i>Clear
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary-premium ship-form-btn"
+                id="saveBtn"
+                form="shipNominationForm"
+              >
+                <i class="fas fa-save"></i>SAVE
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PANEL DE FILTROS AVANZADOS - ESPACIADO MEJORADO ==================== -->
+      <!-- Reemplazar el bloque "Search and Filters Section" en ship-nominations.html -->
+      <div class="container">
+        <div
+          class="search-filters-section"
+          style="
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+          "
+        >
+          <!-- Basic Search Row - Espaciado mejorado -->
+          <div
+            class="search-row"
+            style="
+              display: flex;
+              gap: 0.75rem;
+              align-items: center;
+              margin-bottom: 0.75rem;
+              width: 100%;
+              justify-content: space-between;
+            "
+          >
+            <!-- Search Input -->
+            <div style="flex: 1; margin-right: 1rem">
+              <div style="position: relative">
+                <input
+                  type="text"
+                  id="searchInput"
+                  placeholder="Search vessels, clients, references..."
+                  class="ship-form-input ship-search-input"
+                  style="padding-left: 2.5rem; width: 100%"
+                />
+                <i class="fas fa-search ship-search-icon"></i>
+              </div>
+            </div>
+
+            <!-- Advanced Toggle Button -->
+            <button
+              class="btn btn-secondary-premium ship-form-btn"
+              id="advancedSearchToggle"
+              style="
+                min-width: 120px;
+                white-space: nowrap;
+                padding: 0.625rem 1rem;
+              "
+            >
+              <i class="fas fa-filter me-2"></i>
+              <span id="toggleText">Advanced</span>
+              <i class="fas fa-chevron-down ms-2" id="toggleIcon"></i>
+            </button>
+          </div>
+
+          <!-- Results Summary -->
+          <div
+            id="resultsCountContainer"
+            style="
+              margin-bottom: 0.75rem;
+              padding: 0.5rem 0.75rem;
+              background: var(--bg-tertiary);
+              border: 1px solid var(--border-secondary);
+              border-radius: 4px;
+              display: none;
+              transition: var(--transition-smooth);
+            "
+          >
+            <div
+              style="
+                color: var(--text-secondary);
+                font-size: 0.8rem;
+                font-weight: 500;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+              "
+            >
+              <i
+                class="fas fa-info-circle"
+                style="color: var(--accent-primary)"
+              ></i>
+              <span id="resultsCount">Loading...</span>
+            </div>
+          </div>
+
+          <!-- Advanced Search Panel -->
+          <div id="advancedSearchPanel" style="display: none">
+            <!-- Filter Chips Container - Espaciado mejorado -->
+            <div
+              id="activeFiltersContainer"
+              style="
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.375rem;
+                margin-bottom: 1rem;
+                min-height: 1.5rem;
+                padding: 0.5rem;
+                background: var(--bg-secondary);
+                border-radius: 4px;
+                border: 1px solid var(--border-secondary);
+              "
+            ></div>
+
+            <!-- Preset Buttons Row - Espaciado uniforme -->
+            <div
+              class="preset-buttons-row"
+              style="
+                display: flex;
+                gap: 0.5rem;
+                margin-bottom: 1rem;
+                flex-wrap: wrap;
+                justify-content: flex-start;
+              "
+            >
+              <button
+                class="btn btn-preset"
+                data-preset="thisMonth"
+                style="
+                  min-width: 90px;
+                  padding: 0.5rem 0.75rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-calendar-month me-1"></i>This Month
+              </button>
+              <button
+                class="btn btn-preset"
+                data-preset="thisWeek"
+                style="
+                  min-width: 90px;
+                  padding: 0.5rem 0.75rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-calendar-week me-1"></i>This Week
+              </button>
+              <button
+                class="btn btn-preset"
+                data-preset="pending"
+                style="
+                  min-width: 90px;
+                  padding: 0.5rem 0.75rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-clock me-1"></i>Pending
+              </button>
+              <button
+                class="btn btn-preset"
+                data-preset="completed"
+                style="
+                  min-width: 90px;
+                  padding: 0.5rem 0.75rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-check-circle me-1"></i>Completed
+              </button>
+            </div>
+
+            <!-- Filters Grid - Espaciado y distribución mejorados -->
+            <div
+              class="filters-grid"
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <!-- Date Range Filters -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 0.75rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                  "
+                >
+                  <i
+                    class="fas fa-calendar-alt me-2"
+                    style="color: var(--accent-primary)"
+                  ></i>
+                  ETB Date Range
+                </h6>
+                <div style="display: grid; gap: 0.5rem">
+                  <!-- ETB From DatePicker -->
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        color: var(--text-secondary);
+                        font-size: 0.7rem;
+                        margin-bottom: 0.25rem;
+                        text-transform: uppercase;
+                        font-weight: 500;
+                      "
+                      >From Date</label
+                    >
+                    <div id="etbFromDatePicker"></div>
+                  </div>
+                  <!-- ETB To DatePicker -->
+                  <div>
+                    <label
+                      style="
+                        display: block;
+                        color: var(--text-secondary);
+                        font-size: 0.7rem;
+                        margin-bottom: 0.25rem;
+                        text-transform: uppercase;
+                        font-weight: 500;
+                      "
+                      >To Date</label
+                    >
+                    <div id="etbToDatePicker"></div>
+                  </div>
+                </div>
+                <!-- Hidden inputs for compatibility -->
+                <input type="hidden" id="etbDateFrom" />
+                <input type="hidden" id="etbDateTo" />
+              </div>
+
+              <!-- Month/Year Filters -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 1.25rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i
+                    class="fas fa-calendar me-2"
+                    style="color: var(--accent-primary)"
+                  ></i>
+                  Month & Year
+                </h6>
+                <div style="display: grid; gap: 1rem">
+                  <select
+                    id="filterMonth"
+                    class="ship-form-input"
+                    style="font-size: 0.8rem; padding: 0.5rem"
+                  >
+                    <option value="">Any Month</option>
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                  <select
+                    id="filterYear"
+                    class="ship-form-input"
+                    style="font-size: 0.8rem; padding: 0.5rem"
+                  >
+                    <option value="">Any Year</option>                    
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Client & Agent Filters -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 1.25rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                >
+                  <i
+                    class="fas fa-building me-2"
+                    style="color: var(--accent-primary)"
+                  ></i>
+                  Client & Agent
+                </h6>
+                <div style="display: grid; gap: 1rem">
+                  <div id="filterClientsContainer"></div>
+                  <div id="filterAgentContainer"></div>
+                </div>
+              </div>
+
+              <!-- Personnel Filters -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 1.25rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                ></h6>
+                <div style="display: grid; gap: 0.5rem">
+                  <div id="filterSurveyorContainer"></div>
+                  <div id="filterSamplerContainer"></div>
+                  <div id="filterChemistContainer"></div>
+                </div>
+              </div>
+
+              <!-- Location Filters -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 1.25rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                ></h6>
+                <div style="display: grid; gap: 0.5rem">
+                  <div id="filterTerminalContainer"></div>
+                  <div id="filterBerthContainer"></div>
+                </div>
+              </div>
+
+              <!-- Product Types Filter -->
+              <div
+                class="filter-group"
+                style="
+                  background: var(--bg-secondary);
+                  border-radius: 6px;
+                  padding: 0.75rem;
+                "
+              >
+                <h6
+                  style="
+                    color: var(--text-primary);
+                    font-size: 0.85rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    margin-bottom: 1.25rem;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  "
+                ></h6>
+                <div id="filterProductTypesContainer"></div>
+              </div>
+            </div>
+
+            <!-- Action Buttons - Espaciado y centrado mejorado -->
+            <div
+              class="filter-actions"
+              style="
+                display: flex;
+                gap: 0.75rem;
+                justify-content: center;
+                padding: 1rem 0 0.25rem 0;
+                border-top: 1px solid var(--border-secondary);
+              "
+            >
+              <button
+                class="btn btn-primary-premium ship-form-btn"
+                id="applyFilters"
+                style="
+                  min-width: 120px;
+                  padding: 0.625rem 1.25rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-filter me-1"></i>Apply
+              </button>
+              <button
+                class="btn btn-outline-danger ship-form-btn"
+                id="clearAllFilters"
+                style="
+                  min-width: 120px;
+                  padding: 0.625rem 1.25rem;
+                  font-size: 0.8rem;
+                "
+              >
+                <i class="fas fa-times me-1"></i>Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Table Section -->
+      <div class="container">
+        <div class="ship-table-container">
+          <div class="table-responsive">
+            <table class="table table-dark ship-table" id="vesselsTable">
+              <thead>
+                <tr>
+                  <th>Vessel</th>
+                  <th>AmSpec Ref</th>
+                  <th>Client</th>
+                  <th>Product</th>
+                  <th>ETB</th>
+                  <th>ETC</th>
+                  <th>Berth</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="vesselsTableBody">
+                <!-- Table content will be dynamically generated -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- ⭐ NUEVO: Controles de Paginación -->
+          <div
+            class="pagination-container mt-3"
+            id="paginationContainer"
+            style="display: none"
+          >
+            <div class="row align-items-center">
+              <!-- Información de resultados -->
+              <div class="col-md-6">
+                <span class="text-muted" id="paginationInfo">
+                  Showing 1-25 of 0 results
+                </span>
+              </div>
+
+              <!-- Controles de navegación -->
+              <div class="col-md-6">
+                <nav aria-label="Table pagination">
+                  <ul
+                    class="pagination pagination-sm justify-content-end mb-0"
+                    id="paginationControls"
+                  >
+                    <li class="page-item" id="prevPage">
+                      <button class="page-link" type="button">
+                        <i class="fas fa-chevron-left"></i> Previous
+                      </button>
+                    </li>
+                    <!-- Los números de página se generan dinámicamente -->
+                    <li class="page-item" id="nextPage">
+                      <button class="page-link" type="button">
+                        Next <i class="fas fa-chevron-right"></i>
+                      </button>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ✅ SCRIPTS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+<!-- 🌐 COMPONENTES COMPARTIDOS -->
+<script src="frontend/js/shared/NotificationService.js"></script>
+<script src="frontend/js/shared/singleselect.js"></script>
+<script src="frontend/js/shared/multiselect.js"></script>
+<script src="frontend/js/shared/DateTimePicker.js"></script>
+<script src="frontend/js/shared/DatePicker.js"></script>
+<script src="frontend/js/shared/ApiService.js"></script>
+<script src="frontend/js/shared/DownloadDetectorService.js"></script>
+<script src="frontend/js/shared/NavigationManager.js"></script>
+<script src="frontend/js/shared/SettingsManager.js"></script>
+
+<!-- 📦 MÓDULO SHIP NOMINATION -->
+<script type="module" src="frontend/js/shipNomination/index.js"></script>
+    
+  </body>
+</html>
