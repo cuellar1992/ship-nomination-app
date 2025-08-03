@@ -31,20 +31,32 @@ app.get('/', (req, res) => {
 // Función para iniciar el servidor
 async function startServer() {
     try {
+        // DEBUG: Verificar archivos
+        const fs = require('fs');
+        const indexPath = path.join(__dirname, '..', 'index.html');
+        console.log('🔍 Buscando index.html en:', indexPath);
+        console.log('✅ index.html encontrado:', fs.existsSync(indexPath));
+        
         // Conectar a MongoDB Atlas
         await databaseManager.connect();
         
-        // Iniciar el servidor HTTP
+        const baseUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://seahorse-app-u8jyg.ondigitalocean.app' 
+            : `http://localhost:${PORT}`;
+        
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
-            console.log(`📁 Frontend disponible en http://localhost:${PORT}`);
+            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
+            console.log(`📁 Aplicación disponible en: ${baseUrl}`);
             console.log(`📊 Estado de MongoDB: ${databaseManager.getConnectionStatus()}`);
-            console.log(`📡 API endpoints disponibles:`);
-            console.log(`   • http://localhost:${PORT}/api/test`);
-            console.log(`   • http://localhost:${PORT}/api/info`);
-            console.log(`   • http://localhost:${PORT}/api/health`);
-            console.log(`   • http://localhost:${PORT}/api/ships`);
-            console.log(`   • http://localhost:${PORT}/api/roster`);
+            console.log(`📡 Páginas disponibles:`);
+            console.log(`   • ${baseUrl}/ (index.html)`);
+            console.log(`   • ${baseUrl}/sampling-roster.html`);
+            console.log(`   • ${baseUrl}/ship-nominations.html`);
+            console.log(`📡 API endpoints:`);
+            console.log(`   • ${baseUrl}/api/health`);
+            console.log(`   • ${baseUrl}/api/test`);
+            console.log(`   • ${baseUrl}/api/ships`);
+            console.log(`   • ${baseUrl}/api/roster`);
         });
         
     } catch (error) {
