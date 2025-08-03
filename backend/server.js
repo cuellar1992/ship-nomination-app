@@ -31,11 +31,17 @@ app.get('/', (req, res) => {
 // Función para iniciar el servidor
 async function startServer() {
     try {
-        // DEBUG: Verificar archivos
+        // DEBUG: Verificar archivos en la nueva ubicación
         const fs = require('fs');
-        const indexPath = path.join(__dirname, '..', 'index.html');
+        const indexPath = path.join(__dirname, 'public', 'index.html');
         console.log('🔍 Buscando index.html en:', indexPath);
         console.log('✅ index.html encontrado:', fs.existsSync(indexPath));
+        
+        // Verificar contenido de la carpeta public
+        const publicDir = path.join(__dirname, 'public');
+        if (fs.existsSync(publicDir)) {
+            console.log('📁 Archivos en /public:', fs.readdirSync(publicDir));
+        }
         
         // Conectar a MongoDB Atlas
         await databaseManager.connect();
