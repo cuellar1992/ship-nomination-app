@@ -22,16 +22,16 @@ export const SHIP_NOMINATION_CONSTANTS = {
   
   // Configuración de API endpoints
   API_ENDPOINTS: {
-    SHIP_NOMINATIONS: '/api/shipnominations',
-    CLIENTS: '/api/clients',
-    AGENTS: '/api/agents',
-    TERMINALS: '/api/terminals',
-    BERTHS: '/api/berths',
-    SURVEYORS: '/api/surveyors',
-    SAMPLERS: '/api/samplers',
-    CHEMISTS: '/api/chemists',
-    PRODUCT_TYPES: '/api/producttypes'
-  },
+  SHIP_NOMINATIONS: '/ship-nomination-complete-backend/api/shipnominations',
+  CLIENTS: '/ship-nomination-complete-backend/api/clients',
+  AGENTS: '/ship-nomination-complete-backend/api/agents',
+  TERMINALS: '/ship-nomination-complete-backend/api/terminals',
+  BERTHS: '/ship-nomination-complete-backend/api/berths',
+  SURVEYORS: '/ship-nomination-complete-backend/api/surveyors',
+  SAMPLERS: '/ship-nomination-complete-backend/api/samplers',
+  CHEMISTS: '/ship-nomination-complete-backend/api/chemists',
+  PRODUCT_TYPES: '/ship-nomination-complete-backend/api/producttypes'
+},
   
   // ✅ AGREGAR CONFIGURACIONES FALTANTES:
   SINGLE_SELECT_CONFIG: {

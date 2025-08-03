@@ -31,12 +31,12 @@ export const SAMPLING_ROSTER_CONSTANTS = {
   
   // APIs endpoints
   API_ENDPOINTS: {
-    SHIP_NOMINATIONS: '/api/shipnominations',
-    SAMPLERS: '/api/samplers',
-    SAMPLING_ROSTERS: '/api/sampling-rosters',
-    ROSTER_BY_NOMINATION: '/api/sampling-rosters/by-nomination',
-    AUTO_SAVE: '/api/sampling-rosters/auto-save'
-  },
+  SHIP_NOMINATIONS: '/ship-nomination-complete-backend/api/shipnominations',
+  SAMPLERS: '/ship-nomination-complete-backend/api/samplers',
+  SAMPLING_ROSTERS: '/ship-nomination-complete-backend/api/sampling-rosters',
+  ROSTER_BY_NOMINATION: '/ship-nomination-complete-backend/api/sampling-rosters/by-nomination',
+  AUTO_SAVE: '/ship-nomination-complete-backend/api/sampling-rosters/auto-save'
+},
   
   // Mensajes comunes
   MESSAGES: {

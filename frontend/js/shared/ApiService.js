@@ -6,7 +6,7 @@
 class APIClient {
     constructor() {
         // Base URL para las APIs (como estamos en el mismo servidor, usamos rutas relativas)
-        this.baseURL = '/api';
+        this.baseURL = '/ship-nomination-complete-backend/api';
     }
 
     // Método genérico para hacer requests
