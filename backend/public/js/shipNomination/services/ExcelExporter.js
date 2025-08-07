@@ -318,36 +318,19 @@ class ExcelExporter {
       const dateStr = now.toISOString().split("T")[0];
       const filename = `ship_nominations_${dateStr}.xlsx`;
 
-      // Registrar descarga ANTES de generar
-      window.downloadDetector.registerDownload(
-        filename,
-        // ✅ Callback de éxito - cuando se guarda realmente
-        (savedFilename) => {
-          Logger.success(
-            `Successfully exported ${filteredData.length} records`,
-            {
-              module: "ExcelExporter",
-              showNotification: true,
-              notificationMessage: `Excel file saved successfully! (${filteredData.length} records)`,
-              data: {
-                recordCount: filteredData.length,
-                filename: savedFilename,
-              },
-            }
-          );
-        },
-        // ❌ Callback de cancelación
-        (cancelledFilename) => {
-          Logger.info("Export cancelled by user", {
-            module: "ExcelExporter",
-            showNotification: true,
-            notificationMessage: "Excel export was cancelled",
-          });
-        }
-      );
-
-      // Generar y descargar (SIN notificación de success aquí)
+      // Generar y descargar con notificación simple
       await this.generateAndDownloadExcelJS(filteredData);
+
+      // Mostrar mensaje de éxito
+      Logger.success(`Excel file generated successfully`, {
+        module: "ExcelExporter",
+        showNotification: true,
+        notificationMessage: `Excel file generated: ${filename}`,
+        data: {
+          recordCount: filteredData.length,
+          filename: filename,
+        },
+      });
     } catch (error) {
       Logger.error("Error exporting data to Excel", {
         module: "ExcelExporter",
@@ -554,7 +537,9 @@ class ExcelExporter {
         nomination.clientRef || "",
         nomination.clientName || nomination.client?.name || "",
         nomination.agent?.name || nomination.agent || "",
-        nomination.pilotOnBoard ? this.createLocalDateTime(nomination.pilotOnBoard) : "",
+        nomination.pilotOnBoard
+          ? this.createLocalDateTime(nomination.pilotOnBoard)
+          : "",
         nomination.etb ? this.createLocalDateTime(nomination.etb) : "",
         nomination.etc ? this.createLocalDateTime(nomination.etc) : "",
         nomination.terminal?.name || nomination.terminal || "",
@@ -1086,52 +1071,51 @@ class ExcelExporter {
    */
   createLocalDateTime(utcString) {
     if (!utcString) return "";
-    
+
     try {
-        const utcDate = new Date(utcString);
-        
-        if (isNaN(utcDate.getTime())) {
-            Logger.warn("Invalid date string received", {
-                module: "ExcelExporter",
-                showNotification: false,
-                data: { invalidString: utcString }
-            });
-            return "";
-        }
-        
-        // Convertir a hora local Sydney
-        const localTime = new Date(utcDate.getTime() + (10 * 60 * 60 * 1000));
-        
-        // Formatear como string
-        const day = String(localTime.getUTCDate()).padStart(2, '0');
-        const month = String(localTime.getUTCMonth() + 1).padStart(2, '0');
-        const year = localTime.getUTCFullYear();
-        const hours = String(localTime.getUTCHours()).padStart(2, '0');
-        const minutes = String(localTime.getUTCMinutes()).padStart(2, '0');
-        
-        const formattedString = `${day}/${month}/${year} ${hours}:${minutes}`;
-        
-        Logger.debug("DateTime conversion", {
-            module: "ExcelExporter",
-            data: {
-                original: utcString,
-                formatted: formattedString
-            },
-            showNotification: false
-        });
-        
-        return formattedString;
-        
-    } catch (error) {
-        Logger.error("Error creating local DateTime", {
-            module: "ExcelExporter",
-            error: error,
-            showNotification: false,
-            data: { originalString: utcString }
+      const utcDate = new Date(utcString);
+
+      if (isNaN(utcDate.getTime())) {
+        Logger.warn("Invalid date string received", {
+          module: "ExcelExporter",
+          showNotification: false,
+          data: { invalidString: utcString },
         });
         return "";
+      }
+
+      // Convertir a hora local Sydney
+      const localTime = new Date(utcDate.getTime() + 10 * 60 * 60 * 1000);
+
+      // Formatear como string
+      const day = String(localTime.getUTCDate()).padStart(2, "0");
+      const month = String(localTime.getUTCMonth() + 1).padStart(2, "0");
+      const year = localTime.getUTCFullYear();
+      const hours = String(localTime.getUTCHours()).padStart(2, "0");
+      const minutes = String(localTime.getUTCMinutes()).padStart(2, "0");
+
+      const formattedString = `${day}/${month}/${year} ${hours}:${minutes}`;
+
+      Logger.debug("DateTime conversion", {
+        module: "ExcelExporter",
+        data: {
+          original: utcString,
+          formatted: formattedString,
+        },
+        showNotification: false,
+      });
+
+      return formattedString;
+    } catch (error) {
+      Logger.error("Error creating local DateTime", {
+        module: "ExcelExporter",
+        error: error,
+        showNotification: false,
+        data: { originalString: utcString },
+      });
+      return "";
     }
-}
+  }
 
   /**
    * 📂 Generar nombre de archivo con timestamp

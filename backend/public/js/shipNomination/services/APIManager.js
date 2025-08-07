@@ -3,7 +3,7 @@
  * Migrado desde ship-form-simple.js para mejor modularización
  */
 
-import { SHIP_NOMINATION_CONSTANTS } from '../utils/Constants.js';
+import { SHIP_NOMINATION_CONSTANTS } from "../utils/Constants.js";
 
 class APIManager {
   constructor() {
@@ -16,6 +16,22 @@ class APIManager {
     this.samplersFullData = []; // Cache completo de samplers con IDs
     this.chemistsFullData = []; // Cache completo de chemists con IDs
     this.productTypesFullData = []; // Cache completo de product types con IDs
+    this.baseURL = this.getBaseURL(); //Obtener URL Base
+  }
+
+  /**
+   * Detectar automáticamente la URL base según el entorno
+   */
+  getBaseURL() {
+    const { hostname, protocol } = window.location;
+
+    // Si estamos en desarrollo local
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//${hostname}:3000`;
+    }
+
+    // Si estamos en producción
+    return "";
   }
 
   /**
@@ -34,7 +50,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const clientsResponse = await fetch("/api/clients");
+      const clientsResponse = await fetch(`${this.baseURL}/api/clients`);
       const clientsResult = await clientsResponse.json();
 
       if (clientsResult.success) {
@@ -57,7 +73,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const agentsResponse = await fetch("/api/agents");
+      const agentsResponse = await fetch(`${this.baseURL}/api/agents`);
       const agentsResult = await agentsResponse.json();
 
       if (agentsResult.success) {
@@ -77,7 +93,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const terminalsResponse = await fetch("/api/terminals");
+      const terminalsResponse = await fetch(`${this.baseURL}/api/terminals`);
       const terminalsResult = await terminalsResponse.json();
 
       if (terminalsResult.success) {
@@ -102,7 +118,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const berthsResponse = await fetch("/api/berths");
+      const berthsResponse = await fetch(`${this.baseURL}/api/berths`);
       const berthsResult = await berthsResponse.json();
 
       if (berthsResult.success) {
@@ -122,7 +138,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const surveyorsResponse = await fetch("/api/surveyors");
+      const surveyorsResponse = await fetch(`${this.baseURL}/api/surveyors`);
       const surveyorsResult = await surveyorsResponse.json();
 
       if (surveyorsResult.success) {
@@ -145,7 +161,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const samplersResponse = await fetch("/api/samplers");
+      const samplersResponse = await fetch(`${this.baseURL}/api/samplers`);
       const samplersResult = await samplersResponse.json();
 
       if (samplersResult.success) {
@@ -168,7 +184,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const chemistsResponse = await fetch("/api/chemists");
+      const chemistsResponse = await fetch(`${this.baseURL}/api/chemists`);
       const chemistsResult = await chemistsResponse.json();
 
       if (chemistsResult.success) {
@@ -191,7 +207,9 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const productTypesResponse = await fetch("/api/producttypes");
+      const productTypesResponse = await fetch(
+        `${this.baseURL}/api/producttypes`
+      );
       const productTypesResult = await productTypesResponse.json();
 
       if (productTypesResult.success) {
@@ -334,12 +352,15 @@ class APIManager {
    * @param {Function} onError - Callback de error
    */
   async addItem(fieldId, item, onSuccess, onError) {
+    const itemName = typeof item === 'object' ? item.name : item;
     const config =
-      SINGLE_SELECT_CONFIG[fieldId] || MULTI_SELECT_CONFIG[fieldId];
+      SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId] ||
+      SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
 
     if (config && config.apiEndpoint) {
       try {
-        Logger.info(`Adding "${item}" to ${fieldId} via API`, {
+        const itemName = typeof item === "object" ? item.name : item;
+        Logger.info(`Adding "${itemName}" to ${fieldId} via API`, {
           module: "APIManager",
           data: { fieldId: fieldId, item: item },
           showNotification: false,
@@ -350,15 +371,30 @@ class APIManager {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ name: item }),
+          body: JSON.stringify(
+            typeof item === "object" && item !== null
+              ? {
+                  name: item.name,
+                  ...(item.email &&
+                    item.email.trim() !== "" && { email: item.email.trim() }),
+                  ...(item.phone &&
+                    item.phone.trim() !== "" && { phone: item.phone.trim() }),
+                }
+              : { name: item }
+          ),
         });
 
         const result = await response.json();
 
         if (result.success) {
-          Logger.success(`Added "${item}" to ${fieldId} via API`, {
+          Logger.success(`Added "${itemName}" to ${fieldId} via API`, {
             module: "APIManager",
-            data: { fieldId: fieldId, item: item },
+            data: {
+              fieldId: fieldId,
+              item: itemName,
+              hasEmail: typeof item === "object" && !!item.email,
+              hasPhone: typeof item === "object" && !!item.phone,
+            },
             showNotification: false,
           });
 
@@ -368,10 +404,10 @@ class APIManager {
           if (onSuccess) onSuccess();
 
           // Add
-          Logger.success(`${item} added successfully`, {
+          Logger.success(`${itemName} added successfully`, {
             module: "APIManager",
             showNotification: true,
-            notificationMessage: `${item} added successfully!`,
+            notificationMessage: `${itemName} added successfully!`,
           });
         } else {
           Logger.error("Error adding item via API", {
@@ -422,7 +458,8 @@ class APIManager {
     );
 
     const config =
-      SINGLE_SELECT_CONFIG[fieldId] || MULTI_SELECT_CONFIG[fieldId];
+      SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId] ||
+      SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
 
     if (config && config.apiEndpoint) {
       try {
@@ -531,7 +568,8 @@ class APIManager {
     );
 
     const config =
-      SINGLE_SELECT_CONFIG[fieldId] || MULTI_SELECT_CONFIG[fieldId];
+      SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId] ||
+      SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
 
     if (config && config.apiEndpoint) {
       try {
@@ -633,6 +671,158 @@ class APIManager {
   }
 
   /**
+   * 🆕 NUEVO: Actualizar item con datos extendidos via API
+   * @param {string} fieldId - ID del campo
+   * @param {Object} updatedData - Datos actualizados {name, email, phone, etc.}
+   * @param {Object} originalData - Datos originales
+   * @param {Function} onSuccess - Callback de éxito
+   * @param {Function} onError - Callback de error
+   */
+  async updateItem(fieldId, updatedData, originalData, onSuccess, onError) {
+    Logger.debug(`updateItem called with fieldId="${fieldId}"`, {
+      module: "APIManager",
+      data: {
+        fieldId: fieldId,
+        updatedName: updatedData.name,
+        originalName: originalData.name || originalData,
+        hasEmail: !!updatedData.email,
+        hasPhone: !!updatedData.phone,
+      },
+      showNotification: false,
+    });
+
+    const config =
+      SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId] ||
+      SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
+
+    if (config && config.apiEndpoint) {
+      try {
+        // Encontrar el item completo con ID usando el nombre original
+        const originalName = originalData.name || originalData;
+        const itemData = this.findItemByName(config.apiEndpoint, originalName);
+
+        if (!itemData) {
+          Logger.error(`Item not found in ${config.apiEndpoint}`, {
+            module: "APIManager",
+            data: { originalName: originalName, endpoint: config.apiEndpoint },
+            showNotification: true,
+            notificationMessage: `Item "${originalName}" not found`,
+          });
+          if (onError) onError(`Item "${originalName}" not found`);
+          return;
+        }
+
+        Logger.info(
+          `Updating "${originalName}" with extended data (ID: ${itemData._id}) via API`,
+          {
+            module: "APIManager",
+            data: {
+              originalName: originalName,
+              newName: updatedData.name,
+              itemId: itemData._id,
+              hasEmail: !!updatedData.email,
+              hasPhone: !!updatedData.phone,
+            },
+            showNotification: false,
+          }
+        );
+
+        // Preparar datos para enviar (solo enviar campos que tienen valor)
+        const requestBody = { name: updatedData.name };
+
+        if (updatedData.email !== undefined) {
+          requestBody.email =
+            updatedData.email && updatedData.email.trim() !== ""
+              ? updatedData.email.trim()
+              : null;
+        }
+
+        if (updatedData.phone !== undefined) {
+          requestBody.phone =
+            updatedData.phone && updatedData.phone.trim() !== ""
+              ? updatedData.phone.trim()
+              : null;
+        }
+
+        const response = await fetch(`${config.apiEndpoint}/${itemData._id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const result = await response.json();
+        Logger.debug("PUT response with extended data", {
+          module: "APIManager",
+          data: { response: result },
+          showNotification: false,
+        });
+
+        if (result.success) {
+          Logger.success(
+            `Updated "${originalName}" with extended data via API`,
+            {
+              module: "APIManager",
+              data: {
+                originalName: originalName,
+                newName: updatedData.name,
+                email: updatedData.email || "(no email)",
+                phone: updatedData.phone || "(no phone)",
+              },
+              showNotification: false,
+            }
+          );
+
+          // Recargar datos
+          await this.loadApiData();
+
+          if (onSuccess) onSuccess();
+
+          // Notificación de éxito
+          Logger.success(`${originalName} updated successfully`, {
+            module: "APIManager",
+            showNotification: true,
+            notificationMessage: `${originalName} updated successfully!`,
+          });
+        } else {
+          Logger.error("Error updating item with extended data via API", {
+            module: "APIManager",
+            error: new Error(result.message),
+            showNotification: true,
+            notificationMessage: `Error: ${result.message}`,
+          });
+          if (onError) onError(`Error: ${result.message}`);
+        }
+      } catch (error) {
+        Logger.error("Error updating item with extended data", {
+          module: "APIManager",
+          error: error,
+          showNotification: true,
+          notificationMessage: "Error updating item. Please try again.",
+        });
+        if (onError) onError("Error updating item. Please try again.");
+      }
+    } else {
+      // Fallback: usar método simple para retrocompatibilidad
+      Logger.debug(`Falling back to simple edit for ${fieldId}`, {
+        module: "APIManager",
+        data: { fieldId: fieldId },
+        showNotification: false,
+      });
+
+      const originalName = originalData.name || originalData;
+      await this.editItem(
+        fieldId,
+        originalName,
+        updatedData.name,
+        onSuccess,
+        onError
+      );
+    }
+  }
+
+  /**
    * Validar AmSpec Reference en tiempo real
    * @param {string} amspecRef - Referencia AmSpec
    * @returns {Promise<string|null>} Error message o null si es válido
@@ -641,7 +831,7 @@ class APIManager {
     if (!amspecRef || amspecRef.trim().length < 3) return null;
     try {
       const response = await fetch(
-        `/api/shipnominations/check-amspec/${encodeURIComponent(
+        `${this.baseURL}/api/shipnominations/check-amspec/${encodeURIComponent(
           amspecRef.trim()
         )}`
       );
@@ -664,7 +854,9 @@ class APIManager {
     if (!clientRef || clientRef.trim().length === 0) return null;
     try {
       const response = await fetch(
-        `/api/shipnominations/check-clientref/${encodeURIComponent(
+        `${
+          this.baseURL
+        }/api/shipnominations/check-clientref/${encodeURIComponent(
           clientRef.trim()
         )}`
       );

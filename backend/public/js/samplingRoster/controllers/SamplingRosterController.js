@@ -3,14 +3,14 @@
  * Coordinador principal que usa todos los servicios
  */
 
-import { SAMPLING_ROSTER_CONSTANTS } from '/frontend/js/samplingRoster/utils/Constants.js';
-import DateUtils from '/frontend/js/samplingRoster/utils/DateUtils.js';
-import ApiService from '/frontend/js/samplingRoster/services/ApiService.js';
-import ValidationService from '/frontend/js/samplingRoster/services/ValidationService.js';
-import AutoSaveService from '/frontend/js/samplingRoster/services/AutoSaveService.js';
-import ScheduleCalculator from '/frontend/js/samplingRoster/services/ScheduleCalculator.js';
-import UIManager from '/frontend/js/samplingRoster/ui/UIManager.js';
-import TableManager from '/frontend/js/samplingRoster/ui/TableManager.js';
+import { SAMPLING_ROSTER_CONSTANTS } from "../utils/Constants.js";
+import DateUtils from "../utils/DateUtils.js";
+import ApiService from "../services/ApiService.js";
+import ValidationService from "../services/ValidationService.js";
+import AutoSaveService from "../services/AutoSaveService.js";
+import ScheduleCalculator from "../services/ScheduleCalculator.js";
+import UIManager from "../ui/UIManager.js";
+import TableManager from "../ui/TableManager.js";
 
 export class SamplingRosterController {
   constructor() {
@@ -19,20 +19,36 @@ export class SamplingRosterController {
     this.validationService = ValidationService;
     this.autoSaveService = new AutoSaveService();
     this.scheduleCalculator = ScheduleCalculator;
-    
+
     // UI Managers
     this.uiManager = new UIManager();
     this.tableManager = new TableManager();
-    
+
     // Estado
     this.shipNominationsData = [];
     this.selectedShipNomination = null;
     this.isInitialized = false;
+    this.baseURL = this.getBaseURL();
 
     Logger.info("SamplingRosterController initialized (modular version)", {
       module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
       showNotification: false,
     });
+  }
+
+  /**
+   * Detectar automáticamente la URL base según el entorno
+   */
+  getBaseURL() {
+    const { hostname, protocol } = window.location;
+
+    // Si estamos en desarrollo local
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//${hostname}:3000`;
+    }
+
+    // Si estamos en producción
+    return "";
   }
 
   /**
@@ -65,7 +81,8 @@ export class SamplingRosterController {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         error: error,
         showNotification: true,
-        notificationMessage: "Failed to initialize Sampling Roster. Please refresh the page.",
+        notificationMessage:
+          "Failed to initialize Sampling Roster. Please refresh the page.",
       });
     }
   }
@@ -75,7 +92,7 @@ export class SamplingRosterController {
    */
   async loadShipNominations() {
     const result = await this.apiService.loadShipNominations();
-    
+
     if (result.success) {
       this.shipNominationsData = result.data;
       Logger.success("Ship nominations loaded", {
@@ -98,88 +115,92 @@ export class SamplingRosterController {
    * Crear componentes de UI
    */
   createUIComponents() {
-  // Flag para evitar callbacks durante limpieza
-  this.isClearing = false;
+    // Flag para evitar callbacks durante limpieza
+    this.isClearing = false;
 
-  // Crear DateTimePickers CON PROTECCIÓN AVANZADA
-  this.uiManager.createDateTimePickers((dateTime) => {
-    // ✅ DOBLE PROTECCIÓN: No ejecutar durante limpieza Y validar ship nomination
-    if (!this.isClearing && this.selectedShipNomination) {
-      try {
-        this.validateDateTimeSequence();
-        this.calculateAndUpdateETC();
-      } catch (error) {
-        Logger.error("Error in DateTimePicker callback", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          error: error,
-          showNotification: false,
-        });
+    // Crear DateTimePickers CON PROTECCIÓN AVANZADA
+    this.uiManager.createDateTimePickers((dateTime) => {
+      // ✅ DOBLE PROTECCIÓN: No ejecutar durante limpieza Y validar ship nomination
+      if (!this.isClearing && this.selectedShipNomination) {
+        try {
+          this.validateDateTimeSequence();
+          this.calculateAndUpdateETC();
+        } catch (error) {
+          Logger.error("Error in DateTimePicker callback", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            error: error,
+            showNotification: false,
+          });
+        }
       }
-    }
-  });
+    });
 
-  // Resto del método...
-  this.uiManager.createShipNominationSelector(
-    this.shipNominationsData,
-    (selectedDisplayText, selectorItems) => {
-      this.handleShipNominationSelection(selectedDisplayText, selectorItems);
-    }
-  );
+    // Resto del método...
+    this.uiManager.createShipNominationSelector(
+      this.shipNominationsData,
+      (selectedDisplayText, selectorItems) => {
+        this.handleShipNominationSelection(selectedDisplayText, selectorItems);
+      }
+    );
 
-  Logger.success("UI components created", {
-    module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-    showNotification: false,
-  });
-}
+    Logger.success("UI components created", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      showNotification: false,
+    });
+  }
 
   /**
    * Manejar selección de ship nomination
    */
   async handleShipNominationSelection(selectedDisplayText, selectorItems) {
-  // ✅ FIX: Si no hay selección, solo limpiar los campos SIN llamar clearAll()
-  if (!selectedDisplayText) {
-    // Limpiar estado sin crear bucle infinito
-    this.selectedShipNomination = null;
-    this.autoSaveService.clearState();
-    this.uiManager.updateSaveStatus(SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.SAVED);
-    
-    // Limpiar campos y tablas directamente (SIN clearAll)
-    this.uiManager.clearVesselInfoFields();
-    this.tableManager.clearOfficeSamplingTable();
-    this.tableManager.clearLineSamplingTable();
-    
-    return; // ✅ SALIR sin llamar clearAll()
+    // ✅ FIX: Si no hay selección, solo limpiar los campos SIN llamar clearAll()
+    if (!selectedDisplayText) {
+      // Limpiar estado sin crear bucle infinito
+      this.selectedShipNomination = null;
+      this.autoSaveService.clearState();
+      this.uiManager.updateSaveStatus(
+        SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.SAVED
+      );
+
+      // Limpiar campos y tablas directamente (SIN clearAll)
+      this.uiManager.clearVesselInfoFields();
+      this.tableManager.clearOfficeSamplingTable();
+      this.tableManager.clearLineSamplingTable();
+
+      return; // ✅ SALIR sin llamar clearAll()
+    }
+
+    const selectedItem = selectorItems.find(
+      (item) => item.displayText === selectedDisplayText
+    );
+    if (selectedItem) {
+      this.selectedShipNomination = selectedItem.originalData;
+
+      // Verificar si existe roster
+      await this.loadOrCreateRoster(this.selectedShipNomination._id);
+
+      // Poblar campos
+      this.populateVesselInfo();
+
+      Logger.success("Vessel information populated", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: `Loaded vessel: ${this.selectedShipNomination.vesselName}`,
+      });
+    }
   }
-
-  const selectedItem = selectorItems.find(item => item.displayText === selectedDisplayText);
-  if (selectedItem) {
-    this.selectedShipNomination = selectedItem.originalData;
-
-    // Verificar si existe roster
-    await this.loadOrCreateRoster(this.selectedShipNomination._id);
-
-    // Poblar campos
-    this.populateVesselInfo();
-
-    Logger.success("Vessel information populated", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      showNotification: true,
-      notificationMessage: `Loaded vessel: ${this.selectedShipNomination.vesselName}`,
-    });
-  }
-}
 
   /**
    * Cargar roster existente o preparar nuevo
    */
   async loadOrCreateRoster(nominationId) {
     const result = await this.apiService.checkExistingRoster(nominationId);
-    
+
     if (result.success && result.exists) {
       // Cargar roster existente
       this.autoSaveService.setCurrentRosterId(result.data._id);
       await this.loadExistingRoster(result.data);
-      
+
       Logger.success("Existing roster loaded", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         showNotification: true,
@@ -189,7 +210,7 @@ export class SamplingRosterController {
       // Preparar para nuevo roster
       this.autoSaveService.clearState();
       this.tableManager.clearLineSamplingTable();
-      
+
       Logger.info("Ready for new roster", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         showNotification: true,
@@ -204,9 +225,11 @@ export class SamplingRosterController {
   async loadExistingRoster(rosterData) {
     // Cargar tiempos en DateTimePickers
     const dateTimeInstances = this.uiManager.getDateTimeInstances();
-    
+
     if (rosterData.startDischarge) {
-      dateTimeInstances.startDischarge.setDateTime(new Date(rosterData.startDischarge));
+      dateTimeInstances.startDischarge.setDateTime(
+        new Date(rosterData.startDischarge)
+      );
     }
     if (rosterData.etcTime) {
       dateTimeInstances.etcTime.setDateTime(new Date(rosterData.etcTime));
@@ -214,7 +237,10 @@ export class SamplingRosterController {
 
     // Cargar discharge time hours
     if (rosterData.dischargeTimeHours) {
-      this.uiManager.setFieldValue("dischargeTimeHours", rosterData.dischargeTimeHours.toString());
+      this.uiManager.setFieldValue(
+        "dischargeTimeHours",
+        rosterData.dischargeTimeHours.toString()
+      );
     }
 
     // Cargar tablas
@@ -240,13 +266,34 @@ export class SamplingRosterController {
     // Campos básicos
     this.uiManager.setFieldValue("vesselName", nomination.vesselName);
     this.uiManager.setFieldValue("amspecRef", nomination.amspecRef);
-    this.uiManager.setFieldValue("berthName", nomination.berth?.name || nomination.berth || "");
-    this.uiManager.setFieldValue("pilotOnBoard", DateUtils.formatDateTime(nomination.pilotOnBoard));
-    this.uiManager.setFieldValue("etbTime", DateUtils.formatDateTime(nomination.etb));
-    this.uiManager.setFieldValue("cargoProducts", this.uiManager.formatProductTypes(nomination.productTypes));
-    this.uiManager.setFieldValue("surveyorName", nomination.surveyor?.name || nomination.surveyor || "");
-    this.uiManager.setFieldValue("preDischargeChemist", nomination.chemist?.name || nomination.chemist || "");
-    this.uiManager.setFieldValue("postDischargeChemist", nomination.chemist?.name || nomination.chemist || "");
+    this.uiManager.setFieldValue(
+      "berthName",
+      nomination.berth?.name || nomination.berth || ""
+    );
+    this.uiManager.setFieldValue(
+      "pilotOnBoard",
+      DateUtils.formatDateTime(nomination.pilotOnBoard)
+    );
+    this.uiManager.setFieldValue(
+      "etbTime",
+      DateUtils.formatDateTime(nomination.etb)
+    );
+    this.uiManager.setFieldValue(
+      "cargoProducts",
+      this.uiManager.formatProductTypes(nomination.productTypes)
+    );
+    this.uiManager.setFieldValue(
+      "surveyorName",
+      nomination.surveyor?.name || nomination.surveyor || ""
+    );
+    this.uiManager.setFieldValue(
+      "preDischargeChemist",
+      nomination.chemist?.name || nomination.chemist || ""
+    );
+    this.uiManager.setFieldValue(
+      "postDischargeChemist",
+      nomination.chemist?.name || nomination.chemist || ""
+    );
 
     // Configurar DateTimePickers
     this.setupInitialDateTimes(nomination);
@@ -265,7 +312,10 @@ export class SamplingRosterController {
     if (nomination.etb) {
       // Start Discharge = ETB + 3 horas
       const startDischargeTime = new Date(nomination.etb);
-      startDischargeTime.setHours(startDischargeTime.getHours() + SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET);
+      startDischargeTime.setHours(
+        startDischargeTime.getHours() +
+          SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+      );
       dateTimeInstances.startDischarge.setDateTime(startDischargeTime);
     }
 
@@ -279,25 +329,27 @@ export class SamplingRosterController {
    * Limpiar todo
    */
   clearAll() {
-  // ✅ ACTIVAR FLAG DE LIMPIEZA
-  this.isClearing = true;
+    // ✅ ACTIVAR FLAG DE LIMPIEZA
+    this.isClearing = true;
 
-  const shipSelector = this.uiManager.getShipNominationSelector();
-  if (shipSelector) {
-    shipSelector.clearSelection();
+    const shipSelector = this.uiManager.getShipNominationSelector();
+    if (shipSelector) {
+      shipSelector.clearSelection();
+    }
+
+    this.uiManager.clearVesselInfoFields();
+    this.tableManager.clearOfficeSamplingTable();
+    this.tableManager.clearLineSamplingTable();
+
+    this.selectedShipNomination = null;
+    this.autoSaveService.clearState();
+    this.uiManager.updateSaveStatus(
+      SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.SAVED
+    );
+
+    // ✅ DESACTIVAR FLAG DE LIMPIEZA
+    this.isClearing = false;
   }
-
-  this.uiManager.clearVesselInfoFields();
-  this.tableManager.clearOfficeSamplingTable();
-  this.tableManager.clearLineSamplingTable();
-  
-  this.selectedShipNomination = null;
-  this.autoSaveService.clearState();
-  this.uiManager.updateSaveStatus(SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.SAVED);
-
-  // ✅ DESACTIVAR FLAG DE LIMPIEZA
-  this.isClearing = false;
-}
 
   /**
    * Setup event listeners principales
@@ -312,7 +364,9 @@ export class SamplingRosterController {
     // Botón Auto Generate
     const autoGenerateBtn = document.getElementById("autoGenerateBtn");
     if (autoGenerateBtn) {
-      autoGenerateBtn.addEventListener("click", () => this.handleAutoGenerate());
+      autoGenerateBtn.addEventListener("click", () =>
+        this.handleAutoGenerate()
+      );
     }
 
     // Campo Discharge Time Hours
@@ -320,7 +374,9 @@ export class SamplingRosterController {
     if (dischargeTimeField) {
       dischargeTimeField.addEventListener("input", () => {
         this.calculateAndUpdateETC();
-        this.autoSaveService.triggerAutoSave("dischargeTimeChange", () => this.collectCurrentRosterData());
+        this.autoSaveService.triggerAutoSave("dischargeTimeChange", () =>
+          this.collectCurrentRosterData()
+        );
       });
     }
   }
@@ -352,7 +408,7 @@ export class SamplingRosterController {
       const action = button.dataset.action;
       const rowId = button.dataset.rowId;
 
-      if (action === "edit" && rowId !== "line-sampler-row-0") {
+      if (action === "edit") {
         this.editLineSampler(rowId);
       } else if (action === "save") {
         this.saveLineSamplerEdit(rowId);
@@ -368,8 +424,11 @@ export class SamplingRosterController {
     const startDischarge = dateTimeInstances.startDischarge?.getDateTime();
     const etcTime = dateTimeInstances.etcTime?.getDateTime();
 
-    const validation = this.validationService.validateDateTimeSequence(startDischarge, etcTime);
-    
+    const validation = this.validationService.validateDateTimeSequence(
+      startDischarge,
+      etcTime
+    );
+
     if (!validation.isValid) {
       Logger.warn(validation.message, {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -389,12 +448,17 @@ export class SamplingRosterController {
     const startDischarge = dateTimeInstances.startDischarge?.getDateTime();
     const dischargeHours = this.getDischargeTimeHours();
 
-    const etcTime = this.scheduleCalculator.calculateETC(startDischarge, dischargeHours);
-    
+    const etcTime = this.scheduleCalculator.calculateETC(
+      startDischarge,
+      dischargeHours
+    );
+
     if (etcTime) {
       dateTimeInstances.etcTime.setDateTime(etcTime);
       this.validateDateTimeSequence();
-      this.autoSaveService.triggerAutoSave("timeCalculation", () => this.collectCurrentRosterData());
+      this.autoSaveService.triggerAutoSave("timeCalculation", () =>
+        this.collectCurrentRosterData()
+      );
     }
   }
 
@@ -414,7 +478,10 @@ export class SamplingRosterController {
    */
   async handleAutoGenerate() {
     // Validaciones
-    const shipValidation = this.validationService.validateShipNominationSelected(this.selectedShipNomination);
+    const shipValidation =
+      this.validationService.validateShipNominationSelected(
+        this.selectedShipNomination
+      );
     if (!shipValidation.isValid) {
       Logger.warn(shipValidation.message, {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -424,7 +491,8 @@ export class SamplingRosterController {
       return;
     }
 
-    const officeValidation = this.validationService.validateOfficeSamplingExists();
+    const officeValidation =
+      this.validationService.validateOfficeSamplingExists();
     if (!officeValidation.isValid) {
       Logger.warn(officeValidation.message, {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -435,7 +503,8 @@ export class SamplingRosterController {
     }
 
     const dischargeHours = this.getDischargeTimeHours();
-    const hoursValidation = this.validationService.validateDischargeTimeHours(dischargeHours);
+    const hoursValidation =
+      this.validationService.validateDischargeTimeHours(dischargeHours);
     if (!hoursValidation.isValid) {
       Logger.warn(hoursValidation.message, {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -447,7 +516,9 @@ export class SamplingRosterController {
 
     try {
       await this.generateLineSamplingSchedule(dischargeHours);
-      this.autoSaveService.triggerAutoSaveImmediate("autoGenerate", () => this.collectCurrentRosterData());
+      this.autoSaveService.triggerAutoSaveImmediate("autoGenerate", () =>
+        this.collectCurrentRosterData()
+      );
 
       Logger.success("Line Sampling Schedule generated successfully", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -479,10 +550,11 @@ export class SamplingRosterController {
     }
 
     const lineTurns = await this.scheduleCalculator.calculateLineSamplingTurns(
-  officeData,
-  totalDischargeHours,
-  samplersResult.data
-);
+      officeData,
+      totalDischargeHours,
+      samplersResult.data,
+      this.autoSaveService.getCurrentRosterId() // Agregar currentRosterId
+    );
 
     this.tableManager.populateLineSamplingTable(lineTurns);
     this.setupTableEventListeners();
@@ -507,21 +579,27 @@ export class SamplingRosterController {
       etcTime: etcTime,
       dischargeTimeHours: dischargeHours || 0,
       totalTurns: lineData.length,
-      totalSamplers: new Set(lineData.map(t => t.samplerName)).size,
+      totalSamplers: new Set(lineData.map((t) => t.samplerName)).size,
 
-      officeSampling: officeData ? {
-        sampler: {
-          id: this.selectedShipNomination.sampler?.id || this.selectedShipNomination.sampler,
-          name: officeData.samplerName,
-        },
-        startTime: DateUtils.parseDateTime(officeData.startTime),
-        finishTime: DateUtils.parseDateTime(officeData.finishTime),
-        hours: parseInt(officeData.hours) || 6,
-      } : null,
+      officeSampling: officeData
+        ? {
+            sampler: {
+              id:
+                this.selectedShipNomination.sampler?.id ||
+                this.selectedShipNomination.sampler,
+              name: officeData.samplerName,
+            },
+            startTime: DateUtils.parseDateTime(officeData.startTime),
+            finishTime: DateUtils.parseDateTime(officeData.finishTime),
+            hours: parseInt(officeData.hours) || 6,
+          }
+        : null,
 
       lineSampling: lineData.map((turn, index) => ({
         sampler: {
-          id: this.selectedShipNomination.sampler?.id || this.selectedShipNomination.sampler,
+          id:
+            this.selectedShipNomination.sampler?.id ||
+            this.selectedShipNomination.sampler,
           name: turn.samplerName,
         },
         startTime: DateUtils.parseDateTime(turn.startTime),
@@ -581,14 +659,19 @@ export class SamplingRosterController {
       samplerCell.appendChild(dropdown);
 
       // AHORA inicializar SingleSelect (después de que esté en DOM)
-      await this.initializeSamplerSelector(dropdown, samplersData, currentSampler);
+      await this.initializeSamplerSelector(
+        dropdown,
+        samplersData,
+        currentSampler
+      );
 
       // Transformar botón EDIT → SAVE
       editButton.innerHTML = '<i class="fas fa-check"></i>';
       editButton.setAttribute("data-action", "save");
       editButton.setAttribute("title", "Save Changes");
       editButton.className = "btn btn-primary-premium btn-edit-item";
-      editButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+      editButton.style.cssText =
+        "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
 
       Logger.success("Edit mode activated", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -599,6 +682,9 @@ export class SamplingRosterController {
         },
         showNotification: false,
       });
+
+      document.addEventListener("keydown", this.handleEditKeydown);
+
     } catch (error) {
       Logger.error("Error activating edit mode", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -625,7 +711,9 @@ export class SamplingRosterController {
     const samplerCell = row.querySelector("td:first-child");
     const actionCell = row.querySelector("td:last-child");
     const saveButton = actionCell.querySelector('button[data-action="save"]');
-    const dropdownContainer = samplerCell.querySelector('div[id^="samplerDropdown_"]');
+    const dropdownContainer = samplerCell.querySelector(
+      'div[id^="samplerDropdown_"]'
+    );
 
     if (!samplerCell || !saveButton || !dropdownContainer) return;
 
@@ -637,7 +725,8 @@ export class SamplingRosterController {
       }
 
       // Obtener nuevo valor seleccionado
-      const newSamplerName = samplerSelector.getSelectedItem() || "No Sampler Assigned";
+      const newSamplerName =
+        samplerSelector.getSelectedItem() || "No Sampler Assigned";
       const originalValue = samplerCell.getAttribute("data-original-value");
 
       // Limpiar la instancia SingleSelect
@@ -652,7 +741,8 @@ export class SamplingRosterController {
       saveButton.setAttribute("data-action", "edit");
       saveButton.setAttribute("title", "Edit Sampler");
       saveButton.className = "btn btn-secondary-premium btn-edit-item";
-      saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+      saveButton.style.cssText =
+        "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
 
       // Log del cambio
       if (newSamplerName !== originalValue) {
@@ -667,10 +757,14 @@ export class SamplingRosterController {
           notificationMessage: `Sampler updated to: ${newSamplerName}`,
         });
 
-        this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () => this.collectCurrentRosterData());
+        this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () =>
+          this.collectCurrentRosterData()
+        );
 
         // ✅ Sincronizar también primera fila de Line Sampling (row 0)
-        const firstLineRow = document.querySelector('tr[data-row-id="line-sampler-row-0"]');
+        const firstLineRow = document.querySelector(
+          'tr[data-row-id="line-sampler-row-0"]'
+        );
         if (firstLineRow) {
           const samplerCell = firstLineRow.querySelector("td:first-child");
 
@@ -678,14 +772,17 @@ export class SamplingRosterController {
           if (samplerCell && samplerCell.textContent.trim() === originalValue) {
             samplerCell.innerHTML = `<span class="fw-medium">${newSamplerName}</span>`;
 
-            Logger.info("Line Sampling row 0 updated to match Office Sampling", {
-              module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-              data: {
-                from: originalValue,
-                to: newSamplerName,
-              },
-              showNotification: false,
-            });
+            Logger.info(
+              "Line Sampling row 0 updated to match Office Sampling",
+              {
+                module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+                data: {
+                  from: originalValue,
+                  to: newSamplerName,
+                },
+                showNotification: false,
+              }
+            );
           }
         }
       } else {
@@ -703,6 +800,7 @@ export class SamplingRosterController {
         notificationMessage: "Unable to save changes. Please try again.",
       });
     }
+    document.removeEventListener("keydown", this.handleEditKeydown);
   }
 
   /**
@@ -742,21 +840,29 @@ export class SamplingRosterController {
       samplerCell.setAttribute("data-original-value", currentSampler);
 
       // Crear contenedor y agregarlo al DOM PRIMERO
-      const dropdown = this.createLineSamplerDropdown(samplersData, currentSampler);
+      const dropdown = this.createLineSamplerDropdown(
+        samplersData,
+        currentSampler
+      );
 
       // Reemplazar contenido de la celda con el contenedor
       samplerCell.innerHTML = "";
       samplerCell.appendChild(dropdown);
 
       // AHORA inicializar SingleSelect (después de que esté en DOM)
-      await this.initializeLineSamplerSelector(dropdown, samplersData, currentSampler);
+      await this.initializeLineSamplerSelector(
+        dropdown,
+        samplersData,
+        currentSampler
+      );
 
       // Transformar botón EDIT → SAVE
       editButton.innerHTML = '<i class="fas fa-check"></i>';
       editButton.setAttribute("data-action", "save");
       editButton.setAttribute("title", "Save Changes");
       editButton.className = "btn btn-primary-premium btn-edit-item";
-      editButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+      editButton.style.cssText =
+        "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
 
       Logger.success("Line sampler edit mode activated", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -767,6 +873,9 @@ export class SamplingRosterController {
         },
         showNotification: false,
       });
+      
+      document.addEventListener("keydown", this.handleEditKeydown);
+
     } catch (error) {
       Logger.error("Error activating line sampler edit mode", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -778,96 +887,113 @@ export class SamplingRosterController {
   }
 
   /**
-   * 🆕 Guardar edición de Line Sampler con validación de 12h máximo - RESTAURADO
-   */
-  saveLineSamplerEdit(rowId) {
-    Logger.info("Save line sampler edit requested", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: { rowId: rowId },
-      showNotification: false,
-    });
+ * 🆕 Guardar edición de Line Sampler con validación completa (MODIFICADO)
+ * Reemplaza: saveLineSamplerEdit
+ */
+async saveLineSamplerEdit(rowId) {
+  Logger.info("Save line sampler edit requested", {
+    module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+    data: { rowId: rowId },
+    showNotification: false,
+  });
 
-    const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
-    if (!row) return;
+  const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+  if (!row) return;
 
-    const samplerCell = row.querySelector("td:first-child");
-    const actionCell = row.querySelector("td:last-child");
-    const saveButton = actionCell.querySelector('button[data-action="save"]');
-    const dropdownContainer = samplerCell.querySelector('div[id^="lineSamplerDropdown_"]');
+  const samplerCell = row.querySelector("td:first-child");
+  const actionCell = row.querySelector("td:last-child");
+  const saveButton = actionCell.querySelector('button[data-action="save"]');
+  const dropdownContainer = samplerCell.querySelector('div[id^="lineSamplerDropdown_"]');
 
-    if (!samplerCell || !saveButton || !dropdownContainer) return;
+  if (!samplerCell || !saveButton || !dropdownContainer) return;
 
-    try {
-      // Obtener SingleSelect instance
-      const samplerSelector = dropdownContainer.samplerSelector;
-      if (!samplerSelector) {
-        throw new Error("SingleSelect instance not found");
+  try {
+    // Obtener SingleSelect instance
+    const samplerSelector = dropdownContainer.samplerSelector;
+    if (!samplerSelector) {
+      throw new Error("SingleSelect instance not found");
+    }
+
+    // Obtener nuevo valor seleccionado
+    const newSamplerName = samplerSelector.getSelectedItem() || "No Sampler Assigned";
+    const originalValue = samplerCell.getAttribute("data-original-value");
+
+    // ✅ USAR VALIDACIÓN COMPLETA (igual que autogenerate)
+    const validationResult = await this.validateSamplerForEdit(newSamplerName, rowId);
+    
+    if (!validationResult.isValid) {
+      // Mostrar mensaje específico según el tipo de validación que falló
+      let errorMessage = validationResult.message;
+      
+      if (validationResult.details?.weekly && !validationResult.details.weekly.isValid) {
+        errorMessage = validationResult.details.weekly.message;
+      } else if (validationResult.details?.rest && !validationResult.details.rest.isValid) {
+        errorMessage = validationResult.details.rest.message;
+      } else if (validationResult.details?.crossRoster && !validationResult.details.crossRoster.isAvailable) {
+        errorMessage = "Sampler not available - conflict with another vessel";
       }
 
-      // Obtener nuevo valor seleccionado
-      const newSamplerName = samplerSelector.getSelectedItem() || "No Sampler Assigned";
-      const originalValue = samplerCell.getAttribute("data-original-value");
-
-      // Validar que el sampler no exceda 12 horas totales
-      const validationResult = this.validateSamplerHours(newSamplerName, rowId);
-      if (!validationResult.isValid) {
-        Logger.warn("Sampler hours validation failed", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          data: {
-            sampler: newSamplerName,
-            totalHours: validationResult.totalHours,
-            maxHours: 12,
-          },
-          showNotification: true,
-          notificationMessage: `${newSamplerName} would exceed 12 hours limit (${validationResult.totalHours}h total)`,
-        });
-        return; // No guardar si excede límite
-      }
-
-      // Limpiar la instancia SingleSelect
-      samplerSelector.destroy();
-
-      // Restaurar contenido de la celda
-      samplerCell.innerHTML = `<span class="fw-medium">${newSamplerName}</span>`;
-      samplerCell.removeAttribute("data-original-value");
-
-      // Restaurar botón SAVE → EDIT
-      saveButton.innerHTML = '<i class="fas fa-edit"></i>';
-      saveButton.setAttribute("data-action", "edit");
-      saveButton.setAttribute("title", "Edit Sampler");
-      saveButton.className = "btn btn-secondary-premium btn-edit-item";
-      saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
-
-      // Log del cambio
-      if (newSamplerName !== originalValue) {
-        Logger.success("Line sampler updated successfully", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          data: {
-            rowId: rowId,
-            from: originalValue,
-            to: newSamplerName,
-            totalHours: validationResult.totalHours,
-          },
-          showNotification: true,
-          notificationMessage: `Line sampler updated to: ${newSamplerName}`,
-        });
-        this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () => this.collectCurrentRosterData());
-      } else {
-        Logger.info("No changes made to line sampler", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          data: { rowId: rowId, sampler: newSamplerName },
-          showNotification: false,
-        });
-      }
-    } catch (error) {
-      Logger.error("Error saving line sampler edit", {
+      Logger.warn("Sampler validation failed for manual edit", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        error: error,
+        data: {
+          sampler: newSamplerName,
+          rowId: rowId,
+          reason: errorMessage,
+          weeklyValidation: validationResult.details?.weekly?.message || "N/A",
+          restValidation: validationResult.details?.rest?.message || "N/A",
+        },
         showNotification: true,
-        notificationMessage: "Unable to save changes. Please try again.",
+        notificationMessage: errorMessage,
+      });
+      return; // No guardar si falla validación
+    }
+
+    // Limpiar la instancia SingleSelect
+    samplerSelector.destroy();
+
+    // Restaurar contenido de la celda
+    samplerCell.innerHTML = `<span class="fw-medium">${newSamplerName}</span>`;
+    samplerCell.removeAttribute("data-original-value");
+
+    // Restaurar botón SAVE → EDIT
+    saveButton.innerHTML = '<i class="fas fa-edit"></i>';
+    saveButton.setAttribute("data-action", "edit");
+    saveButton.setAttribute("title", "Edit Sampler");
+    saveButton.className = "btn btn-secondary-premium btn-edit-item";
+    saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+
+    // Log del cambio
+    if (newSamplerName !== originalValue) {
+      Logger.success("Line sampler updated successfully", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          rowId: rowId,
+          from: originalValue,
+          to: newSamplerName,
+          weeklyValidation: validationResult.details?.weekly?.message || "N/A",
+          crossRosterValidation: validationResult.details?.crossRoster?.isAvailable ? "Available" : "Conflicts found",
+        },
+        showNotification: true,
+        notificationMessage: `Line sampler updated to: ${newSamplerName}`,
+      });
+      this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () => this.collectCurrentRosterData());
+    } else {
+      Logger.info("No changes made to line sampler", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: { rowId: rowId, sampler: newSamplerName },
+        showNotification: false,
       });
     }
+  } catch (error) {
+    Logger.error("Error saving line sampler edit", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      error: error,
+      showNotification: true,
+      notificationMessage: "Unable to save changes. Please try again.",
+    });
   }
+  document.removeEventListener("keydown", this.handleEditKeydown);
+}
 
   // ==================================================================================
   // 🔧 MÉTODOS AUXILIARES PARA EDICIÓN - RESTAURADOS DESDE BACKUP
@@ -883,7 +1009,7 @@ export class SamplingRosterController {
         showNotification: false,
       });
 
-      const response = await fetch("/api/samplers");
+      const response = await fetch(`${this.baseURL}/api/samplers`);
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -1088,64 +1214,111 @@ export class SamplingRosterController {
   }
 
   /**
-   * 🆕 Validar que un sampler no exceda 12 horas totales - RESTAURADO
-   */
-  validateSamplerHours(samplerName, excludeRowId = null) {
-    let totalHours = 0;
-
-    // Verificar horas en Office Sampling
-    const officeRow = document.querySelector('tr[data-row-id="office-sampler-row"]');
-    if (officeRow) {
-      const officeSamplerCell = officeRow.querySelector("td:first-child");
-      const officeHoursCell = officeRow.querySelector("td:nth-child(4)");
-
-      if (officeSamplerCell && officeHoursCell) {
-        const officeSampler = officeSamplerCell.textContent.trim();
-        const officeHours = parseInt(officeHoursCell.textContent.trim()) || 0;
-
-        if (officeSampler === samplerName) {
-          totalHours += officeHours;
-        }
-      }
-    }
-
-    // Verificar horas en Line Sampling (excluyendo la fila que se está editando)
-    const lineRows = document.querySelectorAll('tr[data-row-id^="line-sampler-row-"]');
-    lineRows.forEach((row) => {
-      const currentRowId = row.getAttribute("data-row-id");
-
-      // Excluir la fila que se está editando
-      if (currentRowId === excludeRowId) return;
-
-      const lineSamplerCell = row.querySelector("td:first-child");
-      const lineHoursCell = row.querySelector("td:nth-child(4)");
-
-      if (lineSamplerCell && lineHoursCell) {
-        const lineSampler = lineSamplerCell.textContent.trim();
-        const lineHours = parseInt(lineHoursCell.textContent.trim()) || 0;
-
-        if (lineSampler === samplerName) {
-          totalHours += lineHours;
-        }
-      }
-    });
-
-    Logger.debug("Sampler hours validation", {
+ * 🆕 Validar sampler para edición manual (VALIDACIÓN COMPLETA)
+ * Reemplaza: validateSamplerHours
+ */
+async validateSamplerForEdit(samplerName, excludeRowId = null) {
+  try {
+    Logger.debug("Validating sampler for manual edit", {
       module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
       data: {
         samplerName: samplerName,
-        totalHours: totalHours,
-        isValid: totalHours <= 12,
         excludeRowId: excludeRowId,
       },
       showNotification: false,
     });
 
+    // Obtener datos actuales del roster
+    const officeData = this.tableManager.getOfficeSamplingData();
+    const lineData = this.tableManager.getCurrentLineTurns();
+    const currentRosterId = this.autoSaveService.getCurrentRosterId();
+
+    // Encontrar el turno que se está editando
+    const editingTurn = this.findTurnBeingEdited(excludeRowId, lineData);
+    if (!editingTurn) {
+      return {
+        isValid: false,
+        message: "Cannot find turn being edited",
+      };
+    }
+
+    // Usar las mismas validaciones del autogenerate
+    const validations = await ValidationService.validateSamplerForGeneration(
+      samplerName,
+      DateUtils.parseDateTime(editingTurn.startTime),
+      DateUtils.parseDateTime(editingTurn.finishTime),
+      this.getFilteredLineData(lineData, excludeRowId), // Excluir turno editado
+      officeData,
+      currentRosterId
+    );
+
+    Logger.debug("Manual edit validation completed", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      data: {
+        samplerName: samplerName,
+        isValid: validations.overall.isValid,
+        weeklyValidation: validations.weekly?.message || "N/A",
+        restValidation: validations.rest.message,
+        crossRosterValidation: validations.crossRoster.isAvailable,
+      },
+      showNotification: false,
+    });
+
+    // Formatear respuesta para compatibilidad con código existente
     return {
-      isValid: totalHours <= 12,
-      totalHours: totalHours,
+      isValid: validations.overall.isValid,
+      message: validations.overall.message,
+      details: {
+        weekly: validations.weekly,
+        rest: validations.rest,
+        crossRoster: validations.crossRoster,
+      },
+      // Para compatibilidad con código legacy
+      totalHours: validations.weekly?.totalHours || 0,
+    };
+
+  } catch (error) {
+    Logger.error("Error validating sampler for edit", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      error: error,
+      showNotification: false,
+    });
+
+    return {
+      isValid: false,
+      message: `Validation error: ${error.message}`,
     };
   }
+}
+
+/**
+ * 🆕 Encontrar turno que se está editando
+ */
+findTurnBeingEdited(excludeRowId, lineData) {
+  if (!excludeRowId || !lineData) return null;
+
+  // Extraer índice del rowId (ej: "line-sampler-row-2" -> índice 2)
+  const match = excludeRowId.match(/line-sampler-row-(\d+)/);
+  if (!match) return null;
+
+  const index = parseInt(match[1]);
+  return lineData[index] || null;
+}
+
+/**
+ * 🆕 Obtener line data filtrada (sin turno editado)
+ */
+getFilteredLineData(lineData, excludeRowId) {
+  if (!excludeRowId || !lineData) return lineData;
+
+  // Extraer índice del rowId
+  const match = excludeRowId.match(/line-sampler-row-(\d+)/);
+  if (!match) return lineData;
+
+  const excludeIndex = parseInt(match[1]);
+  return lineData.filter((turn, index) => index !== excludeIndex);
+}
+
 
   // ==================================================================================
   // 📋 MÉTODOS PÚBLICOS ORIGINALES - SIN CAMBIOS
@@ -1172,12 +1345,106 @@ export class SamplingRosterController {
     if (shipSelector) {
       shipSelector.destroy();
     }
-    
+
     this.autoSaveService.clearState();
     this.shipNominationsData = [];
     this.selectedShipNomination = null;
     this.isInitialized = false;
   }
+
+  /**
+ * 🆕 Cancelar edición de sampler (Escape key)
+ */
+cancelSamplerEdit(rowId) {
+  Logger.info("Cancel sampler edit requested", {
+    module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+    data: { rowId: rowId },
+    showNotification: false,
+  });
+
+  const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+  if (!row) return;
+
+  const samplerCell = row.querySelector("td:first-child");
+  const actionCell = row.querySelector("td:last-child");
+  const saveButton = actionCell.querySelector('button[data-action="save"]');
+  const dropdownContainer = samplerCell.querySelector('div[id^="samplerDropdown_"], div[id^="lineSamplerDropdown_"]');
+
+  if (!samplerCell || !saveButton || !dropdownContainer) return;
+
+  try {
+    // Obtener valor original
+    const originalValue = samplerCell.getAttribute("data-original-value") || "No Sampler Assigned";
+
+    // Obtener y limpiar SingleSelect instance
+    const samplerSelector = dropdownContainer.samplerSelector;
+    if (samplerSelector) {
+      samplerSelector.destroy();
+    }
+
+    // Restaurar contenido original de la celda
+    samplerCell.innerHTML = `<span class="fw-medium">${originalValue}</span>`;
+    samplerCell.removeAttribute("data-original-value");
+
+    // Restaurar botón SAVE → EDIT
+    saveButton.innerHTML = '<i class="fas fa-edit"></i>';
+    saveButton.setAttribute("data-action", "edit");
+    saveButton.setAttribute("title", "Edit Sampler");
+    saveButton.className = "btn btn-secondary-premium btn-edit-item";
+    saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+
+    // Remover event listener de teclado
+    document.removeEventListener("keydown", this.handleEditKeydown);
+
+    Logger.success("Sampler edit cancelled", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      data: {
+        rowId: rowId,
+        restoredValue: originalValue,
+      },
+      showNotification: true,
+      notificationMessage: "Edit cancelled",
+    });
+
+  } catch (error) {
+    Logger.error("Error cancelling sampler edit", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      error: error,
+      showNotification: true,
+      notificationMessage: "Error cancelling edit. Please refresh the page.",
+    });
+  }
+}
+
+/**
+ * 🆕 Manejar teclas durante edición
+ */
+handleEditKeydown = (event) => {
+  // Verificar si hay alguna edición activa
+  const editingRow = document.querySelector('tr button[data-action="save"]');
+  if (!editingRow) return;
+
+  const rowId = editingRow.getAttribute("data-row-id");
+  if (!rowId) return;
+
+  switch (event.key) {
+    case "Escape":
+      event.preventDefault();
+      this.cancelSamplerEdit(rowId);
+      break;
+      
+    case "Enter":
+      event.preventDefault();
+      // Determinar si es office o line sampler
+      if (rowId === "office-sampler-row") {
+        this.saveSamplerEdit(rowId);
+      } else if (rowId.startsWith("line-sampler-row-")) {
+        this.saveLineSamplerEdit(rowId);
+      }
+      break;
+  }
+}
+
 }
 
 export default SamplingRosterController;

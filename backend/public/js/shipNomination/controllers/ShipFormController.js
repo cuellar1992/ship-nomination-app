@@ -13,6 +13,7 @@ import { PaginationManager } from "../ui/PaginationManager.js";
 import { FormHandler } from "../handlers/FormHandler.js";
 import { CRUDOperations } from "../handlers/CRUDOperations.js";
 import { Utils } from "../utils/Utils.js";
+import { SHIP_NOMINATION_CONSTANTS } from "../utils/Constants.js";
 
 class ShipFormController {
   constructor() {
@@ -105,8 +106,10 @@ class ShipFormController {
       {
         onItemAdd: (fieldId, item) => this.addItem(fieldId, item),
         onItemRemove: (fieldId, item) => this.removeItem(fieldId, item),
-        onItemEdit: (fieldId, oldName, newName) =>
-          this.editItem(fieldId, oldName, newName),
+        onItemEdit: (fieldId, updatedData, originalData, index) =>
+          this.editItem(fieldId, updatedData, originalData, index),
+        onGetItemData: (fieldId, itemName) =>
+          this.getItemData(fieldId, itemName),
       }
     );
 
@@ -558,26 +561,125 @@ class ShipFormController {
   /**
    * Editar item a través del API Manager
    * @param {string} fieldId - ID del campo
-   * @param {string} oldName - Nombre actual
-   * @param {string} newName - Nuevo nombre
+   * @param {Object|string} updatedDataOrOldName - Datos actualizados (modo extendido) o nombre antiguo (modo simple)
+   * @param {Object|string} originalDataOrNewName - Datos originales (modo extendido) o nombre nuevo (modo simple)
+   * @param {number} index - Índice del item (solo modo extendido)
    */
-  async editItem(fieldId, oldName, newName) {
-    await this.apiManager.editItem(
-      fieldId,
-      oldName,
-      newName,
-      // onSuccess callback - SIMPLIFICADO
-      async () => {
-        await this.apiManager.loadApiData();
-        if (this.tableFilters) {
-          this.tableFilters.refreshData();
+  async editItem(fieldId, updatedDataOrOldName, originalDataOrNewName, index) {
+    // 🆕 DETECCIÓN DE MODO: Verificar si es modo extendido o simple
+    const isExtendedMode =
+      typeof updatedDataOrOldName === "object" &&
+      updatedDataOrOldName !== null &&
+      updatedDataOrOldName.name;
+
+    if (isExtendedMode) {
+      // NUEVO: Modo extendido con datos completos (samplers, chemists, surveyors)
+      const updatedData = updatedDataOrOldName;
+      const originalData = originalDataOrNewName;
+
+      await this.apiManager.updateItem(
+        fieldId,
+        updatedData,
+        originalData,
+        // onSuccess callback
+        async () => {
+          await this.apiManager.loadApiData();
+          if (this.tableFilters) {
+            this.tableFilters.refreshData();
+          }
+        },
+        // onError callback
+        (error) => {
+          alert(error);
         }
-      },
-      // onError callback
-      (error) => {
-        alert(error);
+      );
+    } else {
+      // EXISTENTE: Modo simple solo con nombres (clients, agents, etc.)
+      const oldName = updatedDataOrOldName;
+      const newName = originalDataOrNewName;
+
+      await this.apiManager.editItem(
+        fieldId,
+        oldName,
+        newName,
+        // onSuccess callback
+        async () => {
+          await this.apiManager.loadApiData();
+          if (this.tableFilters) {
+            this.tableFilters.refreshData();
+          }
+        },
+        // onError callback
+        (error) => {
+          alert(error);
+        }
+      );
+    }
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener datos completos de un item por nombre
+   * @param {string} fieldId - ID del campo
+   * @param {string} itemName - Nombre del item
+   * @returns {Object|null} Datos completos del item
+   */
+  getItemData(fieldId, itemName) {
+    try {
+      // Obtener configuración del campo
+      const config = SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId];
+
+      if (!config || !config.apiEndpoint) {
+        Logger.debug(`No API endpoint for ${fieldId}, returning basic data`, {
+          module: "ShipFormController",
+          data: { fieldId: fieldId, itemName: itemName },
+          showNotification: false,
+        });
+        return { name: itemName };
       }
-    );
+
+      // Usar APIManager para buscar datos completos
+      const itemData = this.apiManager.findItemByName(
+        config.apiEndpoint,
+        itemName
+      );
+
+      if (itemData) {
+        Logger.debug(`Found complete data for ${itemName}`, {
+          module: "ShipFormController",
+          data: {
+            fieldId: fieldId,
+            itemName: itemName,
+            hasEmail: !!itemData.email,
+            hasPhone: !!itemData.phone,
+          },
+          showNotification: false,
+        });
+
+        return {
+          name: itemData.name,
+          email: itemData.email || null,
+          phone: itemData.phone || null,
+          createdAt: itemData.createdAt || null,
+          updatedAt: itemData.updatedAt || null,
+        };
+      } else {
+        Logger.warn(`Item ${itemName} not found in ${config.apiEndpoint}`, {
+          module: "ShipFormController",
+          data: { fieldId: fieldId, itemName: itemName },
+          showNotification: false,
+        });
+
+        return { name: itemName };
+      }
+    } catch (error) {
+      Logger.error(`Error getting item data for ${itemName}`, {
+        module: "ShipFormController",
+        error: error,
+        showNotification: false,
+      });
+
+      return { name: itemName };
+    }
   }
 
   /**

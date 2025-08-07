@@ -5,8 +5,21 @@
 
 class APIClient {
     constructor() {
-        // Base URL para las APIs (como estamos en el mismo servidor, usamos rutas relativas)
-        this.baseURL = '/ship-nomination-complete-backend/api';
+        // Detectar automáticamente el entorno y configurar la URL base
+        this.baseURL = this.getBaseURL();
+    }
+
+    // Método para detectar automáticamente la URL base según el entorno
+    getBaseURL() {
+        const { hostname, protocol, port } = window.location;
+        
+        // Si estamos en desarrollo local
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return `${protocol}//${hostname}:3000/api`;
+        }
+        
+        // Si estamos en producción
+        return `/api`;
     }
 
     // Método genérico para hacer requests

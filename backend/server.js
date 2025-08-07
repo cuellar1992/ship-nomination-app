@@ -18,7 +18,7 @@ app.use(express.json()); // Para parsear JSON
 app.use(express.urlencoded({ extended: true })); // Para parsear formularios
 
 // Servir archivos estáticos desde la carpeta raíz del proyecto
-app.use(express.static(path.join(__dirname, '..')));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Usar las rutas API organizadas
 app.use('/api', apiRoutes);

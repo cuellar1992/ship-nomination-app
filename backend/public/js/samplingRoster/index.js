@@ -7,6 +7,7 @@
  */
 
 import SamplingRosterController from './controllers/SamplingRosterController.js';
+import { SamplingRosterExporter } from './services/SamplingRosterExporter.js';
 
 /**
  * Inicialización cuando el DOM esté listo
@@ -24,7 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (
           typeof SingleSelect !== "undefined" &&
           typeof Logger !== "undefined" &&
-          typeof DateTimePicker !== "undefined"
+          typeof DateTimePicker !== "undefined" &&
+          typeof ExcelJS !== "undefined"
         ) {
           resolve();
         } else {
@@ -41,6 +43,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Crear instancia global usando la nueva arquitectura modular
     window.samplingRosterController = new SamplingRosterController();
     await window.samplingRosterController.init();
+
+    // Inicializar exportador
+    window.samplingRosterExporter = new SamplingRosterExporter(window.samplingRosterController);
+
+    // Configurar observador para actualizar visibilidad del botón
+    const observer = new MutationObserver(() => {
+      if (window.samplingRosterExporter && typeof window.samplingRosterExporter.updateVisibility === 'function') {
+        window.samplingRosterExporter.updateVisibility();
+      }
+    });
+
+    // Observar cambios en las tablas para mostrar/ocultar botón export
+    const observeTarget = document.querySelector('.main-content');
+    if (observeTarget) {
+      observer.observe(observeTarget, {
+        childList: true,
+        subtree: true
+      });
+    }
 
     Logger.success("Modular Sampling Roster System ready", {
       module: "SamplingRoster",

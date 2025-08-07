@@ -7,6 +7,17 @@ export const SAMPLING_ROSTER_CONSTANTS = {
   OFFICE_SAMPLING_HOURS: 6,
   MAX_SAMPLER_HOURS: 12,
   MINIMUM_REST_HOURS: 10,
+  
+  // 🆕 Límites semanales por sampler (Laura, Ruben, Sakib = 24h/semana)
+  SAMPLER_LIMITS: {
+    WEEKLY_LIMITS: {
+      'Laura': 24,
+      'Ruben': 24,
+      'Sakib': 24
+      // Otros samplers sin límite (no listados = sin límite)
+    }
+  },
+  
   DEFAULT_DISCHARGE_START_OFFSET: 3, // horas después de ETB
   
   // Bloques horarios
@@ -29,13 +40,25 @@ export const SAMPLING_ROSTER_CONSTANTS = {
     NIGHT: 'night'
   },
   
-  // APIs endpoints
-  API_ENDPOINTS: {
-  SHIP_NOMINATIONS: '/ship-nomination-complete-backend/api/shipnominations',
-  SAMPLERS: '/ship-nomination-complete-backend/api/samplers',
-  SAMPLING_ROSTERS: '/ship-nomination-complete-backend/api/sampling-rosters',
-  ROSTER_BY_NOMINATION: '/ship-nomination-complete-backend/api/sampling-rosters/by-nomination',
-  AUTO_SAVE: '/ship-nomination-complete-backend/api/sampling-rosters/auto-save'
+  // APIs endpoints - Detección automática de entorno
+get API_ENDPOINTS() {
+  const getBaseURL = () => {
+    const { hostname, protocol } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:3000`;
+    }
+    return '';
+  };
+  
+  const baseURL = getBaseURL();
+  
+  return {
+    SHIP_NOMINATIONS: `${baseURL}/api/shipnominations`,
+    SAMPLERS: `${baseURL}/api/samplers`,
+    SAMPLING_ROSTERS: `${baseURL}/api/sampling-rosters`,
+    ROSTER_BY_NOMINATION: `${baseURL}/api/sampling-rosters/by-nomination`,
+    AUTO_SAVE: `${baseURL}/api/sampling-rosters/auto-save`
+  };
 },
   
   // Mensajes comunes

@@ -7,140 +7,233 @@
  * Clase utilitaria para mostrar modales de eliminación profesionales
  */
 class DeleteConfirmationModal {
-    
-    static async show(options) {
-        const {
-            itemName,
-            itemType = 'Item',
-            componentName = 'Component',
-            onConfirm,
-            onCancel
-        } = options;
+  static async show(options) {
+    const {
+      itemName,
+      itemType = "Item",
+      componentName = "Component",
+      itemDetails = null, // 🆕 NUEVA PROPIEDAD
+      onConfirm,
+      onCancel,
+    } = options;
 
-        return new Promise((resolve) => {
-            // HTML del modal adaptado para componentes
-            const modalHtml = `
-                <div class="modal fade" id="deleteItemConfirmModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="deleteItemModalLabel" aria-hidden="true">
-                    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
-                        <div class="modal-content settings-modal">
-                            <div class="modal-header settings-header" style="padding: 1rem 1.25rem; border-bottom: 2px solid #dc3545;">
-                                <h5 class="modal-title settings-title" id="deleteItemModalLabel" style="font-size: 1rem; color: #dc3545;">
-                                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete
-                                </h5>
-                                <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
-                            </div>
-                            <div class="modal-body settings-body" style="padding: 1.25rem; text-align: center;">
-                                <div style="margin-bottom: 1rem;">
-                                    <i class="fas fa-trash-alt" style="font-size: 3rem; color: #dc3545; opacity: 0.8;"></i>
-                                </div>
-                                
-                                <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 1rem;">
-                                    Are you sure you want to delete this ${itemType.toLowerCase()}?
-                                </p>
-                                
-                                <div style="
-                                    background: var(--bg-secondary);
-                                    border: 2px solid #dc3545;
-                                    border-radius: 8px;
-                                    padding: 1rem;
-                                    margin-bottom: 1rem;
-                                ">
-                                    <div style="display: flex; align-items: center; gap: 0.75rem; justify-content: center;">
-                                        <i class="fas fa-tag" style="color: var(--accent-primary); font-size: 1.1rem;"></i>
-                                        <div>
-                                            <div style="color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; font-weight: 600;">
-                                                ${itemType}
-                                            </div>
-                                            <div style="color: var(--text-primary); font-weight: 600; font-size: 1.1rem;">
-                                                "${itemName}"
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div style="
-                                    background: rgba(255, 193, 7, 0.1);
-                                    border: 1px solid #ffc107;
-                                    border-radius: 6px;
-                                    padding: 0.75rem;
-                                    margin-bottom: 0.5rem;
-                                ">
-                                    <p style="color: #ffc107; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                                        <i class="fas fa-exclamation-triangle"></i>
-                                        <span>This action cannot be undone</span>
-                                    </p>
-                                </div>
-                                
-                                <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
-                                    From: ${componentName}
-                                </p>
-                            </div>
-                            <div class="modal-footer settings-footer" style="padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-secondary); gap: 0.75rem;">
-                                <button type="button" class="btn btn-secondary-premium" id="cancelDeleteItemBtn" style="
-                                    padding: 0.5rem 1rem;
-                                    font-size: 0.85rem;
-                                    min-width: 100px;
-                                ">
-                                    <i class="fas fa-times me-1"></i>Cancel
-                                </button>
-                                <button type="button" class="btn btn-outline-danger" id="confirmDeleteItemBtn" style="
-                                    padding: 0.5rem 1rem;
-                                    font-size: 0.85rem;
-                                    min-width: 100px;
-                                ">
-                                    <i class="fas fa-trash me-1"></i>Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
+    return new Promise((resolve) => {
+      // 🆕 GENERAR HTML DE DETALLES EXTENDIDOS
+      let extendedDetailsHtml = "";
+
+      if (itemDetails) {
+        extendedDetailsHtml = `
+        <div style="
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-secondary);
+          border-radius: 6px;
+          padding: 0.75rem;
+          margin: 1rem 0;
+          text-align: left;
+        ">
+          <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; font-weight: 600; margin-bottom: 0.5rem;">
+            ${itemType} Details
+          </div>
+          
+          <div style="display: grid; gap: 0.4rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fas fa-tag" style="color: var(--accent-primary); font-size: 0.8rem; width: 12px;"></i>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Name:</span>
+              <span style="color: var(--text-primary); font-weight: 500; font-size: 0.85rem;">${itemName}</span>
+            </div>
             
-            const existingModal = document.getElementById('deleteItemConfirmModal');
-            if (existingModal) {
-                existingModal.remove();
+            ${
+              itemDetails.email !== "(no email)" && itemDetails.email
+                ? `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fas fa-envelope" style="color: var(--accent-primary); font-size: 0.8rem; width: 12px;"></i>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Email:</span>
+              <span style="color: var(--text-primary); font-size: 0.85rem;">${itemDetails.email}</span>
+            </div>
+            `
+                : ""
             }
             
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            ${
+              itemDetails.phone !== "(no phone)" && itemDetails.phone
+                ? `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fas fa-phone" style="color: var(--accent-primary); font-size: 0.8rem; width: 12px;"></i>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Phone:</span>
+              <span style="color: var(--text-primary); font-size: 0.85rem;">${itemDetails.phone}</span>
+            </div>
+            `
+                : ""
+            }
             
-            const modal = document.getElementById('deleteItemConfirmModal');
-            const cancelBtn = document.getElementById('cancelDeleteItemBtn');
-            const confirmBtn = document.getElementById('confirmDeleteItemBtn');
+            ${
+              itemDetails.createdAt
+                ? `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fas fa-calendar-plus" style="color: var(--accent-primary); font-size: 0.8rem; width: 12px;"></i>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Created:</span>
+              <span style="color: var(--text-primary); font-size: 0.85rem;">${new Date(
+                itemDetails.createdAt
+              ).toLocaleDateString()}</span>
+            </div>
+            `
+                : ""
+            }
             
-            const bootstrapModal = new bootstrap.Modal(modal);
-            
-            const cleanup = (confirmed) => {
-                bootstrapModal.hide();
-                
-                if (confirmed && onConfirm) {
-                    onConfirm();
-                } else if (!confirmed && onCancel) {
-                    onCancel();
-                }
-                
-                resolve(confirmed);
-            };
-            
-            cancelBtn.addEventListener('click', () => cleanup(false));
-            confirmBtn.addEventListener('click', () => cleanup(true));
-            
-            modal.addEventListener('hidden.bs.modal', () => {
-                modal.remove();
-            });
-            
-            modal.querySelector('.btn-close').addEventListener('click', () => cleanup(false));
-            
-            bootstrapModal.show();
-            
-            setTimeout(() => {
-                cancelBtn.focus();
-            }, 300);
-        });
-    }
+            ${
+              itemDetails.updatedAt &&
+              itemDetails.updatedAt !== itemDetails.createdAt
+                ? `
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <i class="fas fa-edit" style="color: var(--accent-primary); font-size: 0.8rem; width: 12px;"></i>
+              <span style="color: var(--text-secondary); font-size: 0.8rem;">Updated:</span>
+              <span style="color: var(--text-primary); font-size: 0.85rem;">${new Date(
+                itemDetails.updatedAt
+              ).toLocaleDateString()}</span>
+            </div>
+            `
+                : ""
+            }
+          </div>
+        </div>
+      `;
+      } else {
+        // MODO SIMPLE: Solo mostrar nombre como antes
+        extendedDetailsHtml = `
+        <div style="
+          background: var(--bg-secondary);
+          border: 2px solid #dc3545;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+        ">
+          <div style="display: flex; align-items: center; gap: 0.75rem; justify-content: center;">
+            <i class="fas fa-tag" style="color: var(--accent-primary); font-size: 1.1rem;"></i>
+            <div>
+              <div style="color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; font-weight: 600;">
+                ${itemType}
+              </div>
+              <div style="color: var(--text-primary); font-weight: 600; font-size: 1.1rem;">
+                "${itemName}"
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      }
+
+      // HTML del modal (resto igual, pero con detalles extendidos)
+      const modalHtml = `
+      <div class="modal fade" id="deleteItemConfirmModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="deleteItemModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+          <div class="modal-content settings-modal">
+            <div class="modal-header settings-header" style="padding: 1rem 1.25rem; border-bottom: 2px solid #dc3545;">
+              <h5 class="modal-title settings-title" id="deleteItemModalLabel" style="font-size: 1rem; color: #dc3545;">
+                <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete
+              </h5>
+              <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close" style="font-size: 0.8rem;"></button>
+            </div>
+            <div class="modal-body settings-body" style="padding: 1.25rem; text-align: center;">
+              <div style="margin-bottom: 1rem;">
+                <i class="fas fa-trash-alt" style="font-size: 3rem; color: #dc3545; opacity: 0.8;"></i>
+              </div>
+              
+              <p style="color: var(--text-primary); font-size: 1rem; margin-bottom: 1rem;">
+                Are you sure you want to delete this ${itemType.toLowerCase()}?
+              </p>
+              
+              ${extendedDetailsHtml}
+              
+              <div style="
+                background: rgba(255, 193, 7, 0.1);
+                border: 1px solid #ffc107;
+                border-radius: 6px;
+                padding: 0.75rem;
+                margin-bottom: 0.5rem;
+              ">
+                <p style="color: #ffc107; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <span>This action cannot be undone</span>
+                </p>
+              </div>
+              
+              <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0;">
+                From: ${componentName}
+              </p>
+            </div>
+            <div class="modal-footer settings-footer" style="padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-secondary); gap: 0.75rem;">
+              <button type="button" class="btn btn-secondary-premium" id="cancelDeleteItemBtn" style="
+                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+                min-width: 100px;
+              ">
+                <i class="fas fa-times me-1"></i>Cancel
+              </button>
+              <button type="button" class="btn btn-outline-danger" id="confirmDeleteItemBtn" style="
+                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+                min-width: 100px;
+              ">
+                <i class="fas fa-trash me-1"></i>Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+      // Resto del código igual (event listeners, etc.)
+      const existingModal = document.getElementById("deleteItemConfirmModal");
+      if (existingModal) {
+        existingModal.remove();
+      }
+
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      const modal = document.getElementById("deleteItemConfirmModal");
+      const cancelBtn = document.getElementById("cancelDeleteItemBtn");
+      const confirmBtn = document.getElementById("confirmDeleteItemBtn");
+
+      const bootstrapModal = new bootstrap.Modal(modal);
+
+      const cleanup = (confirmed) => {
+        bootstrapModal.hide();
+
+        if (confirmed && onConfirm) {
+          onConfirm();
+        } else if (!confirmed && onCancel) {
+          onCancel();
+        }
+
+        resolve(confirmed);
+      };
+
+      cancelBtn.addEventListener("click", () => cleanup(false));
+      confirmBtn.addEventListener("click", () => cleanup(true));
+
+      modal.addEventListener("hidden.bs.modal", () => {
+        modal.remove();
+      });
+
+      modal
+        .querySelector(".btn-close")
+        .addEventListener("click", () => cleanup(false));
+
+      bootstrapModal.show();
+
+      setTimeout(() => {
+        cancelBtn.focus();
+      }, 300);
+    });
+  }
 }
 
 class SingleSelect {
   constructor(containerId, options = {}) {
+    console.log(`SingleSelect constructor for ${containerId}:`, {
+      useExtendedEdit: options.useExtendedEdit,
+      extendedFields: options.extendedFields?.length,
+    });
     this.containerId = containerId;
     this.container = null;
     this.selectedItem = null;
@@ -168,7 +261,11 @@ class SingleSelect {
       onItemAdd: options.onItemAdd || null,
       onItemEdit: options.onItemEdit || null,
       onItemRemove: options.onItemRemove || null,
+      onGetItemData: options.onGetItemData || null,
       closeOnScroll: options.closeOnScroll !== false, // Default true
+
+      useExtendedEdit: options.useExtendedEdit || false,
+      extendedFields: options.extendedFields || [],
     };
 
     this.init();
@@ -620,13 +717,25 @@ class SingleSelect {
     );
 
     if (addItemBtn) {
-      addItemBtn.addEventListener("click", () => this.addNewItem());
+      addItemBtn.addEventListener("click", () => {
+        // 🆕 DETECCIÓN DE MODO EXTENDIDO AQUÍ TAMBIÉN
+        if (this.config.useExtendedEdit) {
+          this.openAddMiniModal();
+        } else {
+          this.addNewItem();
+        }
+      });
     }
 
     if (newItemInput) {
       newItemInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
-          this.addNewItem();
+          // 🆕 DETECCIÓN DE MODO EXTENDIDO PARA ENTER KEY
+          if (this.config.useExtendedEdit) {
+            this.openAddMiniModal();
+          } else {
+            this.addNewItem();
+          }
         }
       });
     }
@@ -870,7 +979,413 @@ class SingleSelect {
     modal.show();
   }
 
+  /**
+   * 🆕 NUEVO: Abrir mini modal para agregar item con campos extendidos
+   */
+  openAddMiniModal() {
+    const miniModalId = `${this.containerId}_addMiniModal`;
+
+    // Remover modal existente si existe
+    const existingModal = document.getElementById(miniModalId);
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Crear HTML del mini modal
+    const miniModalHtml = this.createAddMiniModalHTML(miniModalId);
+    document.body.insertAdjacentHTML("beforeend", miniModalHtml);
+
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById(miniModalId));
+    modal.show();
+
+    // Setup event listeners
+    this.setupAddMiniModalEvents(miniModalId, modal);
+
+    // Auto-focus en primer campo
+    setTimeout(() => {
+      const firstInput = document.querySelector(
+        `#${miniModalId} input[type="text"]`
+      );
+      if (firstInput) {
+        firstInput.focus();
+      }
+    }, 300);
+  }
+
+  /**
+   * 🆕 NUEVO: Crear HTML del mini modal para agregar (VERSIÓN LIMPIA)
+   */
+  createAddMiniModalHTML(miniModalId) {
+    const fields = this.config.extendedFields || [];
+
+    // Campo nombre (siempre requerido)
+    let fieldsHTML = `
+    <div class="mb-3">
+      <label class="form-label">
+        <i class="${this.config.icon} me-2"></i>
+        Name *
+      </label>
+      <input type="text" 
+             class="form-control ship-form-input" 
+             id="${miniModalId}_name"
+             placeholder="Enter ${this.config.label.toLowerCase()} name..."
+             required>
+    </div>
+  `;
+
+    // Campos extendidos (email, phone, etc.)
+    fields.forEach((field) => {
+      fieldsHTML += `
+      <div class="mb-3">
+        <label class="form-label">
+          <i class="fas fa-${
+            field.type === "email" ? "envelope" : "phone"
+          } me-2"></i>
+          ${field.label}${field.required ? " *" : ""}
+        </label>
+        <input type="${field.type}" 
+               class="form-control ship-form-input" 
+               id="${miniModalId}_${field.name}"
+               placeholder="${field.placeholder}"
+               ${field.required ? "required" : ""}>
+      </div>
+    `;
+    });
+
+    return `
+    <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
+        <div class="modal-content settings-modal">
+          <div class="modal-header settings-header">
+            <h5 class="modal-title settings-title" id="${miniModalId}Label">
+              <i class="fas fa-plus me-2"></i>
+              Add New ${this.config.label}
+            </h5>
+            <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body settings-body">
+            ${fieldsHTML}
+          </div>
+          <div class="modal-footer settings-footer">
+  <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+    <i class="fas fa-times me-1"></i>Cancel
+  </button>
+  <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+    <i class="fas fa-plus me-1"></i>Add ${this.config.label}
+  </button>
+</div>
+        </div>
+      </div>
+    </div>
+  `;
+  }
+
+  /**
+   * 🆕 NUEVO: Setup event listeners para mini modal de agregar (VERSIÓN LIMPIA)
+   */
+  setupAddMiniModalEvents(miniModalId, modal) {
+    const saveBtn = document.getElementById(`${miniModalId}_saveBtn`);
+    const nameInput = document.getElementById(`${miniModalId}_name`);
+
+    const saveItem = () => {
+      const name = nameInput.value.trim();
+
+      if (!name) {
+        this.showNotification(
+          `Please enter a ${this.config.label.toLowerCase()} name`,
+          "error"
+        );
+        nameInput.focus();
+        return;
+      }
+
+      if (this.allItems.includes(name)) {
+        this.showNotification(`${this.config.label} already exists`, "error");
+        nameInput.focus();
+        nameInput.select();
+        return;
+      }
+
+      // Recopilar datos extendidos
+      const extendedData = { name };
+
+      if (this.config.extendedFields) {
+        this.config.extendedFields.forEach((field) => {
+          const input = document.getElementById(`${miniModalId}_${field.name}`);
+          if (input && input.value.trim()) {
+            // Validar campo si tiene validación
+            if (field.validation && field.validation.pattern) {
+              if (!field.validation.pattern.test(input.value.trim())) {
+                this.showNotification(field.validation.message, "error");
+                input.focus();
+                input.select();
+                return;
+              }
+            }
+            extendedData[field.name] = input.value.trim();
+          }
+        });
+      }
+
+      // Actualizar lista local
+      this.allItems.push(name);
+      this.filteredItems = [...this.allItems];
+      this.loadModalItems();
+
+      // Llamar callback con datos extendidos
+      if (this.config.onItemAdd) {
+        this.config.onItemAdd(extendedData);
+      }
+
+      modal.hide();
+      this.showNotification(
+        `${this.config.label} added successfully!`,
+        "success"
+      );
+    };
+
+    // Event listeners
+    saveBtn.addEventListener("click", saveItem);
+
+    // Enter key para guardar
+    const inputs = document.querySelectorAll(`#${miniModalId} input`);
+    inputs.forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          saveItem();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          modal.hide();
+        }
+      });
+    });
+
+    // Cleanup al cerrar
+    document
+      .getElementById(miniModalId)
+      .addEventListener("hidden.bs.modal", () => {
+        document.getElementById(miniModalId).remove();
+      });
+  }
+
+  /**
+   * 🆕 NUEVO: Abrir mini modal para editar item con campos extendidos
+   */
+  openEditMiniModal(index) {
+    const miniModalId = `${this.containerId}_editMiniModal`;
+    const currentName = this.allItems[index];
+
+    // Obtener datos actuales del item (necesitaremos implementar este método)
+    const currentData = this.getItemData
+      ? this.getItemData(currentName)
+      : { name: currentName };
+
+    // Remover modal existente si existe
+    const existingModal = document.getElementById(miniModalId);
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Crear HTML del mini modal
+    const miniModalHtml = this.createEditMiniModalHTML(
+      miniModalId,
+      currentData
+    );
+    document.body.insertAdjacentHTML("beforeend", miniModalHtml);
+
+    // Mostrar el modal
+    const modal = new bootstrap.Modal(document.getElementById(miniModalId));
+    modal.show();
+
+    // Setup event listeners
+    this.setupEditMiniModalEvents(miniModalId, modal, index, currentData);
+
+    // Auto-focus en primer campo
+    setTimeout(() => {
+      const firstInput = document.querySelector(
+        `#${miniModalId} input[type="text"]`
+      );
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select(); // Seleccionar texto existente para fácil edición
+      }
+    }, 300);
+  }
+
+  /**
+   * 🆕 NUEVO: Crear HTML del mini modal para editar
+   */
+  createEditMiniModalHTML(miniModalId, currentData) {
+    const fields = this.config.extendedFields || [];
+
+    // Campo nombre (siempre requerido) - PRE-LLENADO
+    let fieldsHTML = `
+        <div class="mb-3">
+            <label class="form-label">
+                <i class="${this.config.icon} me-2"></i>
+                Name *
+            </label>
+            <input type="text"
+                   class="form-control ship-form-input"
+                   id="${miniModalId}_name"
+                   placeholder="Enter ${this.config.label.toLowerCase()} name..."
+                   value="${currentData.name || ""}"
+                   required>
+        </div>
+    `;
+
+    // Campos extendidos (email, phone, etc.) - PRE-LLENADOS
+    fields.forEach((field) => {
+      const currentValue = currentData[field.name] || "";
+      fieldsHTML += `
+            <div class="mb-3">
+                <label class="form-label">
+                    <i class="fas fa-${
+                      field.type === "email" ? "envelope" : "phone"
+                    } me-2"></i>
+                    ${field.label}${field.required ? " *" : ""}
+                </label>
+                <input type="${field.type}"
+                       class="form-control ship-form-input"
+                       id="${miniModalId}_${field.name}"
+                       placeholder="${field.placeholder}"
+                       value="${currentValue}"
+                       ${field.required ? "required" : ""}>
+            </div>
+        `;
+    });
+
+    return `
+        <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
+                <div class="modal-content settings-modal">
+                    <div class="modal-header settings-header">
+                        <h5 class="modal-title settings-title" id="${miniModalId}Label">
+                            <i class="fas fa-edit me-2"></i>
+                            Edit ${this.config.label}
+                        </h5>
+                        <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body settings-body">
+                        ${fieldsHTML}
+                    </div>
+                    <div class="modal-footer settings-footer">
+                        <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                            <i class="fas fa-times me-1"></i>Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+                            <i class="fas fa-save me-1"></i>Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+  }
+
+  /**
+   * 🆕 NUEVO: Setup event listeners para mini modal de editar
+   */
+  setupEditMiniModalEvents(miniModalId, modal, index, currentData) {
+    const saveBtn = document.getElementById(`${miniModalId}_saveBtn`);
+    const nameInput = document.getElementById(`${miniModalId}_name`);
+
+    const saveChanges = () => {
+      const newName = nameInput.value.trim();
+
+      if (!newName) {
+        this.showNotification(
+          `Please enter a ${this.config.label.toLowerCase()} name`,
+          "error"
+        );
+        nameInput.focus();
+        return;
+      }
+
+      // Verificar si el nombre cambió y ya existe
+      if (newName !== currentData.name && this.allItems.includes(newName)) {
+        this.showNotification(`${this.config.label} already exists`, "error");
+        nameInput.focus();
+        nameInput.select();
+        return;
+      }
+
+      // Recopilar datos extendidos
+      const updatedData = { name: newName };
+
+      if (this.config.extendedFields) {
+        this.config.extendedFields.forEach((field) => {
+          const input = document.getElementById(`${miniModalId}_${field.name}`);
+          if (input) {
+            const value = input.value.trim();
+
+            // Validar campo si tiene validación y no está vacío
+            if (value && field.validation && field.validation.pattern) {
+              if (!field.validation.pattern.test(value)) {
+                this.showNotification(field.validation.message, "error");
+                input.focus();
+                input.select();
+                return;
+              }
+            }
+
+            updatedData[field.name] = value;
+          }
+        });
+      }
+
+      // Actualizar lista local
+      this.allItems[index] = newName;
+      this.filteredItems = [...this.allItems];
+      this.loadModalItems();
+
+      // Llamar callback con datos actualizados
+      if (this.config.onItemEdit) {
+        this.config.onItemEdit(updatedData, currentData, index);
+      }
+
+      modal.hide();
+      this.showNotification(
+        `${this.config.label} updated successfully!`,
+        "success"
+      );
+    };
+
+    // Event listeners
+    saveBtn.addEventListener("click", saveChanges);
+
+    // Enter key para guardar
+    const inputs = document.querySelectorAll(`#${miniModalId} input`);
+    inputs.forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          saveChanges();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          modal.hide();
+        }
+      });
+    });
+
+    // Cleanup al cerrar
+    document
+      .getElementById(miniModalId)
+      .addEventListener("hidden.bs.modal", () => {
+        document.getElementById(miniModalId).remove();
+      });
+  }
+
   addNewItem() {
+    // 🆕 DETECCIÓN DE MODO EXTENDIDO
+    if (this.config.useExtendedEdit) {
+      this.openAddMiniModal();
+      return;
+    }
+
+    // COMPORTAMIENTO ACTUAL para SingleSelects normales
     const input = document.getElementById(`${this.containerId}_newItemInput`);
     const itemName = input.value.trim();
 
@@ -903,6 +1418,10 @@ class SingleSelect {
   }
 
   editItem(index) {
+    if (this.config.useExtendedEdit) {
+      this.openEditMiniModal(index);
+      return;
+    }
     const currentName = this.allItems[index];
     const container = document.getElementById(`${this.containerId}_itemsList`);
     if (!container) return;
@@ -974,13 +1493,15 @@ class SingleSelect {
       }
 
       if (newName !== currentName) {
-    // *** LLAMAR AL CALLBACK onItemEdit ***
-    if (this.config.onItemEdit) {
-      Logger.info(
-        `SingleSelect calling onItemEdit: "${currentName}" → "${newName}"`, {
-        module: 'ShipForm',
-        showNotification: false
-      });
+        // *** LLAMAR AL CALLBACK onItemEdit ***
+        if (this.config.onItemEdit) {
+          Logger.info(
+            `SingleSelect calling onItemEdit: "${currentName}" → "${newName}"`,
+            {
+              module: "ShipForm",
+              showNotification: false,
+            }
+          );
           this.config.onItemEdit(currentName, newName);
         } else {
           // Fallback: comportamiento anterior (solo para componentes sin API)
@@ -1041,37 +1562,57 @@ class SingleSelect {
 
   deleteItem(index) {
     const itemName = this.allItems[index];
-    
-    // Usar modal profesional en lugar de confirm()
+
+    // 🆕 OBTENER DATOS COMPLETOS DEL ITEM
+    let itemDetails = null;
+    if (this.config.useExtendedEdit && this.getItemData) {
+      itemDetails = this.getItemData(itemName);
+    }
+
+    // Usar modal profesional con información extendida
     DeleteConfirmationModal.show({
-        itemName: itemName,
-        itemType: this.config.label, // 'Client', 'Agent', etc.
-        componentName: `${this.config.label} Management`,
-        onConfirm: () => {
-            // Ejecutar eliminación
-            this.allItems.splice(index, 1);
-            this.filteredItems = [...this.allItems];
-            
-            // Clear selection if deleted item was selected
-            if (this.selectedItem === itemName) {
-                this.selectedItem = null;
-                this.updateDisplay();
-            }
-            
-            this.loadModalItems();
-            
-            if (this.config.onItemRemove) {
-                this.config.onItemRemove(itemName);
-            }
-            
-            this.showNotification(`${this.config.label} deleted successfully!`, 'success');
-        },
-        onCancel: () => {
-            // Opcional: mostrar notificación de cancelación
-            this.showNotification('Delete cancelled', 'info');
+      itemName: itemName,
+      itemType: this.config.label, // 'Sampler', 'Chemist', etc.
+      componentName: `${this.config.label} Management`,
+
+      // 🆕 NUEVA PROPIEDAD: Detalles extendidos
+      itemDetails: this.config.useExtendedEdit
+        ? {
+            email: itemDetails?.email || "(no email)",
+            phone: itemDetails?.phone || "(no phone)",
+            createdAt: itemDetails?.createdAt || null,
+            updatedAt: itemDetails?.updatedAt || null,
+          }
+        : null,
+
+      onConfirm: () => {
+        // Ejecutar eliminación
+        this.allItems.splice(index, 1);
+        this.filteredItems = [...this.allItems];
+
+        // Clear selection if deleted item was selected
+        if (this.selectedItem === itemName) {
+          this.selectedItem = null;
+          this.updateDisplay();
         }
+
+        this.loadModalItems();
+
+        if (this.config.onItemRemove) {
+          this.config.onItemRemove(itemName);
+        }
+
+        this.showNotification(
+          `${this.config.label} deleted successfully!`,
+          "success"
+        );
+      },
+      onCancel: () => {
+        // Opcional: mostrar notificación de cancelación
+        this.showNotification("Delete cancelled", "info");
+      },
     });
-}
+  }
 
   toggleDropdown() {
     if (this.isOpen) {
@@ -1171,11 +1712,11 @@ class SingleSelect {
   }
 
   injectStyles() {
-        if (document.getElementById('singleselect-styles')) return;
-        
-        const style = document.createElement('style');
-        style.id = 'singleselect-styles';
-        style.textContent = `
+    if (document.getElementById("singleselect-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "singleselect-styles";
+    style.textContent = `
             .singleselect-container:focus {
                 outline: none;
             }
@@ -1299,28 +1840,28 @@ class SingleSelect {
                 }
             }
         `;
-        
-        document.head.appendChild(style);
-    }
+
+    document.head.appendChild(style);
+  }
 
   showNotification(message, type = "info") {
-  // Mapear tipos del sistema viejo al nuevo
-  const levelMap = {
-    'info': 'info',
-    'success': 'success', 
-    'error': 'error',
-    'warning': 'warn',
-    'warn': 'warn'
-  };
+    // Mapear tipos del sistema viejo al nuevo
+    const levelMap = {
+      info: "info",
+      success: "success",
+      error: "error",
+      warning: "warn",
+      warn: "warn",
+    };
 
-  const level = levelMap[type.toLowerCase()] || 'info';
-  
-  Logger[level](message, {
-    module: 'SingleSelect',
-    showNotification: true,
-    notificationMessage: message
-  });
-}
+    const level = levelMap[type.toLowerCase()] || "info";
+
+    Logger[level](message, {
+      module: "SingleSelect",
+      showNotification: true,
+      notificationMessage: message,
+    });
+  }
 
   // Public API Methods
   getSelectedItem() {
@@ -1341,6 +1882,35 @@ class SingleSelect {
     if (this.config.onSelectionChange) {
       this.config.onSelectionChange(null);
     }
+  }
+
+  /**
+   * Obtener datos completos de un item por nombre
+   * @param {string} itemName - Nombre del item
+   * @returns {Object|null} Datos completos del item o null
+   */
+  getItemData(itemName) {
+    if (!this.config.useExtendedEdit) {
+      return { name: itemName };
+    }
+
+    // Intentar obtener datos desde callback si existe
+    if (this.config.onGetItemData) {
+      try {
+        return this.config.onGetItemData(itemName);
+      } catch (error) {
+        console.warn("Error getting item data from callback:", error);
+      }
+    }
+
+    // Fallback: datos básicos
+    return {
+      name: itemName,
+      email: null,
+      phone: null,
+      createdAt: null,
+      updatedAt: null,
+    };
   }
 
   addItem(item) {

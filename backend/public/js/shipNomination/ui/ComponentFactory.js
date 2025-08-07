@@ -65,6 +65,42 @@ class ComponentFactory {
           label: config.label,
           modalTitle: `${config.label} Management`,
           placeholder: `Select ${config.label.toLowerCase()}...`,
+
+          // 🆕 NUEVA CONFIGURACIÓN: Modo extendido para personas con contacto
+          useExtendedEdit: ["sampler", "chemist", "surveyor"].includes(fieldId),
+          extendedFields: ["sampler", "chemist", "surveyor"].includes(fieldId)
+            ? [
+                {
+                  name: "email",
+                  label: "Email",
+                  type: "email",
+                  required: false,
+                  placeholder: "Enter email address...",
+                  validation: {
+                    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: "Please enter a valid email address",
+                  },
+                },
+                {
+                  name: "phone",
+                  label: "Phone",
+                  type: "tel",
+                  required: false,
+                  placeholder: "Enter phone number...",
+                  validation: {
+                    pattern: /^[\+]?[\d\s\-\(\)\.]{8,20}$/,
+                    message: "Please enter a valid phone number",
+                  },
+                },
+              ]
+            : [],
+
+          debugExtended:
+            console.log(
+              `Creating ${fieldId} with useExtended:`,
+              ["sampler", "chemist", "surveyor"].includes(fieldId)
+            ) || true,
+
           onSelectionChange: (item) => {
             Logger.debug(`SingleSelect selection changed`, {
               module: "ComponentFactory",
@@ -75,9 +111,47 @@ class ComponentFactory {
           },
           onItemAdd: (item) => callbacks.onItemAdd(fieldId, item),
           onItemRemove: (item) => callbacks.onItemRemove(fieldId, item),
-          onItemEdit: (oldName, newName) =>
-            callbacks.onItemEdit(fieldId, oldName, newName),
+          onItemEdit: (updatedData, originalData, index) =>
+            callbacks.onItemEdit(fieldId, updatedData, originalData, index),
+          onGetItemData: (itemName) => {
+            // 🆕 LOGS DE DEBUG TEMPORALES
+            console.log(
+              `🔍 ComponentFactory: onGetItemData called for ${fieldId} with itemName:`,
+              itemName
+            );
+            console.log(`🔍 ComponentFactory: callbacks object:`, callbacks);
+            console.log(
+              `🔍 ComponentFactory: callbacks.onGetItemData exists:`,
+              !!callbacks.onGetItemData
+            );
+            if (callbacks.onGetItemData) {
+              const result = callbacks.onGetItemData(fieldId, itemName);
+              console.log(`🔍 ComponentFactory: result from callback:`, result);
+              return result;
+            } else {
+              console.log(
+                `🔍 ComponentFactory: NO callback available, returning basic data`
+              );
+              return { name: itemName };
+            }
+          },
         });
+
+        // 🆕 LOG DESPUÉS DE CREAR EL SINGLESELECT
+        if (fieldId === "sampler") {
+          console.log(`🔍 Created ${fieldId} SingleSelect with config:`, {
+            useExtendedEdit:
+              singleSelectInstances[fieldId].config.useExtendedEdit,
+            hasOnGetItemData:
+              !!singleSelectInstances[fieldId].config.onGetItemData,
+            callbacksProvided: {
+              onItemAdd: !!callbacks.onItemAdd,
+              onItemEdit: !!callbacks.onItemEdit,
+              onItemRemove: !!callbacks.onItemRemove,
+              onGetItemData: !!callbacks.onGetItemData,
+            },
+          });
+        }
 
         Logger.debug(`Created SingleSelect for ${fieldId}`, {
           module: "ComponentFactory",
@@ -748,6 +822,77 @@ class ComponentFactory {
         showNotification: false,
       }
     );
+  }
+
+  /**
+   * 🆕 NUEVO: Determinar si un campo debe usar modo extendido
+   * @param {string} fieldId - ID del campo
+   * @returns {boolean} True si debe usar modo extendido
+   */
+  static shouldUseExtendedEdit(fieldId) {
+    // Solo personas (no entidades) necesitan email/phone
+    const extendedEditFields = ["sampler", "chemist", "surveyor"];
+    return extendedEditFields.includes(fieldId);
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener configuración de campos extendidos
+   * @param {string} fieldId - ID del campo
+   * @returns {Array} Array de configuración de campos
+   */
+  static getExtendedFields(fieldId) {
+    if (!ComponentFactory.shouldUseExtendedEdit(fieldId)) {
+      return [];
+    }
+
+    // Configuración estándar para personas
+    return [
+      {
+        name: "email",
+        label: "Email",
+        type: "email",
+        required: false,
+        placeholder: "Enter email address...",
+        validation: {
+          pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+          message: "Please enter a valid email address",
+        },
+      },
+      {
+        name: "phone",
+        label: "Phone",
+        type: "tel",
+        required: false,
+        placeholder: "Enter phone number...",
+        validation: {
+          pattern: /^[\+]?[\d\s\-\(\)\.]{8,20}$/,
+          message: "Please enter a valid phone number",
+        },
+      },
+    ];
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener configuración completa de campo extendido
+   * @param {string} fieldId - ID del campo
+   * @returns {Object} Configuración completa
+   */
+  static getExtendedConfiguration(fieldId) {
+    const baseConfig = SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId];
+
+    if (!ComponentFactory.shouldUseExtendedEdit(fieldId)) {
+      return baseConfig;
+    }
+
+    return {
+      ...baseConfig,
+      useExtendedEdit: true,
+      extendedFields: ComponentFactory.getExtendedFields(fieldId),
+      extendedModalTitle: `${baseConfig.label} Contact Management`,
+      extendedAddTitle: `Add New ${baseConfig.label}`,
+      extendedEditTitle: `Edit ${baseConfig.label}`,
+      extendedDeleteTitle: `Delete ${baseConfig.label}`,
+    };
   }
 }
 

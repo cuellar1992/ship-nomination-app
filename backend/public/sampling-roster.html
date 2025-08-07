@@ -24,9 +24,9 @@
     />
 
     <!-- Custom CSS -->
-    <link href="frontend/css/styles.css" rel="stylesheet" />
-    <link href="frontend/css/ship-nominations.css" rel="stylesheet" />
-    <link href="frontend/css/sampling-roster.css" rel="stylesheet" />
+    <link href="css/style.css" rel="stylesheet" />
+    <link href="css/ship-nominations.css" rel="stylesheet" />
+    <link href="css/sampling-roster.css" rel="stylesheet" />
   </head>
   <body>
     <!-- Navigation será insertada aquí por navigation.js -->
@@ -355,21 +355,24 @@
       </section>
     </main>
 
-    <!-- ✅ SCRIPTS EN ORDEN CORRECTO DE DEPENDENCIAS -->
+<!-- ExcelJS Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+<!-- ✅ SCRIPTS EN ORDEN CORRECTO DE DEPENDENCIAS -->
 <!-- Bootstrap JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
 <!-- 🌐 COMPONENTES COMPARTIDOS -->
-<script src="frontend/js/shared/NotificationService.js"></script>
-<script src="frontend/js/shared/singleselect.js"></script>
-<script src="frontend/js/shared/multiselect.js"></script>
-<script src="frontend/js/shared/DateTimePicker.js"></script>
-<script src="frontend/js/shared/DatePicker.js"></script>
-<script src="frontend/js/shared/ApiService.js"></script>
-<script src="frontend/js/shared/NavigationManager.js"></script>
-<script src="frontend/js/shared/SettingsManager.js"></script>
+<script src="js/shared/NotificationService.js"></script>
+<script src="js/shared/singleselect.js"></script>
+<script src="js/shared/multiselect.js"></script>
+<script src="js/shared/DateTimePicker.js"></script>
+<script src="js/shared/DatePicker.js"></script>
+<script src="js/shared/ApiService.js"></script>
+<script src="js/shared/NavigationManager.js"></script>
+<script src="js/shared/SettingsManager.js"></script>
 
 <!-- 📦 MÓDULO SAMPLING ROSTER (incluye todos los módulos internos) -->
-<script type="module" src="frontend/js/samplingRoster/index.js"></script>
+<script type="module" src="js/samplingRoster/index.js"></script>
   </body>
 </html>
