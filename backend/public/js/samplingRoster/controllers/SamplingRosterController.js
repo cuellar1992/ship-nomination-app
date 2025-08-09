@@ -684,7 +684,6 @@ export class SamplingRosterController {
       });
 
       document.addEventListener("keydown", this.handleEditKeydown);
-
     } catch (error) {
       Logger.error("Error activating edit mode", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -873,9 +872,8 @@ export class SamplingRosterController {
         },
         showNotification: false,
       });
-      
-      document.addEventListener("keydown", this.handleEditKeydown);
 
+      document.addEventListener("keydown", this.handleEditKeydown);
     } catch (error) {
       Logger.error("Error activating line sampler edit mode", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -887,113 +885,120 @@ export class SamplingRosterController {
   }
 
   /**
- * 🆕 Guardar edición de Line Sampler con validación completa (MODIFICADO)
- * Reemplaza: saveLineSamplerEdit
- */
-async saveLineSamplerEdit(rowId) {
-  Logger.info("Save line sampler edit requested", {
-    module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-    data: { rowId: rowId },
-    showNotification: false,
-  });
+   * 🆕 Guardar edición de Line Sampler con validación completa (MODIFICADO)
+   * Reemplaza: saveLineSamplerEdit
+   */
+  async saveLineSamplerEdit(rowId) {
+    Logger.info("Save line sampler edit requested", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      data: { rowId: rowId },
+      showNotification: false,
+    });
 
-  const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
-  if (!row) return;
+    const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+    if (!row) return;
 
-  const samplerCell = row.querySelector("td:first-child");
-  const actionCell = row.querySelector("td:last-child");
-  const saveButton = actionCell.querySelector('button[data-action="save"]');
-  const dropdownContainer = samplerCell.querySelector('div[id^="lineSamplerDropdown_"]');
+    const samplerCell = row.querySelector("td:first-child");
+    const actionCell = row.querySelector("td:last-child");
+    const saveButton = actionCell.querySelector('button[data-action="save"]');
+    const dropdownContainer = samplerCell.querySelector(
+      'div[id^="lineSamplerDropdown_"]'
+    );
 
-  if (!samplerCell || !saveButton || !dropdownContainer) return;
+    if (!samplerCell || !saveButton || !dropdownContainer) return;
 
-  try {
-    // Obtener SingleSelect instance
-    const samplerSelector = dropdownContainer.samplerSelector;
-    if (!samplerSelector) {
-      throw new Error("SingleSelect instance not found");
-    }
-
-    // Obtener nuevo valor seleccionado
-    const newSamplerName = samplerSelector.getSelectedItem() || "No Sampler Assigned";
-    const originalValue = samplerCell.getAttribute("data-original-value");
-
-    // ✅ USAR VALIDACIÓN COMPLETA (igual que autogenerate)
-    const validationResult = await this.validateSamplerForEdit(newSamplerName, rowId);
-    
-    if (!validationResult.isValid) {
-      // Mostrar mensaje específico según el tipo de validación que falló
-      let errorMessage = validationResult.message;
-      
-      if (validationResult.details?.weekly && !validationResult.details.weekly.isValid) {
-        errorMessage = validationResult.details.weekly.message;
-      } else if (validationResult.details?.rest && !validationResult.details.rest.isValid) {
-        errorMessage = validationResult.details.rest.message;
-      } else if (validationResult.details?.crossRoster && !validationResult.details.crossRoster.isAvailable) {
-        errorMessage = "Sampler not available - conflict with another vessel";
+    try {
+      // Obtener SingleSelect instance
+      const samplerSelector = dropdownContainer.samplerSelector;
+      if (!samplerSelector) {
+        throw new Error("SingleSelect instance not found");
       }
 
-      Logger.warn("Sampler validation failed for manual edit", {
+      // Obtener nuevo valor seleccionado
+      const newSamplerName =
+        samplerSelector.getSelectedItem() || "No Sampler Assigned";
+      const originalValue = samplerCell.getAttribute("data-original-value");
+
+      // ✅ USAR VALIDACIÓN FLEXIBLE (permite override de límite semanal)
+      const validationResult = await this.validateSamplerForEdit(
+        newSamplerName,
+        rowId
+      );
+
+      if (!validationResult.isValid) {
+        // Mostrar mensaje específico según el tipo de validación que falló
+        let errorMessage = validationResult.message;
+
+        // Solo mostrar error si es violación estricta (no cancelación de usuario)
+        if (validationResult.details?.type !== "USER_CANCELLED") {
+          Logger.warn("Sampler validation failed for manual edit", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              sampler: newSamplerName,
+              rowId: rowId,
+              reason: errorMessage,
+              validationType: validationResult.details?.type || "UNKNOWN",
+            },
+            showNotification: true,
+            notificationMessage: errorMessage,
+          });
+        }
+        return; // No guardar si falla validación o usuario cancela
+      }
+
+      // Limpiar la instancia SingleSelect
+      samplerSelector.destroy();
+
+      // Restaurar contenido de la celda
+      samplerCell.innerHTML = `<span class="fw-medium">${newSamplerName}</span>`;
+      samplerCell.removeAttribute("data-original-value");
+
+      // Restaurar botón SAVE → EDIT
+      saveButton.innerHTML = '<i class="fas fa-edit"></i>';
+      saveButton.setAttribute("data-action", "edit");
+      saveButton.setAttribute("title", "Edit Sampler");
+      saveButton.className = "btn btn-secondary-premium btn-edit-item";
+      saveButton.style.cssText =
+        "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+
+      // Log del cambio
+      if (newSamplerName !== originalValue) {
+        Logger.success("Line sampler updated successfully", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            from: originalValue,
+            to: newSamplerName,
+            weeklyValidation:
+              validationResult.details?.weekly?.message || "N/A",
+            crossRosterValidation: validationResult.details?.crossRoster
+              ?.isAvailable
+              ? "Available"
+              : "Conflicts found",
+          },
+          showNotification: true,
+          notificationMessage: `Line sampler updated to: ${newSamplerName}`,
+        });
+        this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () =>
+          this.collectCurrentRosterData()
+        );
+      } else {
+        Logger.info("No changes made to line sampler", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { rowId: rowId, sampler: newSamplerName },
+          showNotification: false,
+        });
+      }
+    } catch (error) {
+      Logger.error("Error saving line sampler edit", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: {
-          sampler: newSamplerName,
-          rowId: rowId,
-          reason: errorMessage,
-          weeklyValidation: validationResult.details?.weekly?.message || "N/A",
-          restValidation: validationResult.details?.rest?.message || "N/A",
-        },
+        error: error,
         showNotification: true,
-        notificationMessage: errorMessage,
-      });
-      return; // No guardar si falla validación
-    }
-
-    // Limpiar la instancia SingleSelect
-    samplerSelector.destroy();
-
-    // Restaurar contenido de la celda
-    samplerCell.innerHTML = `<span class="fw-medium">${newSamplerName}</span>`;
-    samplerCell.removeAttribute("data-original-value");
-
-    // Restaurar botón SAVE → EDIT
-    saveButton.innerHTML = '<i class="fas fa-edit"></i>';
-    saveButton.setAttribute("data-action", "edit");
-    saveButton.setAttribute("title", "Edit Sampler");
-    saveButton.className = "btn btn-secondary-premium btn-edit-item";
-    saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
-
-    // Log del cambio
-    if (newSamplerName !== originalValue) {
-      Logger.success("Line sampler updated successfully", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: {
-          rowId: rowId,
-          from: originalValue,
-          to: newSamplerName,
-          weeklyValidation: validationResult.details?.weekly?.message || "N/A",
-          crossRosterValidation: validationResult.details?.crossRoster?.isAvailable ? "Available" : "Conflicts found",
-        },
-        showNotification: true,
-        notificationMessage: `Line sampler updated to: ${newSamplerName}`,
-      });
-      this.autoSaveService.triggerAutoSaveImmediate("samplerEdit", () => this.collectCurrentRosterData());
-    } else {
-      Logger.info("No changes made to line sampler", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: { rowId: rowId, sampler: newSamplerName },
-        showNotification: false,
+        notificationMessage: "Unable to save changes. Please try again.",
       });
     }
-  } catch (error) {
-    Logger.error("Error saving line sampler edit", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      error: error,
-      showNotification: true,
-      notificationMessage: "Unable to save changes. Please try again.",
-    });
+    document.removeEventListener("keydown", this.handleEditKeydown);
   }
-  document.removeEventListener("keydown", this.handleEditKeydown);
-}
 
   // ==================================================================================
   // 🔧 MÉTODOS AUXILIARES PARA EDICIÓN - RESTAURADOS DESDE BACKUP
@@ -1214,111 +1219,286 @@ async saveLineSamplerEdit(rowId) {
   }
 
   /**
- * 🆕 Validar sampler para edición manual (VALIDACIÓN COMPLETA)
- * Reemplaza: validateSamplerHours
- */
-async validateSamplerForEdit(samplerName, excludeRowId = null) {
-  try {
-    Logger.debug("Validating sampler for manual edit", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: {
+   * 🆕 Validar sampler para edición manual (VALIDACIÓN FLEXIBLE)
+   * - ESTRICTA: Descanso de 10h (sin excepciones)
+   * - FLEXIBLE: Límite semanal 24h (advertencia + confirmación)
+   */
+  async validateSamplerForEdit(samplerName, excludeRowId = null) {
+    try {
+      Logger.debug("Validating sampler for manual edit (flexible mode)", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          excludeRowId: excludeRowId,
+        },
+        showNotification: false,
+      });
+
+      // Obtener datos actuales del roster
+      const officeData = this.tableManager.getOfficeSamplingData();
+      const lineData = this.tableManager.getCurrentLineTurns();
+      const currentRosterId = this.autoSaveService.getCurrentRosterId();
+
+      // Encontrar el turno que se está editando
+      const editingTurn = this.findTurnBeingEdited(excludeRowId, lineData);
+      if (!editingTurn) {
+        return {
+          isValid: false,
+          message: "Cannot find turn being edited",
+        };
+      }
+
+      this.debugDateParsing(editingTurn);
+
+      const startTime = this.parseLocalDateTime(editingTurn.startTime);
+      const finishTime = this.parseLocalDateTime(editingTurn.finishTime);
+
+      // 🐛 DEBUG: Ver qué datos se están pasando
+      console.log("🔍 DEBUG validateSamplerForEdit:", {
         samplerName: samplerName,
-        excludeRowId: excludeRowId,
-      },
-      showNotification: false,
-    });
+        startTime: startTime.toISOString(),
+        finishTime: finishTime.toISOString(),
+        currentRosterId: currentRosterId,
+        officeData: officeData,
+        filteredLineData: this.getFilteredLineData(lineData, excludeRowId),
+        editingTurn: this.findTurnBeingEdited(excludeRowId, lineData),
+      });
 
-    // Obtener datos actuales del roster
-    const officeData = this.tableManager.getOfficeSamplingData();
-    const lineData = this.tableManager.getCurrentLineTurns();
-    const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      // ✅ VALIDACIÓN 1: DESCANSO MÍNIMO (ESTRICTA - sin excepciones)
+      const restValidation =
+        await ValidationService.validateMinimumRestWithMemory(
+          samplerName,
+          startTime,
+          finishTime,
+          this.getFilteredLineData(lineData, excludeRowId),
+          officeData,
+          currentRosterId
+        );
 
-    // Encontrar el turno que se está editando
-    const editingTurn = this.findTurnBeingEdited(excludeRowId, lineData);
-    if (!editingTurn) {
+      if (!restValidation.isValid) {
+        return {
+          isValid: false,
+          message: `❌ ${restValidation.message}`,
+          details: {
+            rest: restValidation,
+            type: "STRICT_VIOLATION",
+          },
+        };
+      }
+
+      // ✅ VALIDACIÓN 2: DISPONIBILIDAD CRUZADA (ESTRICTA)
+      const crossRosterValidation =
+        await ValidationService.validateSamplerAvailability(
+          samplerName,
+          startTime,
+          finishTime,
+          currentRosterId
+        );
+
+      if (!crossRosterValidation.isAvailable) {
+        return {
+          isValid: false,
+          message: "❌ Sampler not available - conflict with another vessel",
+          details: {
+            crossRoster: crossRosterValidation,
+            type: "STRICT_VIOLATION",
+          },
+        };
+      }
+
+      // ✅ VALIDACIÓN 3: LÍMITE SEMANAL (FLEXIBLE - advertencia + confirmación)
+      const turnHours = DateUtils.getHoursBetween(startTime, finishTime);
+      const weeklyValidation =
+        await ValidationService.validateSamplerWeeklyLimit(
+          samplerName,
+          turnHours,
+          startTime,
+          {
+            officeData,
+            turnsInMemory: this.getFilteredLineData(lineData, excludeRowId),
+          },
+          currentRosterId
+        );
+
+      // Si NO tiene límite semanal, todo OK
+      if (!weeklyValidation.hasWeeklyLimit) {
+        return {
+          isValid: true,
+          message: "✅ All validations passed",
+          details: {
+            weekly: weeklyValidation,
+            rest: restValidation,
+            crossRoster: crossRosterValidation,
+            type: "NO_WEEKLY_LIMIT",
+          },
+        };
+      }
+
+      // Si TIENE límite semanal pero NO lo excede, todo OK
+      if (weeklyValidation.isValid) {
+        return {
+          isValid: true,
+          message: "✅ All validations passed",
+          details: {
+            weekly: weeklyValidation,
+            rest: restValidation,
+            crossRoster: crossRosterValidation,
+            type: "WITHIN_WEEKLY_LIMIT",
+          },
+        };
+      }
+
+      // ⚠️ EXCEDE LÍMITE SEMANAL: Mostrar advertencia y solicitar confirmación
+      const exceedsBy =
+        weeklyValidation.totalHours - weeklyValidation.weeklyLimit;
+
+      const userConfirmed = await this.showWeeklyLimitWarningModal(
+        samplerName,
+        {
+          currentWeeklyHours: weeklyValidation.currentWeeklyHours,
+          proposedHours: turnHours,
+          totalHours: weeklyValidation.totalHours,
+          weeklyLimit: weeklyValidation.weeklyLimit,
+          exceedsBy: exceedsBy,
+        }
+      );
+
+      if (userConfirmed) {
+        Logger.warn("User confirmed weekly limit override", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            samplerName: samplerName,
+            currentWeeklyHours: weeklyValidation.currentWeeklyHours,
+            proposedHours: turnHours,
+            totalAfter: weeklyValidation.totalHours,
+            weeklyLimit: weeklyValidation.weeklyLimit,
+            exceedsBy: exceedsBy, // ← CAMBIAR ESTA LÍNEA
+          },
+          showNotification: true,
+          notificationMessage: `${samplerName} weekly limit overridden by user`,
+        });
+
+        return {
+          isValid: true,
+          message: "✅ Validated with user confirmation",
+          details: {
+            weekly: weeklyValidation,
+            rest: restValidation,
+            crossRoster: crossRosterValidation,
+            type: "USER_OVERRIDE",
+            userConfirmed: true,
+          },
+        };
+      } else {
+        Logger.info("User cancelled weekly limit override", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { samplerName: samplerName },
+          showNotification: false,
+        });
+
+        return {
+          isValid: false,
+          message: "❌ User cancelled due to weekly limit",
+          details: {
+            weekly: weeklyValidation,
+            type: "USER_CANCELLED",
+          },
+        };
+      }
+    } catch (error) {
+      Logger.error("Error validating sampler for edit", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+
       return {
         isValid: false,
-        message: "Cannot find turn being edited",
+        message: `Validation error: ${error.message}`,
       };
     }
-
-    // Usar las mismas validaciones del autogenerate
-    const validations = await ValidationService.validateSamplerForGeneration(
-      samplerName,
-      DateUtils.parseDateTime(editingTurn.startTime),
-      DateUtils.parseDateTime(editingTurn.finishTime),
-      this.getFilteredLineData(lineData, excludeRowId), // Excluir turno editado
-      officeData,
-      currentRosterId
-    );
-
-    Logger.debug("Manual edit validation completed", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: {
-        samplerName: samplerName,
-        isValid: validations.overall.isValid,
-        weeklyValidation: validations.weekly?.message || "N/A",
-        restValidation: validations.rest.message,
-        crossRosterValidation: validations.crossRoster.isAvailable,
-      },
-      showNotification: false,
-    });
-
-    // Formatear respuesta para compatibilidad con código existente
-    return {
-      isValid: validations.overall.isValid,
-      message: validations.overall.message,
-      details: {
-        weekly: validations.weekly,
-        rest: validations.rest,
-        crossRoster: validations.crossRoster,
-      },
-      // Para compatibilidad con código legacy
-      totalHours: validations.weekly?.totalHours || 0,
-    };
-
-  } catch (error) {
-    Logger.error("Error validating sampler for edit", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      error: error,
-      showNotification: false,
-    });
-
-    return {
-      isValid: false,
-      message: `Validation error: ${error.message}`,
-    };
   }
-}
 
-/**
- * 🆕 Encontrar turno que se está editando
- */
-findTurnBeingEdited(excludeRowId, lineData) {
-  if (!excludeRowId || !lineData) return null;
+  /**
+   * 🆕 Encontrar turno que se está editando
+   */
+  findTurnBeingEdited(excludeRowId, lineData) {
+  if (!excludeRowId) return null;
 
   // Extraer índice del rowId (ej: "line-sampler-row-2" -> índice 2)
   const match = excludeRowId.match(/line-sampler-row-(\d+)/);
   if (!match) return null;
 
   const index = parseInt(match[1]);
-  return lineData[index] || null;
+  
+  // 🔧 FIX: Usar método específico del TableManager para evitar corrupción
+  const turn = this.tableManager.getLineTurnByIndex(index);
+  
+  // 🐛 DEBUG: Verificar datos obtenidos
+  console.log("🔧 findTurnBeingEdited FIXED:", {
+    excludeRowId: excludeRowId,
+    index: index,
+    turn: turn
+  });
+  
+  return turn;
 }
 
-/**
- * 🆕 Obtener line data filtrada (sin turno editado)
- */
-getFilteredLineData(lineData, excludeRowId) {
-  if (!excludeRowId || !lineData) return lineData;
+  /**
+   * 🆕 Obtener line data filtrada (sin turno editado)
+   */
+  getFilteredLineData(lineData, excludeRowId) {
+    if (!excludeRowId || !lineData) return lineData;
 
-  // Extraer índice del rowId
-  const match = excludeRowId.match(/line-sampler-row-(\d+)/);
-  if (!match) return lineData;
+    // Extraer índice del rowId
+    const match = excludeRowId.match(/line-sampler-row-(\d+)/);
+    if (!match) return lineData;
 
-  const excludeIndex = parseInt(match[1]);
-  return lineData.filter((turn, index) => index !== excludeIndex);
-}
+    const excludeIndex = parseInt(match[1]);
+    return lineData.filter((turn, index) => index !== excludeIndex);
+  }
 
+  /**
+   * 🆕 Método auxiliar para debug de fechas
+   */
+  debugDateParsing(turn) {
+    if (!turn) return;
+    
+    console.log("🗓️ DEBUG Date Parsing:", {
+      originalStartTime: turn.startTime,
+      originalFinishTime: turn.finishTime,
+      parsedStartTime: DateUtils.parseDateTime(turn.startTime),
+      parsedFinishTime: DateUtils.parseDateTime(turn.finishTime),
+      parsedStartISO: DateUtils.parseDateTime(turn.startTime)?.toISOString(),
+      parsedFinishISO: DateUtils.parseDateTime(turn.finishTime)?.toISOString()
+    });
+  }
+
+  /**
+   * 🆕 Parsear fecha manteniendo timezone local (FIX TIMEZONE)
+   */
+  parseLocalDateTime(dateTimeStr) {
+    if (!dateTimeStr) return null;
+    
+    // Formato esperado: "06/08/2025 07:00" -> DD/MM/YYYY HH:mm
+    const parts = dateTimeStr.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
+    if (!parts) return null;
+    
+    const [, day, month, year, hours, minutes] = parts;
+    
+    // Crear fecha en timezone local (no UTC)
+    const localDate = new Date(
+      parseInt(year),
+      parseInt(month) - 1, // Month is 0-indexed
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      0, // seconds
+      0  // milliseconds
+    );
+    
+    return localDate;
+  }
 
   // ==================================================================================
   // 📋 MÉTODOS PÚBLICOS ORIGINALES - SIN CAMBIOS
@@ -1353,98 +1533,228 @@ getFilteredLineData(lineData, excludeRowId) {
   }
 
   /**
- * 🆕 Cancelar edición de sampler (Escape key)
- */
-cancelSamplerEdit(rowId) {
-  Logger.info("Cancel sampler edit requested", {
-    module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-    data: { rowId: rowId },
-    showNotification: false,
-  });
-
-  const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
-  if (!row) return;
-
-  const samplerCell = row.querySelector("td:first-child");
-  const actionCell = row.querySelector("td:last-child");
-  const saveButton = actionCell.querySelector('button[data-action="save"]');
-  const dropdownContainer = samplerCell.querySelector('div[id^="samplerDropdown_"], div[id^="lineSamplerDropdown_"]');
-
-  if (!samplerCell || !saveButton || !dropdownContainer) return;
-
-  try {
-    // Obtener valor original
-    const originalValue = samplerCell.getAttribute("data-original-value") || "No Sampler Assigned";
-
-    // Obtener y limpiar SingleSelect instance
-    const samplerSelector = dropdownContainer.samplerSelector;
-    if (samplerSelector) {
-      samplerSelector.destroy();
-    }
-
-    // Restaurar contenido original de la celda
-    samplerCell.innerHTML = `<span class="fw-medium">${originalValue}</span>`;
-    samplerCell.removeAttribute("data-original-value");
-
-    // Restaurar botón SAVE → EDIT
-    saveButton.innerHTML = '<i class="fas fa-edit"></i>';
-    saveButton.setAttribute("data-action", "edit");
-    saveButton.setAttribute("title", "Edit Sampler");
-    saveButton.className = "btn btn-secondary-premium btn-edit-item";
-    saveButton.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
-
-    // Remover event listener de teclado
-    document.removeEventListener("keydown", this.handleEditKeydown);
-
-    Logger.success("Sampler edit cancelled", {
+   * 🆕 Cancelar edición de sampler (Escape key)
+   */
+  cancelSamplerEdit(rowId) {
+    Logger.info("Cancel sampler edit requested", {
       module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: {
-        rowId: rowId,
-        restoredValue: originalValue,
-      },
-      showNotification: true,
-      notificationMessage: "Edit cancelled",
+      data: { rowId: rowId },
+      showNotification: false,
     });
 
-  } catch (error) {
-    Logger.error("Error cancelling sampler edit", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      error: error,
-      showNotification: true,
-      notificationMessage: "Error cancelling edit. Please refresh the page.",
-    });
-  }
-}
+    const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+    if (!row) return;
 
-/**
- * 🆕 Manejar teclas durante edición
- */
-handleEditKeydown = (event) => {
-  // Verificar si hay alguna edición activa
-  const editingRow = document.querySelector('tr button[data-action="save"]');
-  if (!editingRow) return;
+    const samplerCell = row.querySelector("td:first-child");
+    const actionCell = row.querySelector("td:last-child");
+    const saveButton = actionCell.querySelector('button[data-action="save"]');
+    const dropdownContainer = samplerCell.querySelector(
+      'div[id^="samplerDropdown_"], div[id^="lineSamplerDropdown_"]'
+    );
 
-  const rowId = editingRow.getAttribute("data-row-id");
-  if (!rowId) return;
+    if (!samplerCell || !saveButton || !dropdownContainer) return;
 
-  switch (event.key) {
-    case "Escape":
-      event.preventDefault();
-      this.cancelSamplerEdit(rowId);
-      break;
-      
-    case "Enter":
-      event.preventDefault();
-      // Determinar si es office o line sampler
-      if (rowId === "office-sampler-row") {
-        this.saveSamplerEdit(rowId);
-      } else if (rowId.startsWith("line-sampler-row-")) {
-        this.saveLineSamplerEdit(rowId);
+    try {
+      // Obtener valor original
+      const originalValue =
+        samplerCell.getAttribute("data-original-value") ||
+        "No Sampler Assigned";
+
+      // Obtener y limpiar SingleSelect instance
+      const samplerSelector = dropdownContainer.samplerSelector;
+      if (samplerSelector) {
+        samplerSelector.destroy();
       }
-      break;
-  }
-}
 
+      // Restaurar contenido original de la celda
+      samplerCell.innerHTML = `<span class="fw-medium">${originalValue}</span>`;
+      samplerCell.removeAttribute("data-original-value");
+
+      // Restaurar botón SAVE → EDIT
+      saveButton.innerHTML = '<i class="fas fa-edit"></i>';
+      saveButton.setAttribute("data-action", "edit");
+      saveButton.setAttribute("title", "Edit Sampler");
+      saveButton.className = "btn btn-secondary-premium btn-edit-item";
+      saveButton.style.cssText =
+        "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+
+      // Remover event listener de teclado
+      document.removeEventListener("keydown", this.handleEditKeydown);
+
+      Logger.success("Sampler edit cancelled", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          rowId: rowId,
+          restoredValue: originalValue,
+        },
+        showNotification: true,
+        notificationMessage: "Edit cancelled",
+      });
+    } catch (error) {
+      Logger.error("Error cancelling sampler edit", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: true,
+        notificationMessage: "Error cancelling edit. Please refresh the page.",
+      });
+    }
+  }
+
+  /**
+   * 🆕 Manejar teclas durante edición
+   */
+  handleEditKeydown = (event) => {
+    // Verificar si hay alguna edición activa
+    const editingRow = document.querySelector('tr button[data-action="save"]');
+    if (!editingRow) return;
+
+    const rowId = editingRow.getAttribute("data-row-id");
+    if (!rowId) return;
+
+    switch (event.key) {
+      case "Escape":
+        event.preventDefault();
+        this.cancelSamplerEdit(rowId);
+        break;
+
+      case "Enter":
+        event.preventDefault();
+        // Determinar si es office o line sampler
+        if (rowId === "office-sampler-row") {
+          this.saveSamplerEdit(rowId);
+        } else if (rowId.startsWith("line-sampler-row-")) {
+          this.saveLineSamplerEdit(rowId);
+        }
+        break;
+    }
+  };
+
+  /**
+   * 🎨 Modal de advertencia de límite semanal - Estilo del sistema
+   */
+  showWeeklyLimitWarningModal(samplerName, validationData) {
+    return new Promise((resolve) => {
+      const { currentWeeklyHours, totalHours, weeklyLimit, proposedHours } =
+        validationData;
+      const exceedsBy = totalHours - weeklyLimit;
+
+      // Crear modal HTML usando el estilo del sistema
+      const modalHtml = `
+        <div class="modal fade" id="weeklyLimitWarningModal" tabindex="-1" data-bs-backdrop="static">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-light border-warning">
+              <div class="modal-header border-warning">
+                <h5 class="modal-title">
+                  <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                  Weekly Limit Warning
+                </h5>
+              </div>
+              <div class="modal-body">
+                <div class="text-center mb-3">
+                  <i class="fas fa-clock text-warning" style="font-size: 3rem;"></i>
+                </div>
+                <p class="text-center mb-3">
+                  <strong>${samplerName}</strong> will exceed the weekly working limit
+                </p>
+                
+                <!-- Detalles de horas -->
+                <div class="alert alert-warning">
+                  <div class="row text-center">
+                    <div class="col-6">
+                      <strong>Current Week:</strong><br>
+                      <span class="fs-5">${currentWeeklyHours}h</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Proposed Turn:</strong><br>
+                      <span class="fs-5">+${proposedHours}h</span>
+                    </div>
+                  </div>
+                  <hr class="my-2">
+                  <div class="row text-center">
+                    <div class="col-6">
+                      <strong>Total After:</strong><br>
+                      <span class="fs-4 text-warning">${totalHours}h</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>Weekly Limit:</strong><br>
+                      <span class="fs-4">${weeklyLimit}h</span>
+                    </div>
+                  </div>
+                  <div class="text-center mt-2">
+                    <small class="text-warning">
+                      <i class="fas fa-arrow-up me-1"></i>
+                      Exceeds by ${exceedsBy}h
+                    </small>
+                  </div>
+                </div>
+                
+                <p class="text-warning small text-center">
+                  <i class="fas fa-info-circle me-1"></i>
+                  This assignment exceeds the recommended 24-hour weekly limit.
+                </p>
+              </div>
+              <div class="modal-footer border-warning">
+                <button type="button" class="btn btn-secondary" id="cancelWeeklyLimitBtn">
+                  <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmWeeklyLimitBtn">
+                  <i class="fas fa-check me-1"></i>Proceed Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Remover modal anterior si existe
+      const existingModal = document.getElementById("weeklyLimitWarningModal");
+      if (existingModal) {
+        existingModal.remove();
+      }
+
+      // Agregar modal al DOM
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      // Obtener elementos
+      const modal = document.getElementById("weeklyLimitWarningModal");
+      const cancelBtn = document.getElementById("cancelWeeklyLimitBtn");
+      const confirmBtn = document.getElementById("confirmWeeklyLimitBtn");
+
+      // Event listeners
+      cancelBtn.addEventListener("click", () => {
+        closeModal(false);
+      });
+
+      confirmBtn.addEventListener("click", () => {
+        closeModal(true);
+      });
+
+      // Función para cerrar modal
+      function closeModal(confirmed) {
+        const bootstrapModal = bootstrap.Modal.getInstance(modal);
+        if (bootstrapModal) {
+          bootstrapModal.hide();
+        }
+
+        // Remover modal del DOM después de cerrar
+        setTimeout(() => {
+          modal.remove();
+          resolve(confirmed);
+        }, 300);
+      }
+
+      // Mostrar modal
+      const bootstrapModal = new bootstrap.Modal(modal);
+      bootstrapModal.show();
+
+      // Cerrar con Escape
+      modal.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeModal(false);
+        }
+      });
+    });
+  }
 }
 
 export default SamplingRosterController;

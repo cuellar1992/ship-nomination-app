@@ -210,8 +210,10 @@ class ComponentFactory {
         let items = [];
 
         // Determinar origen de datos
-        if (config.apiEndpoint === "/api/producttypes") {
+         if (config.apiEndpoint === "/api/producttypes") {
           items = apiData.productTypes || [];
+        } else if (config.apiEndpoint === "/api/clients") {
+          items = apiData.clients || [];
         } else if (config.data) {
           // Mock data no disponible en arquitectura modular
           items = [];

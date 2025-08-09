@@ -2,7 +2,7 @@
  * Table Manager for Sampling Roster System
  */
 
-import DateUtils from '../utils/DateUtils.js';
+import DateUtils from "../utils/DateUtils.js";
 
 export class TableManager {
   constructor() {
@@ -109,7 +109,9 @@ export class TableManager {
    * Obtener datos de Office Sampling de la tabla
    */
   getOfficeSamplingData() {
-    const officeRow = document.querySelector('tr[data-row-id="office-sampler-row"]');
+    const officeRow = document.querySelector(
+      'tr[data-row-id="office-sampler-row"]'
+    );
     if (!officeRow) return null;
 
     const cells = officeRow.querySelectorAll("td");
@@ -128,13 +130,39 @@ export class TableManager {
    */
   getCurrentLineTurns() {
     const turns = [];
-    const lineRows = document.querySelectorAll('tr[data-row-id^="line-sampler-row-"]');
+    const lineRows = document.querySelectorAll(
+      'tr[data-row-id^="line-sampler-row-"]'
+    );
 
     lineRows.forEach((row, index) => {
       const cells = row.querySelectorAll("td");
       if (cells.length >= 4) {
+        // 🔧 FIX 1: Leer SOLO texto visible, no HTML interno
+        let samplerName = "";
+        const samplerCell = cells[0];
+
+        // Si está en modo edición (contiene dropdown), no usar
+        const isEditing = samplerCell.querySelector(
+          'div[id^="lineSamplerDropdown_"]'
+        );
+        if (isEditing) {
+          // En modo edición, obtener el valor original guardado
+          samplerName =
+            samplerCell.getAttribute("data-original-value") ||
+            "No Sampler Assigned";
+        } else {
+          // Modo normal: obtener solo el texto visible de span
+          const span = samplerCell.querySelector("span.fw-medium");
+          if (span) {
+            samplerName = span.textContent.trim();
+          } else {
+            // Fallback: texto directo de la celda
+            samplerName = samplerCell.textContent.trim();
+          }
+        }
+
         turns.push({
-          samplerName: cells[0].textContent.trim(),
+          samplerName: samplerName,
           startTime: cells[1].textContent.trim(),
           finishTime: cells[2].textContent.trim(),
           hours: parseInt(cells[3].textContent.trim()) || 0,
@@ -144,6 +172,42 @@ export class TableManager {
     });
 
     return turns;
+  }
+
+  getLineTurnByIndex(index) {
+    const row = document.querySelector(
+      `tr[data-row-id="line-sampler-row-${index}"]`
+    );
+    if (!row) return null;
+
+    const cells = row.querySelectorAll("td");
+    if (cells.length < 4) return null;
+
+    // Obtener samplerName sin corrupción
+    let samplerName = "";
+    const samplerCell = cells[0];
+
+    const isEditing = samplerCell.querySelector(
+      'div[id^="lineSamplerDropdown_"]'
+    );
+    if (isEditing) {
+      samplerName =
+        samplerCell.getAttribute("data-original-value") ||
+        "No Sampler Assigned";
+    } else {
+      const span = samplerCell.querySelector("span.fw-medium");
+      samplerName = span
+        ? span.textContent.trim()
+        : samplerCell.textContent.trim();
+    }
+
+    return {
+      samplerName: samplerName,
+      startTime: cells[1].textContent.trim(),
+      finishTime: cells[2].textContent.trim(),
+      hours: parseInt(cells[3].textContent.trim()) || 0,
+      rowIndex: index,
+    };
   }
 
   /**
@@ -196,14 +260,20 @@ export class TableManager {
       finishSampling = DateUtils.formatDateTime(finishDate);
     }
 
-    this.populateOfficeSamplingTable(samplerName, startOffice, finishSampling, 6);
+    this.populateOfficeSamplingTable(
+      samplerName,
+      startOffice,
+      finishSampling,
+      6
+    );
   }
 
   /**
    * Cargar Office Sampling desde roster existente
    */
   loadOfficeSamplingFromRoster(officeSamplingData) {
-    const samplerName = officeSamplingData.sampler?.name || "No Sampler Assigned";
+    const samplerName =
+      officeSamplingData.sampler?.name || "No Sampler Assigned";
     const startTime = DateUtils.formatDateTime(officeSamplingData.startTime);
     const finishTime = DateUtils.formatDateTime(officeSamplingData.finishTime);
     const hours = officeSamplingData.hours || 6;
@@ -215,11 +285,11 @@ export class TableManager {
    * Cargar Line Sampling desde roster existente
    */
   loadLineSamplingFromRoster(lineSamplingData) {
-    const turns = lineSamplingData.map(turn => ({
+    const turns = lineSamplingData.map((turn) => ({
       samplerName: turn.sampler?.name || "No Sampler Assigned",
       startTime: DateUtils.formatDateTime(turn.startTime),
       finishTime: DateUtils.formatDateTime(turn.finishTime),
-      hours: turn.hours || 0
+      hours: turn.hours || 0,
     }));
 
     this.populateLineSamplingTable(turns);

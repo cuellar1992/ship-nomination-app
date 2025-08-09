@@ -34,12 +34,7 @@ export const SHIP_NOMINATION_CONSTANTS = {
 },
   
   // ✅ AGREGAR CONFIGURACIONES FALTANTES:
-  SINGLE_SELECT_CONFIG: {
-    clientName: {
-      label: 'Client',
-      icon: 'fas fa-building',
-      apiEndpoint: '/api/clients'
-    },
+  SINGLE_SELECT_CONFIG: {    
     agent: {
       label: 'Agent',
       icon: 'fas fa-handshake',
@@ -73,13 +68,20 @@ export const SHIP_NOMINATION_CONSTANTS = {
   },
   
   MULTI_SELECT_CONFIG: {
-    productTypes: {
-      label: 'Product Types',
-      icon: 'fas fa-oil-can',
-      modalTitle: 'Product Types Management',
-      placeholder: 'Select product types...',
-      apiEndpoint: '/api/producttypes'
-    }
+    clientName: {
+    label: 'Client',
+    icon: 'fas fa-building',
+    modalTitle: 'Client Management',
+    placeholder: 'Select clients...',
+    apiEndpoint: '/api/clients'
+  },
+  productTypes: {
+    label: 'Product Types',
+    icon: 'fas fa-oil-can',
+    modalTitle: 'Product Types Management',
+    placeholder: 'Select product types...',
+    apiEndpoint: '/api/producttypes'
+  }   
   },
   
   DATETIME_CONFIG: {

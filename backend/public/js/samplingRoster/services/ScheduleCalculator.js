@@ -3,16 +3,23 @@
  * ✅ MEJORADO: Integrado con validaciones semanales y tracking de turnos
  */
 
-import { SAMPLING_ROSTER_CONSTANTS } from '../utils/Constants.js';
-import DateUtils from '../utils/DateUtils.js';
-import ValidationService from './ValidationService.js';
+import { SAMPLING_ROSTER_CONSTANTS } from "../utils/Constants.js";
+import DateUtils from "../utils/DateUtils.js";
+import ValidationService from "./ValidationService.js";
 
 export class ScheduleCalculator {
+  static samplerRotationHistory = new Map(); // Track last assignments per generation
+  static samplerWeeklyHoursTracking = new Map(); // Track weekly hours distribution
   /**
    * 🔥 MÉTODO PRINCIPAL - Calcular turnos de Line Sampling (MEJORADO)
    * Ahora con validaciones semanales y tracking completo
    */
-  static async calculateLineSamplingTurns(officeData, totalHours, samplersData, currentRosterId = null) {
+  static async calculateLineSamplingTurns(
+    officeData,
+    totalHours,
+    samplersData,
+    currentRosterId = null
+  ) {
     const turns = [];
 
     // Validar datos de entrada
@@ -43,15 +50,17 @@ export class ScheduleCalculator {
 
     // 🎯 PASO 1: Calcular primer turno con validaciones mejoradas
     const firstTurnResult = await this.calculateFirstTurnWithValidations(
-      officeData, 
-      currentStartTime, 
+      officeData,
+      currentStartTime,
       remainingHours,
       currentRosterId
     );
 
     if (firstTurnResult.canContinue) {
       turns.push(firstTurnResult.turn);
-      currentStartTime = DateUtils.parseDateTime(firstTurnResult.turn.finishTime);
+      currentStartTime = DateUtils.parseDateTime(
+        firstTurnResult.turn.finishTime
+      );
       remainingHours -= firstTurnResult.turn.hours;
 
       Logger.debug("First turn: Office Sampler continues", {
@@ -59,7 +68,8 @@ export class ScheduleCalculator {
         data: {
           sampler: firstTurnResult.turn.samplerName,
           hours: firstTurnResult.turn.hours,
-          totalOfficeSamplerHours: officeData.hours + firstTurnResult.turn.hours,
+          totalOfficeSamplerHours:
+            officeData.hours + firstTurnResult.turn.hours,
           remainingHours: remainingHours,
           weeklyValidation: firstTurnResult.weeklyValidation?.message || "N/A",
         },
@@ -96,7 +106,9 @@ export class ScheduleCalculator {
 
       if (nextTurnResult.success) {
         turns.push(nextTurnResult.turn);
-        currentStartTime = DateUtils.parseDateTime(nextTurnResult.turn.finishTime);
+        currentStartTime = DateUtils.parseDateTime(
+          nextTurnResult.turn.finishTime
+        );
         remainingHours -= nextTurnResult.turn.hours;
 
         Logger.debug(`Turn ${turns.length} calculated successfully`, {
@@ -107,7 +119,8 @@ export class ScheduleCalculator {
             finish: nextTurnResult.turn.finishTime,
             hours: nextTurnResult.turn.hours,
             remainingHours: remainingHours,
-            validationsPassed: nextTurnResult.validations?.overall.isValid || false,
+            validationsPassed:
+              nextTurnResult.validations?.overall.isValid || false,
             weeklyStatus: nextTurnResult.validations?.weekly?.message || "N/A",
           },
           showNotification: false,
@@ -134,7 +147,9 @@ export class ScheduleCalculator {
 
         if (fallbackResult.success) {
           turns.push(fallbackResult.turn);
-          currentStartTime = DateUtils.parseDateTime(fallbackResult.turn.finishTime);
+          currentStartTime = DateUtils.parseDateTime(
+            fallbackResult.turn.finishTime
+          );
           remainingHours -= fallbackResult.turn.hours;
 
           Logger.warn("Used fallback assignment", {
@@ -174,8 +189,12 @@ export class ScheduleCalculator {
     }
 
     // 📊 Generar resumen final
-    const summary = this.generateTurnsSummary(turns, officeData, totalHours - remainingHours);
-    
+    const summary = this.generateTurnsSummary(
+      turns,
+      officeData,
+      totalHours - remainingHours
+    );
+
     Logger.success("Line Sampling calculation completed", {
       module: "SamplingRoster",
       data: {
@@ -194,10 +213,18 @@ export class ScheduleCalculator {
   /**
    * 🆕 PASO 1: Calcular primer turno con validaciones completas
    */
-  static async calculateFirstTurnWithValidations(officeData, officeFinishTime, remainingHours, currentRosterId) {
+  static async calculateFirstTurnWithValidations(
+    officeData,
+    officeFinishTime,
+    remainingHours,
+    currentRosterId
+  ) {
     const officeHours = parseInt(officeData.hours) || 6;
     const nextBlockTime = this.getNextBlockTime(officeFinishTime);
-    const hoursToNextBlock = DateUtils.getHoursBetween(officeFinishTime, nextBlockTime);
+    const hoursToNextBlock = DateUtils.getHoursBetween(
+      officeFinishTime,
+      nextBlockTime
+    );
 
     Logger.debug("First turn calculation with validations", {
       module: "SamplingRoster",
@@ -212,7 +239,10 @@ export class ScheduleCalculator {
     });
 
     // ✅ VALIDACIÓN 1: ¿Office Sampler puede continuar sin exceder 12h diarias?
-    if (officeHours + hoursToNextBlock > SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    if (
+      officeHours + hoursToNextBlock >
+      SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       return {
         canContinue: false,
         reason: "Would exceed daily 12h limit",
@@ -259,9 +289,19 @@ export class ScheduleCalculator {
   /**
    * 🆕 PASO 2: Calcular próximo turno con validaciones completas
    */
-  static async calculateNextTurnWithValidations(currentStartTime, remainingHours, samplersData, turnsInMemory, officeData, currentRosterId) {
+  static async calculateNextTurnWithValidations(
+    currentStartTime,
+    remainingHours,
+    samplersData,
+    turnsInMemory,
+    officeData,
+    currentRosterId
+  ) {
     // Calcular duración del turno
-    const turnInfo = this.calculateTurnDuration(currentStartTime, remainingHours);
+    const turnInfo = this.calculateTurnDuration(
+      currentStartTime,
+      remainingHours
+    );
 
     Logger.debug("Calculating next turn with validations", {
       module: "SamplingRoster",
@@ -276,14 +316,16 @@ export class ScheduleCalculator {
     });
 
     // Buscar sampler disponible con validaciones completas
-    const availableSamplers = await ValidationService.findAvailableSamplersForGeneration(
-      currentStartTime,
-      turnInfo.turnEndTime,
-      samplersData,
-      turnsInMemory,
-      officeData,
-      currentRosterId
-    );
+    // Buscar sampler disponible con validaciones completas
+    const availableSamplers =
+      await ValidationService.findAvailableSamplersForGeneration(
+        currentStartTime,
+        turnInfo.turnEndTime,
+        samplersData,
+        turnsInMemory,
+        officeData,
+        currentRosterId
+      );
 
     if (availableSamplers.length === 0) {
       return {
@@ -293,8 +335,20 @@ export class ScheduleCalculator {
       };
     }
 
-    // Seleccionar el mejor sampler (priorizar por horas semanales disponibles)
-    const bestSampler = this.selectBestSampler(availableSamplers, turnsInMemory);
+    // Seleccionar el mejor sampler con rotación inteligente
+    const generationId = `roster_${currentRosterId || "default"}_${Date.now()}`;
+    const bestSampler = this.selectBestSampler(
+      availableSamplers,
+      turnsInMemory,
+      generationId
+    );
+
+    // Track the assignment
+    this.trackSamplerAssignment(
+      bestSampler.sampler.name,
+      turnInfo.turnHours,
+      generationId
+    );
 
     return {
       success: true,
@@ -314,24 +368,36 @@ export class ScheduleCalculator {
    */
   static calculateTurnDuration(currentStartTime, remainingHours) {
     const currentHour = currentStartTime.getHours();
-    const isAtBlockBoundary = (
-      currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START || 
-      currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START
-    );
+    const isAtBlockBoundary =
+      currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START ||
+      currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START;
 
     let turnHours;
 
-    if (isAtBlockBoundary && remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    if (
+      isAtBlockBoundary &&
+      remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       // ✅ Turno perfecto de 12h
       turnHours = SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS;
-    } else if (isAtBlockBoundary && remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    } else if (
+      isAtBlockBoundary &&
+      remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       // ✅ Último turno con horas restantes
       turnHours = remainingHours;
     } else {
       // ⚠️ Ir hasta próximo bloque
       const nextBlockTime = this.getNextBlockTime(currentStartTime);
-      const hoursToNextBlock = DateUtils.getHoursBetween(currentStartTime, nextBlockTime);
-      turnHours = Math.min(hoursToNextBlock, remainingHours, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+      const hoursToNextBlock = DateUtils.getHoursBetween(
+        currentStartTime,
+        nextBlockTime
+      );
+      turnHours = Math.min(
+        hoursToNextBlock,
+        remainingHours,
+        SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      );
     }
 
     const turnEndTime = new Date(currentStartTime);
@@ -346,32 +412,216 @@ export class ScheduleCalculator {
   }
 
   /**
-   * 🆕 Seleccionar mejor sampler disponible
+   * 🆕 Track sampler assignment for intelligent rotation
    */
-  static selectBestSampler(availableSamplers, turnsInMemory) {
-    // Priorizar samplers con límite semanal que tengan más horas disponibles
-    return availableSamplers.sort((a, b) => {
-      const aWeekly = a.validations.weekly;
-      const bWeekly = b.validations.weekly;
+  static trackSamplerAssignment(samplerName, hours, generationId = "default") {
+    // Initialize if needed
+    if (!this.samplerRotationHistory.has(generationId)) {
+      this.samplerRotationHistory.set(generationId, []);
+    }
+    if (!this.samplerWeeklyHoursTracking.has(generationId)) {
+      this.samplerWeeklyHoursTracking.set(generationId, new Map());
+    }
 
-      // Si ambos tienen límite semanal, priorizar el que tenga más horas disponibles
-      if (aWeekly?.hasWeeklyLimit && bWeekly?.hasWeeklyLimit) {
-        return bWeekly.remainingHours - aWeekly.remainingHours;
+    // Track assignment
+    const history = this.samplerRotationHistory.get(generationId);
+    const hoursTracking = this.samplerWeeklyHoursTracking.get(generationId);
+
+    history.push({
+      samplerName: samplerName,
+      hours: hours,
+      timestamp: new Date(),
+    });
+
+    // Update hours tracking
+    const currentHours = hoursTracking.get(samplerName) || 0;
+    hoursTracking.set(samplerName, currentHours + hours);
+
+    // Keep only last 10 assignments for memory efficiency
+    if (history.length > 10) {
+      history.shift();
+    }
+
+    Logger.debug("Sampler assignment tracked", {
+      module: "SamplingRoster",
+      data: {
+        sampler: samplerName,
+        hours: hours,
+        totalHours: hoursTracking.get(samplerName),
+        recentAssignments: history.length,
+      },
+      showNotification: false,
+    });
+  }
+
+  /**
+   * 🆕 Get rotated sampler with memory and load balancing
+   */
+  static getRotatedSamplerWithMemory(
+    availableSamplers,
+    turnsInMemory = [],
+    generationId = "default"
+  ) {
+    if (!availableSamplers || availableSamplers.length === 0) {
+      return null;
+    }
+
+    // If only one sampler available, return it
+    if (availableSamplers.length === 1) {
+      return availableSamplers[0];
+    }
+
+    // Get tracking data
+    const history = this.samplerRotationHistory.get(generationId) || [];
+    const hoursTracking =
+      this.samplerWeeklyHoursTracking.get(generationId) || new Map();
+
+    // Calculate current hours for each available sampler (including current generation)
+    const samplerCurrentHours = new Map();
+    availableSamplers.forEach((samplerData) => {
+      const samplerName = samplerData.sampler
+        ? samplerData.sampler.name
+        : samplerData.name;
+
+      // Hours from tracking
+      const trackedHours = hoursTracking.get(samplerName) || 0;
+
+      // Hours from current turns in memory
+      const memoryHours = turnsInMemory
+        .filter((turn) => turn.samplerName === samplerName)
+        .reduce((sum, turn) => sum + (turn.hours || 0), 0);
+
+      samplerCurrentHours.set(samplerName, trackedHours + memoryHours);
+    });
+
+    // Get recent assignments (last 3)
+    const recentAssignments = history.slice(-3).map((h) => h.samplerName);
+
+    // Score each sampler
+    const scoredSamplers = availableSamplers.map((samplerData) => {
+      const samplerName = samplerData.sampler
+        ? samplerData.sampler.name
+        : samplerData.name;
+      const currentHours = samplerCurrentHours.get(samplerName) || 0;
+
+      let score = 0;
+
+      // 1. Avoid recent assignments (higher score = better)
+      const timesInRecent = recentAssignments.filter(
+        (name) => name === samplerName
+      ).length;
+      score += (3 - timesInRecent) * 100; // Heavy penalty for recent assignments
+
+      // 2. Prefer samplers with fewer hours (load balancing)
+      const maxHours = Math.max(...Array.from(samplerCurrentHours.values()));
+      const hoursScore =
+        maxHours > 0 ? ((maxHours - currentHours) / maxHours) * 50 : 50;
+      score += hoursScore;
+
+      // 3. Prefer samplers with weekly limits (more available hours)
+      if (samplerData.validations && samplerData.validations.weekly) {
+        const weeklyData = samplerData.validations.weekly;
+        if (weeklyData.hasWeeklyLimit && weeklyData.remainingHours > 0) {
+          score += Math.min(weeklyData.remainingHours, 24) * 2; // Bonus for available hours
+        } else if (!weeklyData.hasWeeklyLimit) {
+          score += 20; // Moderate bonus for no weekly limit
+        }
       }
 
-      // Samplers sin límite semanal van primero
-      if (aWeekly?.hasWeeklyLimit && !bWeekly?.hasWeeklyLimit) return 1;
-      if (!aWeekly?.hasWeeklyLimit && bWeekly?.hasWeeklyLimit) return -1;
+      return {
+        samplerData: samplerData,
+        samplerName: samplerName,
+        score: score,
+        currentHours: currentHours,
+        timesInRecent: timesInRecent,
+      };
+    });
 
-      // Si ambos sin límite, usar orden original
-      return 0;
-    })[0];
+    // Sort by score (highest first) and select best
+    scoredSamplers.sort((a, b) => b.score - a.score);
+    const selected = scoredSamplers[0];
+
+    Logger.debug("Intelligent sampler rotation", {
+      module: "SamplingRoster",
+      data: {
+        selected: selected.samplerName,
+        score: Math.round(selected.score),
+        currentHours: selected.currentHours,
+        recentCount: selected.timesInRecent,
+        totalOptions: availableSamplers.length,
+        top3Scores: scoredSamplers.slice(0, 3).map((s) => ({
+          name: s.samplerName,
+          score: Math.round(s.score),
+        })),
+      },
+      showNotification: false,
+    });
+
+    return selected.samplerData;
+  }
+
+  /**
+   * 🆕 Seleccionar mejor sampler disponible
+   */
+  static selectBestSampler(
+    availableSamplers,
+    turnsInMemory,
+    generationId = "default"
+  ) {
+    Logger.debug("Selecting best sampler with intelligent rotation", {
+      module: "SamplingRoster",
+      data: {
+        availableOptions: availableSamplers.length,
+        generationId: generationId,
+      },
+      showNotification: false,
+    });
+
+    // Use intelligent rotation
+    const selectedSampler = this.getRotatedSamplerWithMemory(
+      availableSamplers,
+      turnsInMemory,
+      generationId
+    );
+
+    if (!selectedSampler) {
+      Logger.warn(
+        "No sampler selected by intelligent rotation, using fallback",
+        {
+          module: "SamplingRoster",
+          showNotification: false,
+        }
+      );
+
+      // Fallback to original logic
+      return availableSamplers.sort((a, b) => {
+        const aWeekly = a.validations.weekly;
+        const bWeekly = b.validations.weekly;
+
+        if (aWeekly?.hasWeeklyLimit && bWeekly?.hasWeeklyLimit) {
+          return bWeekly.remainingHours - aWeekly.remainingHours;
+        }
+
+        if (aWeekly?.hasWeeklyLimit && !bWeekly?.hasWeeklyLimit) return 1;
+        if (!aWeekly?.hasWeeklyLimit && bWeekly?.hasWeeklyLimit) return -1;
+
+        return 0;
+      })[0];
+    }
+
+    return selectedSampler;
   }
 
   /**
    * 🆕 Calcular turno de fallback (validaciones relajadas)
    */
-  static async calculateFallbackTurn(currentStartTime, remainingHours, samplersData, turnsInMemory, officeData) {
+  static async calculateFallbackTurn(
+    currentStartTime,
+    remainingHours,
+    samplersData,
+    turnsInMemory,
+    officeData
+  ) {
     Logger.warn("Attempting fallback turn assignment", {
       module: "SamplingRoster",
       data: {
@@ -381,36 +631,47 @@ export class ScheduleCalculator {
       showNotification: false,
     });
 
-    const turnInfo = this.calculateTurnDuration(currentStartTime, remainingHours);
+    const turnInfo = this.calculateTurnDuration(
+      currentStartTime,
+      remainingHours
+    );
 
     // Fallback: solo verificar que no exceda 12h diarias
     for (const sampler of samplersData) {
       // Calcular horas diarias actuales para este sampler
       let dailyHours = 0;
-      
+
       // Contar horas del office sampling si es el mismo sampler
       if (officeData && officeData.samplerName === sampler.name) {
         const officeSameDay = DateUtils.parseDateTime(officeData.startTime);
         const proposedDay = new Date(currentStartTime);
-        if (officeSameDay && 
-            officeSameDay.toDateString() === proposedDay.toDateString()) {
+        if (
+          officeSameDay &&
+          officeSameDay.toDateString() === proposedDay.toDateString()
+        ) {
           dailyHours += officeData.hours || 0;
         }
       }
 
       // Contar horas de turnos en memoria del mismo día
-      turnsInMemory.forEach(turn => {
+      turnsInMemory.forEach((turn) => {
         if (turn.samplerName === sampler.name) {
           const turnDay = DateUtils.parseDateTime(turn.startTime);
           const proposedDay = new Date(currentStartTime);
-          if (turnDay && turnDay.toDateString() === proposedDay.toDateString()) {
+          if (
+            turnDay &&
+            turnDay.toDateString() === proposedDay.toDateString()
+          ) {
             dailyHours += turn.hours || 0;
           }
         }
       });
 
       // Verificar si puede tomar el turno sin exceder 12h diarias
-      if (dailyHours + turnInfo.turnHours <= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+      if (
+        dailyHours + turnInfo.turnHours <=
+        SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      ) {
         Logger.warn(`Fallback assignment to ${sampler.name}`, {
           module: "SamplingRoster",
           data: {
@@ -449,12 +710,14 @@ export class ScheduleCalculator {
 
     // Contar horas de office sampling
     if (officeData && officeData.samplerName) {
-      samplerHours[officeData.samplerName] = (samplerHours[officeData.samplerName] || 0) + (officeData.hours || 0);
+      samplerHours[officeData.samplerName] =
+        (samplerHours[officeData.samplerName] || 0) + (officeData.hours || 0);
     }
 
     // Contar horas de line sampling
-    turns.forEach(turn => {
-      samplerHours[turn.samplerName] = (samplerHours[turn.samplerName] || 0) + turn.hours;
+    turns.forEach((turn) => {
+      samplerHours[turn.samplerName] =
+        (samplerHours[turn.samplerName] || 0) + turn.hours;
     });
 
     return {
@@ -471,7 +734,10 @@ export class ScheduleCalculator {
   static calculateFirstTurn(officeData, officeFinishTime, remainingHours) {
     const officeHours = parseInt(officeData.hours) || 6;
     const nextBlockTime = this.getNextBlockTime(officeFinishTime);
-    const hoursToNextBlock = DateUtils.getHoursBetween(officeFinishTime, nextBlockTime);
+    const hoursToNextBlock = DateUtils.getHoursBetween(
+      officeFinishTime,
+      nextBlockTime
+    );
 
     Logger.debug("First turn calculation (legacy)", {
       module: "SamplingRoster",
@@ -486,7 +752,10 @@ export class ScheduleCalculator {
     });
 
     // ✅ VALIDACIÓN: ¿Office Sampler puede continuar sin exceder 12h?
-    if (officeHours + hoursToNextBlock <= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    if (
+      officeHours + hoursToNextBlock <=
+      SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       // ✅ Puede continuar hasta próximo bloque
       const actualHours = Math.min(hoursToNextBlock, remainingHours);
       const finishTime = new Date(officeFinishTime);
@@ -514,22 +783,32 @@ export class ScheduleCalculator {
   /**
    * 🎯 PASO 2: Calcular próximo turno en bloques exactos de 12h (LEGACY - mantener compatibilidad)
    */
-  static async calculateNextTurn(currentStartTime, remainingHours, samplersData, samplerIndex, officeSamplerName) {
+  static async calculateNextTurn(
+    currentStartTime,
+    remainingHours,
+    samplersData,
+    samplerIndex,
+    officeSamplerName
+  ) {
     // Determinar si estamos en un bloque perfecto (07:00 o 19:00)
     const currentHour = currentStartTime.getHours();
-    const isAtBlockBoundary = (
-      currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START || 
-      currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START
-    );
+    const isAtBlockBoundary =
+      currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START ||
+      currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START;
 
     let turnHours;
     let turnEndTime;
 
-    if (isAtBlockBoundary && remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    if (
+      isAtBlockBoundary &&
+      remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       // ✅ Estamos en bloque perfecto Y hay suficientes horas para 12h exactas
       turnHours = SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS;
       turnEndTime = new Date(currentStartTime);
-      turnEndTime.setHours(turnEndTime.getHours() + SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+      turnEndTime.setHours(
+        turnEndTime.getHours() + SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      );
 
       Logger.debug("Perfect block turn (12h)", {
         module: "SamplingRoster",
@@ -540,7 +819,10 @@ export class ScheduleCalculator {
         },
         showNotification: false,
       });
-    } else if (isAtBlockBoundary && remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS) {
+    } else if (
+      isAtBlockBoundary &&
+      remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    ) {
       // ✅ Último turno - usar todas las horas restantes
       turnHours = remainingHours;
       turnEndTime = new Date(currentStartTime);
@@ -558,8 +840,15 @@ export class ScheduleCalculator {
     } else {
       // ⚠️ No estamos en bloque perfecto - ir hasta próximo bloque
       const nextBlockTime = this.getNextBlockTime(currentStartTime);
-      const hoursToNextBlock = DateUtils.getHoursBetween(currentStartTime, nextBlockTime);
-      turnHours = Math.min(hoursToNextBlock, remainingHours, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+      const hoursToNextBlock = DateUtils.getHoursBetween(
+        currentStartTime,
+        nextBlockTime
+      );
+      turnHours = Math.min(
+        hoursToNextBlock,
+        remainingHours,
+        SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      );
       turnEndTime = new Date(currentStartTime);
       turnEndTime.setHours(turnEndTime.getHours() + turnHours);
 
@@ -576,8 +865,8 @@ export class ScheduleCalculator {
 
     // Asignar sampler con rotación inteligente
     const assignedSampler = await this.getNextAvailableSampler(
-      samplersData, 
-      samplerIndex, 
+      samplersData,
+      samplerIndex,
       officeSamplerName,
       currentStartTime,
       turnEndTime
@@ -597,26 +886,83 @@ export class ScheduleCalculator {
   /**
    * 🔧 Obtener próximo sampler disponible con validación cruzada (LEGACY - mantener compatibilidad)
    */
-  static async getNextAvailableSampler(samplersData, samplerIndex, officeSamplerName, startTime, finishTime, excludeRosterId = null) {
+  static async getNextAvailableSampler(
+    samplersData,
+    samplerIndex,
+    officeSamplerName,
+    startTime,
+    finishTime,
+    excludeRosterId = null
+  ) {
     try {
       // Intentar asignación con validación cruzada
+      console.log(
+        "🔍 ALL SAMPLERS BEFORE VALIDATION:",
+        samplersData.map((s) => s.name)
+      );
       const availableSamplers = await ValidationService.findAvailableSamplers(
         startTime,
         finishTime,
         samplersData,
         excludeRosterId
       );
+      console.log(
+        "🔍 SAMPLERS AFTER BASIC VALIDATION:",
+        availableSamplers.map((s) => s.sampler.name)
+      );
 
       if (availableSamplers.length > 0) {
-        // Usar rotación entre samplers disponibles
-        const selectedSampler = availableSamplers[samplerIndex % availableSamplers.length];
-        
+        // 🆕 Filtrar por conflictos POB antes de seleccionar
+        const pobFilteredSamplers = [];
+        for (const samplerData of availableSamplers) {
+          const pobValidation =
+            await ValidationService.validateAgainstFutureNominations(
+              samplerData.sampler.name,
+              startTime,
+              finishTime,
+              excludeRosterId
+            );
+
+          if (pobValidation.isValid) {
+            pobFilteredSamplers.push(samplerData);
+          }
+        }
+
+        // Usar rotación inteligente con samplers filtrados
+        const generationId = `legacy_${
+          excludeRosterId || "default"
+        }_${Date.now()}`;
+        const selectedSamplerData = this.getRotatedSamplerWithMemory(
+          pobFilteredSamplers.length > 0
+            ? pobFilteredSamplers
+            : availableSamplers, // Fallback si todos tienen conflicto
+          [], // No memory for legacy calls
+          generationId
+        );
+
+        const selectedSampler = selectedSamplerData
+          ? selectedSamplerData.sampler
+          : availableSamplers[0];
+
+        // Track the assignment
+        if (selectedSampler) {
+          const estimatedHours =
+            DateUtils.getHoursBetween(startTime, finishTime) || 8;
+          this.trackSamplerAssignment(
+            selectedSampler.name,
+            estimatedHours,
+            generationId
+          );
+        }
+
         Logger.debug("Sampler assigned with cross-validation", {
           module: "SamplingRoster",
           data: {
             selectedSampler: selectedSampler.sampler.name,
             availableOptions: availableSamplers.length,
-            timeSlot: `${DateUtils.formatDateTime(startTime)} - ${DateUtils.formatDateTime(finishTime)}`,
+            timeSlot: `${DateUtils.formatDateTime(
+              startTime
+            )} - ${DateUtils.formatDateTime(finishTime)}`,
           },
           showNotification: false,
         });
@@ -624,14 +970,19 @@ export class ScheduleCalculator {
         return selectedSampler.sampler;
       } else {
         // Fallback: rotación simple si no hay samplers disponibles
-        Logger.warn("No samplers available with cross-validation, using fallback", {
-          module: "SamplingRoster",
-          data: {
-            totalSamplers: samplersData.length,
-            timeSlot: `${DateUtils.formatDateTime(startTime)} - ${DateUtils.formatDateTime(finishTime)}`,
-          },
-          showNotification: false,
-        });
+        Logger.warn(
+          "No samplers available with cross-validation, using fallback",
+          {
+            module: "SamplingRoster",
+            data: {
+              totalSamplers: samplersData.length,
+              timeSlot: `${DateUtils.formatDateTime(
+                startTime
+              )} - ${DateUtils.formatDateTime(finishTime)}`,
+            },
+            showNotification: false,
+          }
+        );
 
         return samplersData[samplerIndex % samplersData.length];
       }
@@ -673,11 +1024,19 @@ export class ScheduleCalculator {
    * Calcular turnos adicionales para expansión de roster (OBSOLETO - NO USAR)
    * NOTA: Mantenido por compatibilidad, pero la lógica principal usa regeneración completa
    */
-  static calculateAdditionalTurns(startTime, additionalHours, samplersData, officeSamplerName) {
-    Logger.warn("Using deprecated calculateAdditionalTurns - should use full regeneration instead", {
-      module: "SamplingRoster",
-      showNotification: false,
-    });
+  static calculateAdditionalTurns(
+    startTime,
+    additionalHours,
+    samplersData,
+    officeSamplerName
+  ) {
+    Logger.warn(
+      "Using deprecated calculateAdditionalTurns - should use full regeneration instead",
+      {
+        module: "SamplingRoster",
+        showNotification: false,
+      }
+    );
 
     // Usar lógica simplificada como fallback
     const additionalTurns = [];
@@ -687,13 +1046,24 @@ export class ScheduleCalculator {
 
     while (remainingHours > 0) {
       const nextBlockTime = this.getNextBlockTime(currentStartTime);
-      const hoursToNextBlock = DateUtils.getHoursBetween(currentStartTime, nextBlockTime);
-      const turnHours = Math.min(remainingHours, hoursToNextBlock, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+      const hoursToNextBlock = DateUtils.getHoursBetween(
+        currentStartTime,
+        nextBlockTime
+      );
+      const turnHours = Math.min(
+        remainingHours,
+        hoursToNextBlock,
+        SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      );
 
       const turnEndTime = new Date(currentStartTime);
       turnEndTime.setHours(turnEndTime.getHours() + turnHours);
 
-      const assignedSampler = this.getNextAvailableSampler(samplersData, samplerIndex, officeSamplerName);
+      const assignedSampler = this.getNextAvailableSampler(
+        samplersData,
+        samplerIndex,
+        officeSamplerName
+      );
       samplerIndex++;
 
       const turn = {
@@ -752,10 +1122,69 @@ export class ScheduleCalculator {
     if (!time) return SAMPLING_ROSTER_CONSTANTS.BLOCK_TYPES.DAY;
 
     const hour = time.getHours();
-    return (hour >= SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START && 
-            hour < SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START) 
-            ? SAMPLING_ROSTER_CONSTANTS.BLOCK_TYPES.DAY 
-            : SAMPLING_ROSTER_CONSTANTS.BLOCK_TYPES.NIGHT;
+    return hour >= SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START &&
+      hour < SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START
+      ? SAMPLING_ROSTER_CONSTANTS.BLOCK_TYPES.DAY
+      : SAMPLING_ROSTER_CONSTANTS.BLOCK_TYPES.NIGHT;
+  }
+
+  /**
+   * 🆕 Clean up tracking data to prevent memory leaks
+   */
+  static cleanupTrackingData(olderThanMinutes = 60) {
+    const cutoffTime = new Date();
+    cutoffTime.setMinutes(cutoffTime.getMinutes() - olderThanMinutes);
+
+    let cleanedGenerations = 0;
+
+    // Clean rotation history
+    for (const [
+      generationId,
+      history,
+    ] of this.samplerRotationHistory.entries()) {
+      const recentHistory = history.filter(
+        (entry) => entry.timestamp > cutoffTime
+      );
+
+      if (recentHistory.length === 0) {
+        this.samplerRotationHistory.delete(generationId);
+        cleanedGenerations++;
+      } else {
+        this.samplerRotationHistory.set(generationId, recentHistory);
+      }
+    }
+
+    // Clean hours tracking for deleted generations
+    for (const generationId of this.samplerWeeklyHoursTracking.keys()) {
+      if (!this.samplerRotationHistory.has(generationId)) {
+        this.samplerWeeklyHoursTracking.delete(generationId);
+      }
+    }
+
+    if (cleanedGenerations > 0) {
+      Logger.debug("Cleaned up tracking data", {
+        module: "SamplingRoster",
+        data: {
+          cleanedGenerations: cleanedGenerations,
+          activeGenerations: this.samplerRotationHistory.size,
+          cutoffMinutes: olderThanMinutes,
+        },
+        showNotification: false,
+      });
+    }
+  }
+
+  /**
+   * 🆕 Reset all tracking data (useful for testing or manual reset)
+   */
+  static resetTrackingData() {
+    this.samplerRotationHistory.clear();
+    this.samplerWeeklyHoursTracking.clear();
+
+    Logger.info("All tracking data reset", {
+      module: "SamplingRoster",
+      showNotification: false,
+    });
   }
 }
 
