@@ -385,3 +385,237 @@
     width: 100%;
   }
 }
+
+/**
+ * 🎨 ESTILOS COMPACTOS PARA DATETIMEPICKERS EN OFFICE SAMPLING
+ * Agregar al final de sampling-roster.css o como <style> en el HTML
+ */
+
+/* ================================================
+   🆕 OFFICE SAMPLING DATETIMEPICKERS - COMPACTO
+   ================================================ */
+
+/* Contenedor principal compacto */
+.sampling-table td .datetime-picker-container {
+  min-width: 140px !important;
+  max-width: 160px !important;
+  margin: 0 !important;
+}
+
+/* Ocultar labels "DATE & TIME" en Office Sampling */
+.sampling-table .datetime-picker-label {
+  display: none !important;
+}
+
+/* Contenedor del display más compacto */
+.sampling-table .datetime-picker-container > div {
+  border-radius: 6px !important;
+  min-height: 35px !important;
+  border-width: 1px !important;
+}
+
+/* Display de fecha/hora más compacto */
+.sampling-table .selected-datetime-display {
+  padding: 0.5rem 2.5rem 0.5rem 0.75rem !important;
+  min-height: 35px !important;
+}
+
+/* Texto más pequeño y compacto */
+.sampling-table .placeholder-text,
+.sampling-table .selected-text {
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.2px !important;
+  font-family: 'Inter', monospace !important;
+}
+
+/* Placeholder más sutil */
+.sampling-table .placeholder-text {
+  color: var(--text-dim) !important;
+  font-style: italic;
+}
+
+/* Texto seleccionado más prominente */
+.sampling-table .selected-text {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* Iconos más pequeños */
+.sampling-table .datetime-icon {
+  font-size: 0.9rem !important;
+  right: 0.75rem !important;
+  color: var(--accent-primary) !important;
+}
+
+/* Botón clear más pequeño */
+.sampling-table .clear-datetime-btn {
+  right: 2rem !important;
+  font-size: 0.8rem !important;
+  padding: 0.2rem !important;
+}
+
+/* Hover effects más sutiles */
+.sampling-table .datetime-picker-container:hover {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 1px rgba(31, 181, 212, 0.2) !important;
+}
+
+/* Focus state más definido */
+.sampling-table .datetime-picker-container:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 2px rgba(31, 181, 212, 0.15) !important;
+}
+
+/* ================================================
+   🎯 AJUSTES ESPECÍFICOS PARA CELDAS DE TABLA
+   ================================================ */
+
+/* Celdas de Office Sampling en modo edición */
+.sampling-table tr[data-row-id="office-sampler-row"] td:nth-child(2),
+.sampling-table tr[data-row-id="office-sampler-row"] td:nth-child(3) {
+  padding: 0.4rem !important;
+  vertical-align: middle !important;
+}
+
+/* Asegurar que los DateTimePickers encajen bien */
+.sampling-table tr[data-row-id="office-sampler-row"] td:nth-child(2) .datetime-picker-container,
+.sampling-table tr[data-row-id="office-sampler-row"] td:nth-child(3) .datetime-picker-container {
+  width: 100%;
+  max-width: 150px;
+}
+
+/* ================================================
+   📱 RESPONSIVE - EXTRA COMPACTO EN MÓVIL
+   ================================================ */
+
+@media (max-width: 768px) {
+  .sampling-table .datetime-picker-container {
+    min-width: 120px !important;
+    max-width: 140px !important;
+  }
+  
+  .sampling-table .selected-datetime-display {
+    padding: 0.4rem 2.2rem 0.4rem 0.6rem !important;
+    min-height: 32px !important;
+  }
+  
+  .sampling-table .placeholder-text,
+  .sampling-table .selected-text {
+    font-size: 0.75rem !important;
+  }
+  
+  .sampling-table .datetime-icon {
+    font-size: 0.8rem !important;
+    right: 0.6rem !important;
+  }
+}
+
+/* ================================================
+   🎨 MEJORAS VISUALES ADICIONALES
+   ================================================ */
+
+/* Animación suave al activar DateTimePickers */
+.sampling-table .datetime-picker-container {
+  transition: all 0.2s ease-in-out !important;
+  transform: scale(1);
+}
+
+/* Efecto de "aparecer" al entrar en modo edición */
+.sampling-table .datetime-picker-container.datetime-edit-mode {
+  animation: slideInDateTime 0.3s ease-out;
+}
+
+@keyframes slideInDateTime {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ================================================
+   ⚡ OPTIMIZACIONES DE RENDIMIENTO
+   ================================================ */
+
+/* Usar transform para mejor rendimiento */
+.sampling-table .datetime-picker-container:hover .datetime-icon {
+  transform: translateY(-50%) scale(1.05) !important;
+  transition: transform 0.15s ease !important;
+}
+
+/* Evitar repaint en animaciones */
+.sampling-table .datetime-picker-container * {
+  will-change: auto;
+}
+
+/* ================================================
+   🔧 PERSONALIZACIÓN AVANZADA
+   ================================================ */
+
+/* Estilo especial para fechas válidas */
+.sampling-table .datetime-picker-container.has-valid-date {
+  border-color: #28a745 !important;
+}
+
+.sampling-table .datetime-picker-container.has-valid-date .selected-text {
+  color: #28a745 !important;
+}
+
+/* Estilo especial para fechas inválidas */
+.sampling-table .datetime-picker-container.has-invalid-date {
+  border-color: #dc3545 !important;
+}
+
+.sampling-table .datetime-picker-container.has-invalid-date .selected-text {
+  color: #dc3545 !important;
+}
+
+/* Indicador visual para campos requeridos */
+.sampling-table .datetime-picker-container.required::after {
+  content: "*";
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  color: #dc3545;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+/* ================================================
+   📋 MODO READONLY/DISABLED
+   ================================================ */
+
+/* Estilo cuando DateTimePicker está deshabilitado */
+.sampling-table .datetime-picker-container.disabled {
+  opacity: 0.6 !important;
+  pointer-events: none !important;
+  background: var(--bg-secondary) !important;
+}
+
+/* ================================================
+   ✨ TOQUES FINALES DE PULIDO
+   ================================================ */
+
+/* Sombra sutil para dar profundidad */
+.sampling-table .datetime-picker-container {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Borde más suave en estado normal */
+.sampling-table .datetime-picker-container > div {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Cursor pointer en toda el área clickeable */
+.sampling-table .selected-datetime-display {
+  cursor: pointer !important;
+}
+
+/* Mejorar legibilidad del placeholder */
+.sampling-table .placeholder-text {
+  opacity: 0.7 !important;
+}

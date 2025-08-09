@@ -210,7 +210,7 @@ class ComponentFactory {
         let items = [];
 
         // Determinar origen de datos
-         if (config.apiEndpoint === "/api/producttypes") {
+        if (config.apiEndpoint === "/api/producttypes") {
           items = apiData.productTypes || [];
         } else if (config.apiEndpoint === "/api/clients") {
           items = apiData.clients || [];
@@ -669,61 +669,121 @@ class ComponentFactory {
   }
 
   /**
-   * Recopilar datos para API específicamente
-   * @param {Object} singleSelectInstances - Instancias SingleSelect
-   * @param {Object} multiSelectInstances - Instancias MultiSelect
-   * @param {Object} dateTimeInstances - Instancias DateTimePicker
-   * @returns {Object} Datos para API
-   */
-  static collectComponentDataForAPI(
-    singleSelectInstances,
-    multiSelectInstances,
-    dateTimeInstances
-  ) {
-    Logger.debug("Collecting component data for API", {
-      module: "ComponentFactory",
-      showNotification: false,
-    });
+ * Recopilar datos para API específicamente - VERSIÓN CORREGIDA
+ * Incluye restricciones de samplers y datos extendidos
+ * @param {Object} singleSelectInstances - Instancias SingleSelect
+ * @param {Object} multiSelectInstances - Instancias MultiSelect
+ * @param {Object} dateTimeInstances - Instancias DateTimePicker
+ * @returns {Object} Datos para API
+ */
+static collectComponentDataForAPI(
+  singleSelectInstances,
+  multiSelectInstances,
+  dateTimeInstances
+) {
+  Logger.debug("Collecting component data for API", {
+    module: "ComponentFactory",
+    showNotification: false,
+  });
 
-    const data = {};
+  const data = {};
 
-    // SingleSelects - obtener nombres seleccionados
-    Object.keys(singleSelectInstances).forEach((fieldId) => {
-      const selectedItem = singleSelectInstances[fieldId].getSelectedItem();
-      if (selectedItem) {
-        if (fieldId === "clientName") {
-          data.clientName = selectedItem;
-        } else {
-          data[fieldId] = selectedItem;
+  // 🆕 NUEVA ESTRUCTURA: Recopilar restricciones de samplers
+  const samplerRestrictions = {};
+
+  // SingleSelects - obtener nombres seleccionados Y datos extendidos
+  Object.keys(singleSelectInstances).forEach((fieldId) => {
+    const instance = singleSelectInstances[fieldId];
+    const selectedItem = instance.getSelectedItem();
+    
+    if (selectedItem) {
+      if (fieldId === "clientName") {
+        data.clientName = selectedItem;
+      } else {
+        data[fieldId] = selectedItem;
+      }
+
+      // 🆕 NUEVA FUNCIONALIDAD: Recopilar restricciones para samplers
+      if (fieldId === "sampler" && instance.config.useExtendedEdit) {
+        
+        // Obtener datos completos del sampler
+        let samplerData = { name: selectedItem };
+        
+        if (instance.config.onGetItemData) {
+          try {
+            samplerData = instance.config.onGetItemData(selectedItem) || samplerData;
+          } catch (error) {
+            console.warn("Error getting sampler data:", error);
+          }
+        }
+
+        // 🔍 VERIFICAR SI TIENE RESTRICCIÓN SEMANAL ACTIVA
+        const hasWeeklyRestriction = instance.isWeeklyRestrictionEnabled 
+          ? instance.isWeeklyRestrictionEnabled(selectedItem)
+          : false;
+
+        // 🆕 AGREGAR RESTRICCIONES AL OBJETO PRINCIPAL
+        if (hasWeeklyRestriction || samplerData.weeklyRestriction) {
+          samplerRestrictions[selectedItem] = {
+            has24HourRestriction: true,
+            restrictionType: "24_hour_weekly_limit",
+            restrictionValue: 24,
+            enabled: true,
+            createdAt: new Date().toISOString(),
+            // Incluir datos extendidos si existen
+            ...(samplerData.email && { email: samplerData.email }),
+            ...(samplerData.phone && { phone: samplerData.phone })
+          };
+
+          Logger.debug("Sampler restriction detected", {
+            module: "ComponentFactory",
+            samplerName: selectedItem,
+            hasRestriction: true,
+            showNotification: false
+          });
         }
       }
-    });
+    }
+  });
 
-    // MultiSelects - obtener array de nombres
-    Object.keys(multiSelectInstances).forEach((fieldId) => {
-      const selectedItems = multiSelectInstances[fieldId].getSelectedItems();
-      if (selectedItems && selectedItems.length > 0) {
-        data[fieldId] = selectedItems;
-      }
-    });
-
-    // DateTimePickers - obtener fechas en formato ISO
-    Object.keys(dateTimeInstances).forEach((fieldId) => {
-      const dateTime = dateTimeInstances[fieldId].getDateTime();
-      if (dateTime) {
-        data[fieldId] = dateTime.toISOString();
-      }
-    });
-
-    Logger.debug("API data prepared", {
+  // 🆕 AGREGAR RESTRICCIONES AL OBJETO DE DATOS SI EXISTEN
+  if (Object.keys(samplerRestrictions).length > 0) {
+    data.samplerRestrictions = samplerRestrictions;
+    
+    Logger.info("Sampler restrictions included in API data", {
       module: "ComponentFactory",
-      apiFields: Object.keys(data).length,
-      hasDateTimes: Object.keys(dateTimeInstances).some((key) => data[key]),
-      showNotification: false,
+      restrictionCount: Object.keys(samplerRestrictions).length,
+      restrictions: samplerRestrictions,
+      showNotification: false
     });
-
-    return data;
   }
+
+  // MultiSelects - obtener array de nombres
+  Object.keys(multiSelectInstances).forEach((fieldId) => {
+    const selectedItems = multiSelectInstances[fieldId].getSelectedItems();
+    if (selectedItems && selectedItems.length > 0) {
+      data[fieldId] = selectedItems;
+    }
+  });
+
+  // DateTimePickers - obtener fechas en formato ISO
+  Object.keys(dateTimeInstances).forEach((fieldId) => {
+    const dateTime = dateTimeInstances[fieldId].getDateTime();
+    if (dateTime) {
+      data[fieldId] = dateTime.toISOString();
+    }
+  });
+
+  Logger.debug("API data prepared with restrictions", {
+    module: "ComponentFactory",
+    apiFields: Object.keys(data).length,
+    hasDateTimes: Object.keys(dateTimeInstances).some((key) => data[key]),
+    hasSamplerRestrictions: !!data.samplerRestrictions,
+    showNotification: false,
+  });
+
+  return data;
+}
 
   /**
    * Verificar que todos los componentes estén disponibles

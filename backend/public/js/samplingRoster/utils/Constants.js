@@ -8,15 +8,60 @@ export const SAMPLING_ROSTER_CONSTANTS = {
   MAX_SAMPLER_HOURS: 12,
   MINIMUM_REST_HOURS: 10,
   
-  // 🆕 Límites semanales por sampler (Laura, Ruben, Sakib = 24h/semana)
-  SAMPLER_LIMITS: {
-    WEEKLY_LIMITS: {
-      'Laura': 24,
-      'Ruben': 24,
-      'Sakib': 24
-      // Otros samplers sin límite (no listados = sin límite)
+  // 🆕 Límites semanales por sampler (SE CARGAN DINÁMICAMENTE DESDE BD)
+SAMPLER_LIMITS: {
+  WEEKLY_LIMITS: {}, // Se inicializa vacío, se carga desde API
+  
+  // 🆕 NUEVO: Función para cargar límites desde base de datos
+  async loadWeeklyLimitsFromDatabase() {
+    try {
+      // Obtener URL base
+      const getBaseURL = () => {
+        const { hostname, protocol } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}:3000`;
+        }
+        return '';
+      };
+      
+      const baseURL = getBaseURL();
+      const response = await fetch(`${baseURL}/api/samplers`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        // Limpiar límites anteriores
+        this.WEEKLY_LIMITS = {};
+        
+        // Cargar samplers con restricción desde BD
+        result.data.forEach(sampler => {
+          if (sampler.weeklyRestriction === true) {
+            this.WEEKLY_LIMITS[sampler.name] = 24;
+          }
+        });
+        
+        console.log('✅ Weekly limits loaded from database:', this.WEEKLY_LIMITS);
+        return this.WEEKLY_LIMITS;
+      }
+    } catch (error) {
+      console.error('❌ Error loading weekly limits from database:', error);
+      
+      // Fallback: usar límites hardcodeados como respaldo
+      this.WEEKLY_LIMITS = {
+        'Laura': 24,
+        'Ruben': 24,
+        'Sakib': 24
+      };
+      console.warn('⚠️ Using fallback hardcoded limits:', this.WEEKLY_LIMITS);
     }
+    
+    return this.WEEKLY_LIMITS;
   },
+  
+  // 🆕 NUEVO: Función para refrescar límites
+  async refreshWeeklyLimits() {
+    return await this.loadWeeklyLimitsFromDatabase();
+  }
+},
   
   DEFAULT_DISCHARGE_START_OFFSET: 3, // horas después de ETB
   
@@ -74,5 +119,25 @@ get API_ENDPOINTS() {
     SHOW_DEBUG: false,
     SHOW_SUCCESS_NOTIFICATIONS: true,
     SHOW_ERROR_NOTIFICATIONS: true
-  }
+  }  
 };
+
+// 🆕 INICIALIZACIÓN AUTOMÁTICA: Cargar límites al importar el módulo
+if (typeof window !== 'undefined') {
+  // Hacer constantes disponibles globalmente
+  window.SAMPLING_ROSTER_CONSTANTS = SAMPLING_ROSTER_CONSTANTS;
+  
+  // Cargar límites semanales automáticamente cuando esté listo el DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS.loadWeeklyLimitsFromDatabase();
+      }, 1000);
+    });
+  } else {
+    // DOM ya está listo
+    setTimeout(() => {
+      SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS.loadWeeklyLimitsFromDatabase();
+    }, 1000);
+  }
+}

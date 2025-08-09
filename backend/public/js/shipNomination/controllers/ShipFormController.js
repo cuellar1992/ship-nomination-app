@@ -518,21 +518,53 @@ class ShipFormController {
    * @param {string} item - Nombre del item
    */
   async addItem(fieldId, item) {
-    await this.apiManager.addItem(
+    // 🔍 DEBUG: Ver qué datos llegan
+    console.log("🔍 addItem called with:", {
       fieldId,
       item,
-      // onSuccess callback - SIMPLIFICADO
-      async () => {
-        await this.apiManager.loadApiData();
-        if (this.tableFilters) {
-          this.tableFilters.refreshData();
+      itemType: typeof item,
+    });
+    // 🆕 MANEJAR DATOS EXTENDIDOS (samplers con weeklyRestriction)
+    if (typeof item === "object" && item.name) {
+      // Modo extendido: item = { name, email, phone, weeklyRestriction }
+      await this.apiManager.addItem(
+        fieldId,
+        item, // Pasar objeto completo
+        // onSuccess callback
+        async () => {
+          // 🆕 ACTUALIZAR CONSTANTES si es sampler con restricción
+          if (fieldId === "sampler" && item.weeklyRestriction) {
+            await this.updateSamplerRestrictions(item.name, true);
+          }
+
+          await this.apiManager.loadApiData();
+          if (this.tableFilters) {
+            this.tableFilters.refreshData();
+          }
+        },
+        // onError callback
+        (error) => {
+          alert(error);
         }
-      },
-      // onError callback
-      (error) => {
-        alert(error);
-      }
-    );
+      );
+    } else {
+      // Modo simple: item = "nombre"
+      await this.apiManager.addItem(
+        fieldId,
+        item,
+        // onSuccess callback - SIMPLIFICADO
+        async () => {
+          await this.apiManager.loadApiData();
+          if (this.tableFilters) {
+            this.tableFilters.refreshData();
+          }
+        },
+        // onError callback
+        (error) => {
+          alert(error);
+        }
+      );
+    }
   }
 
   /**
@@ -583,6 +615,17 @@ class ShipFormController {
         originalData,
         // onSuccess callback
         async () => {
+          // 🆕 ACTUALIZAR CONSTANTES si es sampler con cambio de restricción
+          if (
+            fieldId === "sampler" &&
+            updatedData.weeklyRestriction !== undefined
+          ) {
+            await this.updateSamplerRestrictions(
+              updatedData.name,
+              updatedData.weeklyRestriction
+            );
+          }
+
           await this.apiManager.loadApiData();
           if (this.tableFilters) {
             this.tableFilters.refreshData();
@@ -598,12 +641,23 @@ class ShipFormController {
       const oldName = updatedDataOrOldName;
       const newName = originalDataOrNewName;
 
-      await this.apiManager.editItem(
+      await this.apiManager.updateItem(
         fieldId,
-        oldName,
-        newName,
+        updatedData,
+        originalData,
         // onSuccess callback
         async () => {
+          // 🆕 ACTUALIZAR CONSTANTES si es sampler con cambio de restricción
+          if (
+            fieldId === "sampler" &&
+            updatedData.weeklyRestriction !== undefined
+          ) {
+            await this.updateSamplerRestrictions(
+              updatedData.name,
+              updatedData.weeklyRestriction
+            );
+          }
+
           await this.apiManager.loadApiData();
           if (this.tableFilters) {
             this.tableFilters.refreshData();
@@ -618,68 +672,52 @@ class ShipFormController {
   }
 
   /**
-   * 🆕 NUEVO: Obtener datos completos de un item por nombre
+   * Obtener datos completos de un item por nombre
    * @param {string} fieldId - ID del campo
    * @param {string} itemName - Nombre del item
    * @returns {Object|null} Datos completos del item
    */
   getItemData(fieldId, itemName) {
-    try {
-      // Obtener configuración del campo
-      const config = SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId];
+    Logger.debug(`Getting item data for ${fieldId}: ${itemName}`, {
+      module: "ShipFormController",
+      showNotification: false,
+    });
 
-      if (!config || !config.apiEndpoint) {
-        Logger.debug(`No API endpoint for ${fieldId}, returning basic data`, {
-          module: "ShipFormController",
-          data: { fieldId: fieldId, itemName: itemName },
-          showNotification: false,
-        });
-        return { name: itemName };
-      }
-
-      // Usar APIManager para buscar datos completos
-      const itemData = this.apiManager.findItemByName(
-        config.apiEndpoint,
-        itemName
+    if (fieldId === "sampler") {
+      const sampler = this.apiManager.samplersFullData?.find(
+        (s) => s.name === itemName
       );
-
-      if (itemData) {
+      if (sampler) {
         Logger.debug(`Found complete data for ${itemName}`, {
           module: "ShipFormController",
-          data: {
-            fieldId: fieldId,
-            itemName: itemName,
-            hasEmail: !!itemData.email,
-            hasPhone: !!itemData.phone,
-          },
+          data: sampler,
           showNotification: false,
         });
-
-        return {
-          name: itemData.name,
-          email: itemData.email || null,
-          phone: itemData.phone || null,
-          createdAt: itemData.createdAt || null,
-          updatedAt: itemData.updatedAt || null,
-        };
-      } else {
-        Logger.warn(`Item ${itemName} not found in ${config.apiEndpoint}`, {
-          module: "ShipFormController",
-          data: { fieldId: fieldId, itemName: itemName },
-          showNotification: false,
-        });
-
-        return { name: itemName };
+        // ✅ DEVOLVER TODO EL OBJETO COMPLETO
+        return sampler;
       }
-    } catch (error) {
-      Logger.error(`Error getting item data for ${itemName}`, {
-        module: "ShipFormController",
-        error: error,
-        showNotification: false,
-      });
-
-      return { name: itemName };
     }
+
+    if (fieldId === "chemist") {
+      const chemist = this.apiManager.chemistsFullData?.find(
+        (c) => c.name === itemName
+      );
+      if (chemist) {
+        return chemist;
+      }
+    }
+
+    if (fieldId === "surveyor") {
+      const surveyor = this.apiManager.surveyorsFullData?.find(
+        (s) => s.name === itemName
+      );
+      if (surveyor) {
+        return surveyor;
+      }
+    }
+
+    // Fallback: datos básicos
+    return { name: itemName };
   }
 
   /**
@@ -965,6 +1003,76 @@ class ShipFormController {
       this.tableFilters.clearAllFilters();
     }
   }
+
+  /**
+   * 🆕 NUEVO: Actualizar restricciones de sampler en constantes dinámicamente
+   * @param {string} samplerName - Nombre del sampler
+   * @param {boolean} hasRestriction - Si tiene restricción semanal
+   */
+  async updateSamplerRestrictions(samplerName, hasRestriction) {
+    try {
+      Logger.info(`Updating restrictions for ${samplerName}`, {
+        module: "ShipFormController",
+        data: {
+          samplerName: samplerName,
+          hasRestriction: hasRestriction,
+        },
+        showNotification: false,
+      });
+
+      // 🔄 SINCRONIZAR CON SAMPLING ROSTER CONSTANTS
+      if (
+        window.SAMPLING_ROSTER_CONSTANTS &&
+        window.SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS
+      ) {
+        // Refrescar límites desde base de datos
+        await window.SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS.refreshWeeklyLimits();
+
+        Logger.success(`Sampling Roster constants synchronized`, {
+          module: "ShipFormController",
+          data: {
+            currentLimits: Object.keys(
+              window.SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS.WEEKLY_LIMITS
+            ),
+            samplerUpdated: samplerName,
+            restriction: hasRestriction,
+          },
+          showNotification: false,
+        });
+      }
+
+      // 🎯 NOTIFICACIÓN AL USUARIO
+      const message = hasRestriction
+        ? `Weekly restriction enabled for ${samplerName} (24h/week limit)`
+        : `Weekly restriction disabled for ${samplerName}`;
+
+      Logger.success(message, {
+        module: "ShipFormController",
+        showNotification: true,
+        notificationMessage: message,
+      });
+
+      // 🔄 ACTUALIZAR SingleSelect para reflejar cambios inmediatamente
+      const samplerSelect = this.singleSelectInstances.sampler;
+      if (
+        samplerSelect &&
+        typeof samplerSelect.isWeeklyRestrictionEnabled === "function"
+      ) {
+        Logger.debug("SingleSelect state will refresh on next open", {
+          module: "ShipFormController",
+          showNotification: false,
+        });
+      }
+    } catch (error) {
+      Logger.error("Error updating sampler restrictions", {
+        module: "ShipFormController",
+        error: error,
+        data: { samplerName: samplerName, hasRestriction: hasRestriction },
+        showNotification: true,
+        notificationMessage: `Failed to update restrictions for ${samplerName}`,
+      });
+    }
+  }
 }
 
 // ========================================
@@ -1217,7 +1325,6 @@ window.testExcelExportSystem = function () {
     data: { buttonVisible: debugResult.buttonVisible },
     showNotification: false,
   });
-
   return true;
 };
 

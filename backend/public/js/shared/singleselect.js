@@ -1053,6 +1053,41 @@ class SingleSelect {
     `;
     });
 
+    // 🆕 AGREGAR TOGGLE SWITCH DESPUÉS DE LOS CAMPOS
+    // Solo si es componente Sampler
+    if (
+      this.config.label === "Sampler" ||
+      this.containerId.toLowerCase().includes("sampler")
+    ) {
+      fieldsHTML += `
+      <div class="mb-3">
+        <div class="weekly-restriction-container">
+          <div class="toggle-switch-row">
+            <div class="toggle-info">
+              <div class="toggle-title">
+                <i class="fas fa-clock text-primary me-2"></i>
+                24h Weekly Restriction
+              </div>
+              <small class="toggle-description">
+                When enabled, limits this sampler to 24 hours per week
+              </small>
+            </div>
+            <div class="toggle-control">
+              <span class="toggle-text off" id="${miniModalId}_textOff">OFF</span>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       role="switch" 
+                       id="${miniModalId}_weeklyRestriction">
+              </div>
+              <span class="toggle-text on" id="${miniModalId}_textOn">ON</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
     return `
     <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
@@ -1068,13 +1103,13 @@ class SingleSelect {
             ${fieldsHTML}
           </div>
           <div class="modal-footer settings-footer">
-  <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-    <i class="fas fa-times me-1"></i>Cancel
-  </button>
-  <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-    <i class="fas fa-plus me-1"></i>Add ${this.config.label}
-  </button>
-</div>
+            <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+              <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+              <i class="fas fa-plus me-1"></i>Add ${this.config.label}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1127,6 +1162,26 @@ class SingleSelect {
           }
         });
       }
+      // 🔧 PRIMERO: Configurar la funcionalidad del toggle
+      this.setupToggleFunctionality(miniModalId);
+
+      // 🔧 DESPUÉS: Capturar el valor del toggle
+      const toggleInput = document.getElementById(
+        `${miniModalId}_weeklyRestriction`
+      );
+      if (toggleInput) {
+        updatedData.weeklyRestriction = toggleInput.checked;
+
+        // 🔍 DEBUG temporal (quitar después)
+        console.log("🔍 Toggle found:", !!toggleInput);
+        console.log("🔍 Toggle checked:", toggleInput.checked);
+        console.log("🔍 Updated data:", updatedData);
+      } else {
+        console.log(
+          "🔍 Toggle input NOT found for:",
+          `${miniModalId}_weeklyRestriction`
+        );
+      }
 
       // Actualizar lista local
       this.allItems.push(name);
@@ -1168,6 +1223,10 @@ class SingleSelect {
       .addEventListener("hidden.bs.modal", () => {
         document.getElementById(miniModalId).remove();
       });
+
+    setTimeout(() => {
+      this.setupToggleFunctionality(miniModalId);
+    }, 100);
   }
 
   /**
@@ -1222,67 +1281,108 @@ class SingleSelect {
 
     // Campo nombre (siempre requerido) - PRE-LLENADO
     let fieldsHTML = `
-        <div class="mb-3">
-            <label class="form-label">
-                <i class="${this.config.icon} me-2"></i>
-                Name *
-            </label>
-            <input type="text"
-                   class="form-control ship-form-input"
-                   id="${miniModalId}_name"
-                   placeholder="Enter ${this.config.label.toLowerCase()} name..."
-                   value="${currentData.name || ""}"
-                   required>
-        </div>
-    `;
+    <div class="mb-3">
+      <label class="form-label">
+        <i class="${this.config.icon} me-2"></i>
+        Name *
+      </label>
+      <input type="text"
+             class="form-control ship-form-input"
+             id="${miniModalId}_name"
+             placeholder="Enter ${this.config.label.toLowerCase()} name..."
+             value="${currentData.name || ""}"
+             required>
+    </div>
+  `;
 
     // Campos extendidos (email, phone, etc.) - PRE-LLENADOS
     fields.forEach((field) => {
       const currentValue = currentData[field.name] || "";
       fieldsHTML += `
-            <div class="mb-3">
-                <label class="form-label">
-                    <i class="fas fa-${
-                      field.type === "email" ? "envelope" : "phone"
-                    } me-2"></i>
-                    ${field.label}${field.required ? " *" : ""}
-                </label>
-                <input type="${field.type}"
-                       class="form-control ship-form-input"
-                       id="${miniModalId}_${field.name}"
-                       placeholder="${field.placeholder}"
-                       value="${currentValue}"
-                       ${field.required ? "required" : ""}>
-            </div>
-        `;
+      <div class="mb-3">
+        <label class="form-label">
+          <i class="fas fa-${
+            field.type === "email" ? "envelope" : "phone"
+          } me-2"></i>
+          ${field.label}${field.required ? " *" : ""}
+        </label>
+        <input type="${field.type}"
+               class="form-control ship-form-input"
+               id="${miniModalId}_${field.name}"
+               placeholder="${field.placeholder}"
+               value="${currentValue}"
+               ${field.required ? "required" : ""}>
+      </div>
+    `;
     });
 
-    return `
-        <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
-                <div class="modal-content settings-modal">
-                    <div class="modal-header settings-header">
-                        <h5 class="modal-title settings-title" id="${miniModalId}Label">
-                            <i class="fas fa-edit me-2"></i>
-                            Edit ${this.config.label}
-                        </h5>
-                        <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body settings-body">
-                        ${fieldsHTML}
-                    </div>
-                    <div class="modal-footer settings-footer">
-                        <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-                            <i class="fas fa-times me-1"></i>Cancel
-                        </button>
-                        <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-                            <i class="fas fa-save me-1"></i>Save Changes
-                        </button>
-                    </div>
-                </div>
+    // 🆕 AGREGAR TOGGLE SWITCH CON VALOR ACTUAL
+    // Solo si es componente Sampler
+    if (
+      this.config.label === "Sampler" ||
+      this.containerId.toLowerCase().includes("sampler")
+    ) {
+      // 🔍 DETECTAR ESTADO ACTUAL: ¿Está en WEEKLY_LIMITS?
+      const hasWeeklyRestriction = this.isWeeklyRestrictionEnabled(
+        currentData.name
+      );
+
+      fieldsHTML += `
+      <div class="mb-3">
+        <div class="weekly-restriction-container">
+          <div class="toggle-switch-row">
+            <div class="toggle-info">
+              <div class="toggle-title">
+                <i class="fas fa-clock text-primary me-2"></i>
+                24h Weekly Restriction
+              </div>
+              <small class="toggle-description">
+                When enabled, limits this sampler to 24 hours per week
+              </small>
             </div>
+            <div class="toggle-control">
+              <span class="toggle-text off" id="${miniModalId}_textOff">OFF</span>
+              <div class="form-check form-switch m-0">
+                <input class="form-check-input" 
+                       type="checkbox" 
+                       role="switch" 
+                       id="${miniModalId}_weeklyRestriction"
+                       ${hasWeeklyRestriction ? "checked" : ""}>
+              </div>
+              <span class="toggle-text on" id="${miniModalId}_textOn">ON</span>
+            </div>
+          </div>
         </div>
+      </div>
     `;
+    }
+
+    return `
+    <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
+        <div class="modal-content settings-modal">
+          <div class="modal-header settings-header">
+            <h5 class="modal-title settings-title" id="${miniModalId}Label">
+              <i class="fas fa-edit me-2"></i>
+              Edit ${this.config.label}
+            </h5>
+            <button type="button" class="btn-close settings-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body settings-body">
+            ${fieldsHTML}
+          </div>
+          <div class="modal-footer settings-footer">
+            <button type="button" class="btn btn-secondary-premium" data-bs-dismiss="modal" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+              <i class="fas fa-times me-1"></i>Cancel
+            </button>
+            <button type="button" class="btn btn-primary-premium" id="${miniModalId}_saveBtn" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+              <i class="fas fa-save me-1"></i>Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
   }
 
   /**
@@ -1335,6 +1435,26 @@ class SingleSelect {
           }
         });
       }
+      // 🔧 PRIMERO: Configurar la funcionalidad del toggle
+      this.setupToggleFunctionality(miniModalId);
+
+      // 🔧 DESPUÉS: Capturar el valor del toggle
+      const toggleInput = document.getElementById(
+        `${miniModalId}_weeklyRestriction`
+      );
+      if (toggleInput) {
+        updatedData.weeklyRestriction = toggleInput.checked;
+
+        // 🔍 DEBUG temporal (quitar después)
+        console.log("🔍 Toggle found:", !!toggleInput);
+        console.log("🔍 Toggle checked:", toggleInput.checked);
+        console.log("🔍 Updated data:", updatedData);
+      } else {
+        console.log(
+          "🔍 Toggle input NOT found for:",
+          `${miniModalId}_weeklyRestriction`
+        );
+      }
 
       // Actualizar lista local
       this.allItems[index] = newName;
@@ -1376,6 +1496,10 @@ class SingleSelect {
       .addEventListener("hidden.bs.modal", () => {
         document.getElementById(miniModalId).remove();
       });
+
+    setTimeout(() => {
+      this.setupToggleFunctionality(miniModalId);
+    }, 100);
   }
 
   addNewItem() {
@@ -1717,130 +1841,223 @@ class SingleSelect {
     const style = document.createElement("style");
     style.id = "singleselect-styles";
     style.textContent = `
-            .singleselect-container:focus {
-                outline: none;
-            }
+/* Focus reset */
+.singleselect-container:focus {
+    outline: none;
+}
 
-            .singleselect-overlay-dropdown {
-                position: fixed !important;
-                z-index: 999999 !important;
-                pointer-events: auto !important;
-                will-change: transform, top, left;
-            }
+.singleselect-overlay-dropdown {
+    position: fixed !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+    will-change: transform, top, left;
+}
 
-            .dropdown-menu-overlay {
-                scrollbar-width: thin;
-                scrollbar-color: var(--accent-primary) var(--bg-tertiary);
-                will-change: transform;
-            }
+.dropdown-menu-overlay {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-primary) var(--bg-tertiary);
+    will-change: transform;
+}
 
-            .dropdown-menu-overlay::-webkit-scrollbar {
-                width: 8px;
-            }
+.dropdown-menu-overlay::-webkit-scrollbar {
+    width: 8px;
+}
 
-            .dropdown-menu-overlay::-webkit-scrollbar-track {
-                background: var(--bg-tertiary);
-                border-radius: 4px;
-            }
+.dropdown-menu-overlay::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
 
-            .dropdown-menu-overlay::-webkit-scrollbar-thumb {
-                background: var(--accent-primary);
-                border-radius: 4px;
-            }
+.dropdown-menu-overlay::-webkit-scrollbar-thumb {
+    background: var(--accent-primary);
+    border-radius: 4px;
+}
 
-            .dropdown-menu-overlay::-webkit-scrollbar-thumb:hover {
-                background: var(--accent-hover);
-            }
+.dropdown-menu-overlay::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-hover);
+}
 
-            .manage-items-item:hover {
-                background: rgba(251, 191, 36, 0.1) !important;
-            }
+.manage-items-item:hover {
+    background: rgba(251, 191, 36, 0.1) !important;
+}
 
-            @keyframes dropdownFadeIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-10px) scale(0.95);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0) scale(1);
-                }
-            }
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
 
-            /* Override any parent overflow hidden */
-            body.singleselect-active {
-                overflow: visible !important;
-            }
+/* Override any parent overflow hidden */
+body.singleselect-active {
+    overflow: visible !important;
+}
 
-            /* Ensure dropdown is always visible */
-            .singleselect-overlay-dropdown * {
-                pointer-events: auto !important;
-            }
+/* Ensure dropdown is always visible */
+.singleselect-overlay-dropdown * {
+    pointer-events: auto !important;
+}
 
-            /* Improve performance during scroll */
-            .singleselect-overlay-dropdown.scrolling {
-                pointer-events: none;
-            }
+/* Improve performance during scroll */
+.singleselect-overlay-dropdown.scrolling {
+    pointer-events: none;
+}
 
-            .singleselect-overlay-dropdown.scrolling * {
-                pointer-events: none !important;
-            }
+.singleselect-overlay-dropdown.scrolling * {
+    pointer-events: none !important;
+}
 
-            /* Modal Scrollbar Styling - Same as dropdown */
-            .items-list {
-                scrollbar-width: thin;
-                scrollbar-color: var(--accent-primary) var(--bg-tertiary);
-            }
+/* Modal Scrollbar Styling - Same as dropdown */
+.items-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent-primary) var(--bg-tertiary);
+}
 
-            .items-list::-webkit-scrollbar {
-                width: 8px;
-            }
+.items-list::-webkit-scrollbar {
+    width: 8px;
+}
 
-            .items-list::-webkit-scrollbar-track {
-                background: var(--bg-tertiary);
-                border-radius: 4px;
-            }
+.items-list::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
 
-            .items-list::-webkit-scrollbar-thumb {
-                background: var(--accent-primary);
-                border-radius: 4px;
-            }
+.items-list::-webkit-scrollbar-thumb {
+    background: var(--accent-primary);
+    border-radius: 4px;
+}
 
-            .items-list::-webkit-scrollbar-thumb:hover {
-                background: var(--accent-hover);
-            }
+.items-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-hover);
+}
 
-            /* COMPACT Modal Responsive Design */
-            @media (max-width: 768px) {
-                .modal-dialog {
-                    max-width: 95% !important;
-                    margin: 0.5rem;
-                }
-                
-                .modal-header {
-                    padding: 0.75rem 1rem !important;
-                }
-                
-                .modal-body {
-                    padding: 1rem !important;
-                }
-                
-                .modal-footer {
-                    padding: 0.5rem 1rem !important;
-                }
-                
-                .storage-detail-item {
-                    padding: 0.375rem 0.5rem !important;
-                    font-size: 0.8rem !important;
-                }
-                
-                .btn-edit-item, .btn-delete-item {
-                    padding: 0.2rem 0.375rem !important;
-                    font-size: 0.65rem !important;
-                }
-            }
-        `;
+/* COMPACT Modal Responsive Design */
+@media (max-width: 768px) {
+    .modal-dialog {
+        max-width: 95% !important;
+        margin: 0.5rem;
+    }
+    .modal-header {
+        padding: 0.75rem 1rem !important;
+    }
+    .modal-body {
+        padding: 1rem !important;
+    }
+    .modal-footer {
+        padding: 0.5rem 1rem !important;
+    }
+    .storage-detail-item {
+        padding: 0.375rem 0.5rem !important;
+        font-size: 0.8rem !important;
+    }
+    .btn-edit-item, 
+    .btn-delete-item {
+        padding: 0.2rem 0.375rem !important;
+        font-size: 0.65rem !important;
+    }
+}
 
+/* 🔄 WEEKLY RESTRICTION TOGGLE STYLES - Bootstrap Clean */
+.weekly-restriction-toggle {
+    margin-top: 0.5rem;
+}
+
+.weekly-restriction-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.toggle-switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.toggle-info {
+    flex: 1;
+}
+
+.toggle-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.toggle-description {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.toggle-control {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.toggle-text {
+    font-weight: 600;
+    font-size: 0.85rem;
+    transition: color 0.3s ease;
+}
+
+.toggle-text.off {
+    color: #28a745;
+}
+
+.toggle-text.on {
+    color: #6c757d;
+}
+
+.toggle-text.off.active {
+    color: #6c757d;
+}
+
+.toggle-text.on.active {
+    color: #28a745;
+}
+
+/* Bootstrap Switch Styling */
+.weekly-restriction-toggle .form-switch .form-check-input {
+    width: 3rem;
+    height: 1.5rem;
+    cursor: pointer;
+    background-color: #6c757d;
+    border-color: #6c757d;
+    transition: all 0.3s ease;
+}
+
+.weekly-restriction-toggle .form-check-input:checked {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+
+.weekly-restriction-toggle .form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(40, 167, 69, 0.25);
+}
+
+/* Responsive adjustments for toggle */
+@media (max-width: 576px) {
+    .toggle-switch-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    .toggle-control {
+        align-self: flex-end;
+    }
+}
+`;
     document.head.appendChild(style);
   }
 
@@ -1867,7 +2084,6 @@ class SingleSelect {
   getSelectedItem() {
     return this.selectedItem;
   }
-
   setSelectedItem(item) {
     if (this.allItems.includes(item)) {
       this.selectedItem = item;
@@ -1911,6 +2127,107 @@ class SingleSelect {
       createdAt: null,
       updatedAt: null,
     };
+  }
+
+  /**
+   * 🆕 NUEVO: Verificar si un sampler tiene restricción semanal habilitada
+   * @param {string} samplerName - Nombre del sampler
+   * @returns {boolean} - true si tiene restricción
+   */
+  /**
+   * 🆕 NUEVO: Verificar si un sampler tiene restricción semanal habilitada
+   * VERSIÓN LIMPIA - Solo consulta base de datos
+   * @param {string} samplerName - Nombre del sampler
+   * @returns {boolean} - true si tiene restricción
+   */
+  isWeeklyRestrictionEnabled(samplerName) {
+    // Verificar SOLO en la base de datos (post-migración)
+    if (this.config.onGetItemData) {
+      try {
+        const samplerData = this.config.onGetItemData(samplerName);
+        return !!(samplerData && samplerData.weeklyRestriction);
+      } catch (error) {
+        console.warn("Error getting sampler data:", error);
+      }
+    }
+
+    // Fallback: verificar en APIManager si onGetItemData no está disponible
+    if (window.simpleShipForm?.getApiManager) {
+      const apiManager = window.simpleShipForm.getApiManager();
+      const samplerData = apiManager.samplersFullData?.find(
+        (s) => s.name === samplerName
+      );
+      return !!(samplerData && samplerData.weeklyRestriction);
+    }
+
+    return false; // Sin restricción por defecto
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener restricciones activas para el sampler actual
+   * @returns {Object|null} - Restricciones activas o null
+   */
+  getSamplerRestrictions() {
+    const selectedSampler = this.getSelectedItem();
+
+    if (!selectedSampler || this.config.label !== "Sampler") {
+      return null;
+    }
+
+    const hasRestriction = this.isWeeklyRestrictionEnabled(selectedSampler);
+
+    if (hasRestriction) {
+      return {
+        [selectedSampler]: {
+          has24HourRestriction: true,
+          restrictionType: "24_hour_weekly_limit",
+          restrictionValue: 24,
+          enabled: true,
+          createdAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Configurar funcionalidad OFF/ON del toggle switch
+   * @param {string} miniModalId - ID del modal
+   */
+  setupToggleFunctionality(miniModalId) {
+    const toggleInput = document.getElementById(
+      `${miniModalId}_weeklyRestriction`
+    );
+    const textOff = document.getElementById(`${miniModalId}_textOff`);
+    const textOn = document.getElementById(`${miniModalId}_textOn`);
+
+    if (!toggleInput || !textOff || !textOn) return;
+
+    // Función para actualizar estado visual
+    const updateToggleState = (isChecked) => {
+      if (isChecked) {
+        // ON activado (verde)
+        textOn.classList.remove("text-secondary");
+        textOn.classList.add("active");
+        textOff.classList.remove("active");
+        textOff.classList.add("text-secondary");
+      } else {
+        // OFF activado (verde)
+        textOff.classList.remove("text-secondary");
+        textOff.classList.add("active");
+        textOn.classList.remove("active");
+        textOn.classList.add("text-secondary");
+      }
+    };
+
+    // Configurar estado inicial
+    updateToggleState(toggleInput.checked);
+
+    // Escuchar cambios en el toggle
+    toggleInput.addEventListener("change", function () {
+      updateToggleState(this.checked);
+    });
   }
 
   addItem(item) {

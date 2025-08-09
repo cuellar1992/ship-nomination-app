@@ -352,7 +352,7 @@ class APIManager {
    * @param {Function} onError - Callback de error
    */
   async addItem(fieldId, item, onSuccess, onError) {
-    const itemName = typeof item === 'object' ? item.name : item;
+    const itemName = typeof item === "object" ? item.name : item;
     const config =
       SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId] ||
       SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
@@ -379,6 +379,9 @@ class APIManager {
                     item.email.trim() !== "" && { email: item.email.trim() }),
                   ...(item.phone &&
                     item.phone.trim() !== "" && { phone: item.phone.trim() }),
+                  ...(item.weeklyRestriction !== undefined && {
+                    weeklyRestriction: Boolean(item.weeklyRestriction),
+                  }),
                 }
               : { name: item }
           ),
@@ -742,6 +745,12 @@ class APIManager {
             updatedData.phone && updatedData.phone.trim() !== ""
               ? updatedData.phone.trim()
               : null;
+        }
+
+        if (updatedData.weeklyRestriction !== undefined) {
+          requestBody.weeklyRestriction = Boolean(
+            updatedData.weeklyRestriction
+          );
         }
 
         const response = await fetch(`${config.apiEndpoint}/${itemData._id}`, {
