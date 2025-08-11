@@ -751,6 +751,9 @@ export class SamplingRosterController {
     if (!row) return;
 
     const samplerCell = row.querySelector("td:first-child");
+    const startCell = row.querySelector("td:nth-child(2)");
+    const finishCell = row.querySelector("td:nth-child(3)");
+    const hoursCell = row.querySelector("td:nth-child(4)");
     const actionCell = row.querySelector("td:last-child");
     const editButton = actionCell.querySelector('button[data-action="edit"]');
 
@@ -769,14 +772,25 @@ export class SamplingRosterController {
         return;
       }
 
-      // Guardar valor actual del sampler
+      // 🆕 STEP 1: GUARDAR TODOS LOS VALORES ORIGINALES ANTES DE EDITAR
       const currentSampler = samplerCell.textContent.trim();
-      samplerCell.setAttribute("data-original-value", currentSampler);
+      const currentStartTime = startCell ? startCell.textContent.trim() : "";
+      const currentFinishTime = finishCell ? finishCell.textContent.trim() : "";
+      const currentHours = hoursCell ? hoursCell.textContent.trim() : "6";
 
-      // Crear contenedor y agregarlo al DOM PRIMERO
+      // Guardar valores originales en las celdas correspondientes
+      samplerCell.setAttribute("data-original-value", currentSampler);
+      if (startCell) startCell.setAttribute("data-original-value", currentStartTime);
+      if (finishCell) finishCell.setAttribute("data-original-value", currentFinishTime);
+      if (hoursCell) {
+        hoursCell.setAttribute("data-backup-value", currentHours);
+        hoursCell.setAttribute("data-original-value", currentHours);
+      }
+
+      // STEP 2: CREAR DROPDOWN DEL SAMPLER
       const dropdown = this.createSamplerDropdown(samplersData, currentSampler);
 
-      // Reemplazar contenido de la celda con el contenedor
+      // Reemplazar contenido de la celda del sampler con el contenedor
       samplerCell.innerHTML = "";
       samplerCell.appendChild(dropdown);
 
@@ -787,7 +801,7 @@ export class SamplingRosterController {
         currentSampler
       );
 
-      // 🆕 ACTIVAR DATETIMEPICKERS EN LAS CELDAS DE FECHA/HORA
+      // 🆕 STEP 3: ACTIVAR DATETIMEPICKERS EN LAS CELDAS DE FECHA/HORA
       const dateTimeEnabled =
         this.tableManager.enableOfficeSamplingDateTimeEdit(rowId);
       if (!dateTimeEnabled) {
@@ -798,7 +812,7 @@ export class SamplingRosterController {
         });
       }
 
-      // Transformar botón EDIT → SAVE
+      // STEP 4: TRANSFORMAR BOTÓN EDIT → SAVE
       editButton.innerHTML = '<i class="fas fa-check"></i>';
       editButton.setAttribute("data-action", "save");
       editButton.setAttribute("title", "Save Changes");
@@ -811,6 +825,9 @@ export class SamplingRosterController {
         data: {
           rowId: rowId,
           currentSampler: currentSampler,
+          currentStartTime: currentStartTime,
+          currentFinishTime: currentFinishTime,
+          currentHours: currentHours,
           availableSamplers: samplersData.length,
           dateTimePickersEnabled: dateTimeEnabled,
         },
@@ -1837,21 +1854,42 @@ export class SamplingRosterController {
     if (!samplerCell || !saveButton) return;
 
     try {
-      // 🆕 STEP 1: CANCELAR DATETIMEPICKERS (solo para Office Sampling)
+      // 🆕 STEP 1: OBTENER DATOS ORIGINALES PARA RESPALDO
+      let originalData = null;
       if (rowId === "office-sampler-row") {
-        this.tableManager.cancelOfficeSamplingDateTimeEdit(rowId);
+        originalData = this.tableManager.getOfficeSamplingOriginalData(rowId);
+        
+        // 🆕 DEBUG: Verificar estado de atributos antes de la cancelación
+        Logger.info("Debug: Original data before cancellation", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            samplerOriginalValue: samplerCell.getAttribute("data-original-value"),
+            startOriginalValue: row.querySelector("td:nth-child(2)")?.getAttribute("data-original-value"),
+            finishOriginalValue: row.querySelector("td:nth-child(3)")?.getAttribute("data-original-value"),
+            hoursOriginalValue: row.querySelector("td:nth-child(4)")?.getAttribute("data-original-value"),
+            originalData: originalData
+          },
+          showNotification: false,
+        });
       }
 
-      if (rowId === "line-sampler-row-0") {
-        this.tableManager.cancelLineSamplingDateTimeEdit(rowId);
-      }
-
-      // STEP 2: CANCELAR SAMPLER DROPDOWN
+      // 🆕 STEP 2: RESTAURAR SAMPLER PRIMERO (ANTES de cancelar DateTimePickers)
       if (dropdownContainer) {
-        // Obtener valor original
+        // Obtener valor original del sampler
         const originalValue =
           samplerCell.getAttribute("data-original-value") ||
           "No Sampler Assigned";
+
+        Logger.info("Debug: Restoring sampler", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            originalValue: originalValue,
+            hasOriginalValue: samplerCell.hasAttribute("data-original-value")
+          },
+          showNotification: false,
+        });
 
         // Obtener y limpiar SingleSelect instance
         const samplerSelector = dropdownContainer.samplerSelector;
@@ -1859,12 +1897,41 @@ export class SamplingRosterController {
           samplerSelector.destroy();
         }
 
-        // Restaurar contenido original de la celda
+        // Restaurar contenido original de la celda del sampler
         samplerCell.innerHTML = `<span class="fw-medium">${originalValue}</span>`;
         samplerCell.removeAttribute("data-original-value");
       }
 
-      // STEP 3: RESTAURAR BOTÓN SAVE → EDIT
+      // 🆕 STEP 3: CANCELAR DATETIMEPICKERS (solo para Office Sampling)
+      if (rowId === "office-sampler-row") {
+        // Cancelar DateTimePickers
+        const dateTimeCancelled = this.tableManager.cancelOfficeSamplingDateTimeEdit(rowId);
+        
+        Logger.info("Debug: DateTimePickers cancellation result", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            dateTimeCancelled: dateTimeCancelled
+          },
+          showNotification: false,
+        });
+        
+        // 🆕 Si falla la cancelación de DateTimePickers, usar respaldo de emergencia
+        if (!dateTimeCancelled && originalData) {
+          Logger.warn("DateTimePickers cancellation failed, using emergency restore", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: { rowId: rowId },
+            showNotification: false,
+          });
+          this.tableManager.emergencyRestoreOfficeSampling(rowId, originalData);
+        }
+      }
+
+      if (rowId === "line-sampler-row-0") {
+        this.tableManager.cancelLineSamplingDateTimeEdit(rowId);
+      }
+
+      // STEP 4: RESTAURAR BOTÓN SAVE → EDIT
       saveButton.innerHTML = '<i class="fas fa-edit"></i>';
       saveButton.setAttribute("data-action", "edit");
       saveButton.setAttribute("title", "Edit Sampler");
@@ -1888,6 +1955,16 @@ export class SamplingRosterController {
         showNotification: true,
         notificationMessage: "Error cancelling edit. Please refresh the page.",
       });
+      
+      // 🆕 EN CASO DE ERROR, INTENTAR RESTAURACIÓN DE EMERGENCIA
+      if (rowId === "office-sampler-row" && originalData) {
+        Logger.info("Attempting emergency restore due to error", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { rowId: rowId },
+          showNotification: false,
+        });
+        this.tableManager.emergencyRestoreOfficeSampling(rowId, originalData);
+      }
     }
   }
 
@@ -2396,6 +2473,401 @@ showNotification(message, type = "info") {
   });
 }
 
+/**
+ * 🆕 Función de debug para diagnosticar problemas con Office Sampling
+ */
+debugOfficeSamplingState(rowId) {
+  const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+  if (!row) {
+    console.log("❌ Debug: Row not found for", rowId);
+    return;
+  }
+
+  const samplerCell = row.querySelector("td:first-child");
+  const startCell = row.querySelector("td:nth-child(2)");
+  const finishCell = row.querySelector("td:nth-child(3)");
+  const hoursCell = row.querySelector("td:nth-child(4)");
+  const actionCell = row.querySelector("td:last-child");
+
+  console.log("🔍 Debug Office Sampling State for", rowId, {
+    row: row,
+    samplerCell: {
+      element: samplerCell,
+      content: samplerCell?.innerHTML,
+      originalValue: samplerCell?.getAttribute("data-original-value"),
+      hasDropdown: !!samplerCell?.querySelector('div[id^="samplerDropdown_"]')
+    },
+    startCell: {
+      element: startCell,
+      content: startCell?.innerHTML,
+      originalValue: startCell?.getAttribute("data-original-value"),
+      hasDateTimePicker: !!startCell?.querySelector('div[id^="officeStartDateTime_"]')
+    },
+    finishCell: {
+      element: finishCell,
+      content: finishCell?.innerHTML,
+      originalValue: finishCell?.getAttribute("data-original-value"),
+      hasDateTimePicker: !!finishCell?.querySelector('div[id^="officeFinishDateTime_"]')
+    },
+    hoursCell: {
+      element: hoursCell,
+      content: hoursCell?.textContent,
+      originalValue: hoursCell?.getAttribute("data-original-value"),
+      backupValue: hoursCell?.getAttribute("data-backup-value")
+    },
+    actionCell: {
+      element: actionCell,
+      button: actionCell?.querySelector("button"),
+      action: actionCell?.querySelector("button")?.getAttribute("data-action")
+    },
+    officeTimeInstances: window.officeTimeInstances ? Object.keys(window.officeTimeInstances) : []
+  });
+}
+
+  /**
+   * 🆕 Limpieza de emergencia - Último recurso para resolver problemas
+   */
+  emergencyCleanup() {
+    Logger.warn("Emergency cleanup initiated", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      showNotification: true,
+      notificationMessage: "Emergency cleanup in progress...",
+    });
+
+    try {
+      console.log("🚨 INICIANDO LIMPIEZA DE EMERGENCIA...");
+
+      // 🆕 STEP 1: DEBUG COMPLETO DEL ESTADO ACTUAL
+      console.log("🔍 Estado actual antes de la limpieza:");
+      this.debugOfficeSamplingRowState();
+
+      // STEP 2: DESTRUIR TODOS LOS DATETIMEPICKERS ACTIVOS
+      if (window.officeTimeInstances) {
+        console.log("🗑️ Destruyendo DateTimePicker instances...");
+        Object.keys(window.officeTimeInstances).forEach(instanceId => {
+          try {
+            const instance = window.officeTimeInstances[instanceId];
+            if (instance && typeof instance.destroy === 'function') {
+              instance.destroy();
+              console.log(`✅ DateTimePicker ${instanceId} destruido`);
+            }
+          } catch (error) {
+            console.error(`❌ Error destruyendo DateTimePicker ${instanceId}:`, error);
+          }
+        });
+        window.officeTimeInstances = {};
+        console.log("✅ Todos los DateTimePickers destruidos");
+      }
+
+      // STEP 3: RESTAURAR FILA OFFICE SAMPLING
+      const row = document.querySelector('tr[data-row-id="office-sampler-row"]');
+      if (row) {
+        console.log("🔄 Restaurando fila Office Sampling...");
+        const originalData = this.tableManager.getOfficeSamplingOriginalData("office-sampler-row");
+        if (originalData) {
+          const restored = this.tableManager.emergencyRestoreOfficeSampling("office-sampler-row", originalData);
+          console.log("✅ Restauración de emergencia:", restored ? "exitosa" : "fallida");
+        } else {
+          console.log("⚠️ No se pudieron obtener datos originales para restauración");
+        }
+      }
+
+      // STEP 4: REMOVER EVENT LISTENER GLOBAL
+      try {
+        document.removeEventListener("keydown", this.handleEditKeydown);
+        console.log("✅ Event listener de teclado removido");
+      } catch (error) {
+        console.error("❌ Error removiendo event listener:", error);
+      }
+
+      // STEP 5: RESTAURAR TODOS LOS BOTONES SAVE → EDIT
+      const saveButtons = document.querySelectorAll('button[data-action="save"]');
+      saveButtons.forEach(button => {
+        try {
+          button.innerHTML = '<i class="fas fa-edit"></i>';
+          button.setAttribute("data-action", "edit");
+          button.setAttribute("title", "Edit Sampler");
+          button.className = "btn btn-secondary-premium btn-edit-item";
+          button.style.cssText = "padding: 0.25rem 0.5rem; font-size: 0.7rem; border-radius: 4px;";
+          console.log(`✅ Botón restaurado: ${button.closest('tr')?.getAttribute('data-row-id') || 'unknown'}`);
+        } catch (error) {
+          console.error("❌ Error restaurando botón:", error);
+        }
+      });
+
+      // 🆕 STEP 6: DEBUG FINAL DEL ESTADO
+      console.log("🔍 Estado final después de la limpieza:");
+      this.debugOfficeSamplingRowState();
+
+      Logger.success("Emergency cleanup completed", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: "Emergency cleanup completed successfully",
+      });
+
+      console.log("✅ LIMPIEZA DE EMERGENCIA COMPLETADA");
+      return true;
+    } catch (error) {
+      Logger.error("Error during emergency cleanup", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: true,
+        notificationMessage: "Emergency cleanup failed. Please refresh the page.",
+      });
+
+      console.error("❌ ERROR DURANTE LIMPIEZA DE EMERGENCIA:", error);
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 Verificar salud del sistema de edición - Diagnóstico completo
+   */
+  checkEditSystemHealth() {
+    Logger.info("Checking edit system health", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      showNotification: false,
+    });
+
+    try {
+      console.log("🏥 VERIFICANDO SALUD DEL SISTEMA DE EDICIÓN...");
+
+      const healthReport = {
+        timestamp: new Date().toISOString(),
+        officeSampling: {},
+        lineSampling: {},
+        globalState: {},
+        issues: [],
+        recommendations: []
+      };
+
+      // 🆕 STEP 1: VERIFICAR ESTADO DE OFFICE SAMPLING
+      console.log("🔍 Verificando Office Sampling...");
+      const officeState = this.debugOfficeSamplingRowState();
+      if (officeState) {
+        healthReport.officeSampling = {
+          rowExists: true,
+          hasDateTimePickers: officeState.hasDateTimePickers,
+          hasDropdown: officeState.hasDropdown,
+          isInEditMode: officeState.isInEditMode,
+          samplerCell: {
+            hasOriginalValue: officeState.samplerCell?.hasAttribute("data-original-value"),
+            originalValue: officeState.samplerCell?.getAttribute("data-original-value"),
+            currentText: officeState.samplerCell?.textContent.trim()
+          },
+          startCell: {
+            hasOriginalValue: officeState.startCell?.hasAttribute("data-original-value"),
+            originalValue: officeState.startCell?.getAttribute("data-original-value"),
+            hasDateTimePicker: !!officeState.startCell?.querySelector('div[id^="officeStartDateTime_"]')
+          },
+          finishCell: {
+            hasOriginalValue: officeState.finishCell?.hasAttribute("data-original-value"),
+            originalValue: officeState.finishCell?.getAttribute("data-original-value"),
+            hasDateTimePicker: !!officeState.finishCell?.querySelector('div[id^="officeFinishDateTime_"]')
+          },
+          hoursCell: {
+            hasOriginalValue: officeState.hoursCell?.hasAttribute("data-original-value"),
+            hasBackupValue: officeState.hoursCell?.hasAttribute("data-backup-value"),
+            currentValue: officeState.hoursCell?.textContent.trim()
+          }
+        };
+
+        // Identificar problemas específicos
+        if (officeState.isInEditMode && !officeState.hasDropdown) {
+          healthReport.issues.push("Office Sampling está en modo edición pero no tiene dropdown");
+        }
+        if (officeState.hasDateTimePickers && !officeState.isInEditMode) {
+          healthReport.issues.push("Office Sampling tiene DateTimePickers pero no está en modo edición");
+        }
+        if (officeState.samplerCell?.textContent.trim() === "No Sampler Assigned" && officeState.isInEditMode) {
+          healthReport.issues.push("Office Sampling muestra 'No Sampler Assigned' en modo edición");
+        }
+      } else {
+        healthReport.officeSampling = { rowExists: false };
+        healthReport.issues.push("No se encontró la fila Office Sampling");
+      }
+
+      // STEP 2: VERIFICAR ESTADO DE LINE SAMPLING
+      console.log("🔍 Verificando Line Sampling...");
+      const lineRows = document.querySelectorAll('tr[data-row-id^="line-sampler-row-"]');
+      healthReport.lineSampling = {
+        totalRows: lineRows.length,
+        rowsInEditMode: 0,
+        rowsWithDateTimePickers: 0
+      };
+
+      lineRows.forEach((row, index) => {
+        const rowId = row.getAttribute("data-row-id");
+        const saveButton = row.querySelector('button[data-action="save"]');
+        const hasDateTimePickers = !!(row.querySelector('div[id^="lineStartDateTime_"]') || row.querySelector('div[id^="lineFinishDateTime_"]'));
+        
+        if (saveButton) healthReport.lineSampling.rowsInEditMode++;
+        if (hasDateTimePickers) healthReport.lineSampling.rowsWithDateTimePickers++;
+      });
+
+      // STEP 3: VERIFICAR ESTADO GLOBAL
+      console.log("🔍 Verificando estado global...");
+      healthReport.globalState = {
+        hasKeyboardListener: !!this.handleEditKeydown,
+        officeTimeInstances: window.officeTimeInstances ? Object.keys(window.officeTimeInstances).length : 0,
+        totalSaveButtons: document.querySelectorAll('button[data-action="save"]').length,
+        totalEditButtons: document.querySelectorAll('button[data-action="edit"]').length
+      };
+
+      // STEP 4: GENERAR RECOMENDACIONES
+      if (healthReport.officeSampling.isInEditMode && healthReport.officeSampling.hasDateTimePickers) {
+        healthReport.recommendations.push("Office Sampling está en modo edición - presiona ESC para cancelar o Enter para guardar");
+      }
+      if (healthReport.globalState.officeTimeInstances > 0) {
+        healthReport.recommendations.push(`Hay ${healthReport.globalState.officeTimeInstances} DateTimePickers activos`);
+      }
+      if (healthReport.globalState.totalSaveButtons > 0) {
+        healthReport.recommendations.push(`Hay ${healthReport.globalState.totalSaveButtons} filas en modo edición`);
+      }
+      if (healthReport.issues.length === 0) {
+        healthReport.recommendations.push("El sistema parece estar funcionando correctamente");
+      }
+
+      // STEP 5: MOSTRAR REPORTE COMPLETO
+      console.log("📊 REPORTE DE SALUD DEL SISTEMA:");
+      console.log("⏰ Timestamp:", healthReport.timestamp);
+      console.log("🏢 Office Sampling:", healthReport.officeSampling);
+      console.log("📋 Line Sampling:", healthReport.lineSampling);
+      console.log("🌐 Estado Global:", healthReport.globalState);
+      
+      if (healthReport.issues.length > 0) {
+        console.log("⚠️ PROBLEMAS IDENTIFICADOS:");
+        healthReport.issues.forEach((issue, index) => {
+          console.log(`  ${index + 1}. ${issue}`);
+        });
+      }
+      
+      if (healthReport.recommendations.length > 0) {
+        console.log("💡 RECOMENDACIONES:");
+        healthReport.recommendations.forEach((rec, index) => {
+          console.log(`  ${index + 1}. ${rec}`);
+        });
+      }
+
+      // STEP 6: LOGGING
+      Logger.info("Edit system health check completed", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          issues: healthReport.issues.length,
+          recommendations: healthReport.recommendations.length,
+          officeSamplingInEditMode: healthReport.officeSampling.isInEditMode,
+          activeDateTimePickers: healthReport.globalState.officeTimeInstances
+        },
+        showNotification: false,
+      });
+
+      return healthReport;
+    } catch (error) {
+      Logger.error("Error checking edit system health", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+
+      console.error("❌ ERROR VERIFICANDO SALUD DEL SISTEMA:", error);
+      return {
+        error: true,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * 🆕 Debug: Verificar estado completo de Office Sampling row
+   */
+  debugOfficeSamplingRowState() {
+    const row = document.querySelector('tr[data-row-id="office-sampler-row"]');
+    if (!row) {
+      console.log("❌ No se encontró la fila Office Sampling");
+      return;
+    }
+
+    const samplerCell = row.querySelector("td:first-child");
+    const startCell = row.querySelector("td:nth-child(2)");
+    const finishCell = row.querySelector("td:nth-child(3)");
+    const hoursCell = row.querySelector("td:nth-child(4)");
+    const actionCell = row.querySelector("td:last-child");
+
+    console.log("🔍 Estado completo de Office Sampling Row:");
+    console.log("📍 Fila encontrada:", row);
+    console.log("📊 Celdas:", { samplerCell, startCell, finishCell, hoursCell, actionCell });
+
+    if (samplerCell) {
+      console.log("👤 Sampler Cell:");
+      console.log("  - Texto actual:", samplerCell.textContent.trim());
+      console.log("  - HTML:", samplerCell.innerHTML);
+      console.log("  - data-original-value:", samplerCell.getAttribute("data-original-value"));
+      console.log("  - Dropdown presente:", !!samplerCell.querySelector('div[id^="samplerDropdown_"]'));
+    }
+
+    if (startCell) {
+      console.log("⏰ Start Time Cell:");
+      console.log("  - Texto actual:", startCell.textContent.trim());
+      console.log("  - HTML:", startCell.innerHTML);
+      console.log("  - data-original-value:", startCell.getAttribute("data-original-value"));
+      console.log("  - DateTimePicker presente:", !!startCell.querySelector('div[id^="officeStartDateTime_"]'));
+    }
+
+    if (finishCell) {
+      console.log("⏰ Finish Time Cell:");
+      console.log("  - Texto actual:", finishCell.textContent.trim());
+      console.log("  - HTML:", finishCell.innerHTML);
+      console.log("  - data-original-value:", finishCell.getAttribute("data-original-value"));
+      console.log("  - DateTimePicker presente:", !!finishCell.querySelector('div[id^="officeFinishDateTime_"]'));
+    }
+
+    if (hoursCell) {
+      console.log("⏱️ Hours Cell:");
+      console.log("  - Texto actual:", hoursCell.textContent.trim());
+      console.log("  - data-original-value:", hoursCell.getAttribute("data-original-value"));
+      console.log("  - data-backup-value:", hoursCell.getAttribute("data-backup-value"));
+    }
+
+    if (actionCell) {
+      const button = actionCell.querySelector('button');
+      if (button) {
+        console.log("🔘 Action Button:");
+        console.log("  - data-action:", button.getAttribute("data-action"));
+        console.log("  - Texto:", button.textContent.trim());
+        console.log("  - Clases:", button.className);
+      }
+    }
+
+    // Verificar DateTimePicker instances globales
+    console.log("🌐 Global DateTimePicker Instances:");
+    console.log("  - window.officeTimeInstances:", window.officeTimeInstances);
+    if (window.officeTimeInstances) {
+      Object.keys(window.officeTimeInstances).forEach(key => {
+        console.log(`    - ${key}:`, window.officeTimeInstances[key]);
+      });
+    }
+
+    // Verificar event listeners
+    console.log("⌨️ Keyboard Event Listeners:");
+    console.log("  - handleEditKeydown presente:", !!this.handleEditKeydown);
+    
+    return {
+      row,
+      samplerCell,
+      startCell,
+      finishCell,
+      hoursCell,
+      actionCell,
+      hasDateTimePickers: !!(startCell?.querySelector('div[id^="officeStartDateTime_"]') || finishCell?.querySelector('div[id^="officeFinishDateTime_"]')),
+      hasDropdown: !!samplerCell?.querySelector('div[id^="samplerDropdown_"]'),
+      isInEditMode: actionCell?.querySelector('button[data-action="save"]') !== null
+    };
+  }
+
+  /**
+   * 🆕 Debug: Verificar estado de Office Sampling (versión anterior)
+   */
 }
 
 export default SamplingRosterController;

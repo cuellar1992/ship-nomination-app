@@ -313,12 +313,15 @@ export class TableManager {
     if (!startCell || !finishCell) return false;
 
     try {
-      // Guardar valores originales
-      const originalStartTime = startCell.textContent.trim();
-      const originalFinishTime = finishCell.textContent.trim();
-
-      startCell.setAttribute("data-original-value", originalStartTime);
-      finishCell.setAttribute("data-original-value", originalFinishTime);
+      // 🆕 SOLO guardar valores originales si no existen ya (evitar sobrescribir)
+      if (!startCell.hasAttribute("data-original-value")) {
+        const originalStartTime = startCell.textContent.trim();
+        startCell.setAttribute("data-original-value", originalStartTime);
+      }
+      if (!finishCell.hasAttribute("data-original-value")) {
+        const originalFinishTime = finishCell.textContent.trim();
+        finishCell.setAttribute("data-original-value", originalFinishTime);
+      }
 
       // Crear IDs únicos para los DateTimePickers
       const startPickerId = `officeStartDateTime_${Date.now()}`;
@@ -336,6 +339,10 @@ export class TableManager {
       finishCell.innerHTML = "";
       startCell.appendChild(startContainer);
       finishCell.appendChild(finishContainer);
+
+      // Obtener valores originales para inicializar los DateTimePickers
+      const originalStartTime = startCell.getAttribute("data-original-value");
+      const originalFinishTime = finishCell.getAttribute("data-original-value");
 
       // Inicializar DateTimePickers usando el componente existente
       setTimeout(() => {
@@ -473,13 +480,13 @@ export class TableManager {
    */
   cancelOfficeSamplingDateTimeEdit(rowId) {
     const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
-    if (!row) return;
+    if (!row) return false;
 
     const startCell = row.querySelector("td:nth-child(2)");
     const finishCell = row.querySelector("td:nth-child(3)");
     const hoursCell = row.querySelector("td:nth-child(4)");
 
-    if (!startCell || !finishCell) return;
+    if (!startCell || !finishCell) return false;
 
     try {
       console.log(
@@ -487,8 +494,51 @@ export class TableManager {
       );
 
       // Obtener valores originales
-      const originalStart = startCell.getAttribute("data-original-value");
-      const originalFinish = finishCell.getAttribute("data-original-value");
+      let originalStart = startCell.getAttribute("data-original-value");
+      let originalFinish = finishCell.getAttribute("data-original-value");
+
+      // 🆕 FALLBACK: Si no hay valores originales, usar valores actuales o valores por defecto
+      if (!originalStart) {
+        // Buscar en el contenedor del DateTimePicker si existe
+        const startContainer = startCell.querySelector('div[id^="officeStartDateTime_"]');
+        if (startContainer) {
+          // Intentar obtener el valor del DateTimePicker antes de destruirlo
+          if (window.officeTimeInstances && window.officeTimeInstances[startContainer.id]) {
+            const startInstance = window.officeTimeInstances[startContainer.id];
+            if (startInstance && startInstance.getDateTime) {
+              const currentDate = startInstance.getDateTime();
+              if (currentDate) {
+                originalStart = this.formatDateTime(currentDate);
+              }
+            }
+          }
+        }
+        // Si aún no hay valor, usar valor por defecto
+        if (!originalStart) {
+          originalStart = "No Start Time";
+        }
+      }
+
+      if (!originalFinish) {
+        // Buscar en el contenedor del DateTimePicker si existe
+        const finishContainer = finishCell.querySelector('div[id^="officeFinishDateTime_"]');
+        if (finishContainer) {
+          // Intentar obtener el valor del DateTimePicker antes de destruirlo
+          if (window.officeTimeInstances && window.officeTimeInstances[finishContainer.id]) {
+            const finishInstance = window.officeTimeInstances[finishContainer.id];
+            if (finishInstance && finishInstance.getDateTime) {
+              const currentDate = finishInstance.getDateTime();
+              if (currentDate) {
+                originalFinish = this.formatDateTime(currentDate);
+              }
+            }
+          }
+        }
+        // Si aún no hay valor, usar valor por defecto
+        if (!originalFinish) {
+          originalFinish = "No Finish Time";
+        }
+      }
 
       // Limpiar DateTimePicker instances
       const startContainer = startCell.querySelector(
@@ -535,6 +585,9 @@ export class TableManager {
           const backupHours = hoursCell.getAttribute("data-backup-value");
           if (backupHours) {
             hoursCell.textContent = backupHours;
+          } else {
+            // Fallback final: usar 6 horas por defecto para Office Sampling
+            hoursCell.textContent = "6";
           }
         }
 
@@ -547,7 +600,8 @@ export class TableManager {
         hoursCell.removeAttribute("data-backup-value");
       }
 
-      // Limpiar atributos temporales
+      // 🆕 IMPORTANTE: NO limpiar data-original-value del sampler aquí
+      // Solo limpiar los de fechas y horas, el sampler se restaura en el controlador
       startCell.removeAttribute("data-original-value");
       finishCell.removeAttribute("data-original-value");
 
@@ -560,8 +614,11 @@ export class TableManager {
           originalFinish,
         }
       );
+      
+      return true; // 🆕 Retornar true si la cancelación fue exitosa
     } catch (error) {
       console.error("Error cancelling Office Sampling DateTimePickers:", error);
+      return false; // 🆕 Retornar false si hubo un error
     }
   }
 
@@ -1753,6 +1810,131 @@ export class TableManager {
       );
     } catch (error) {
       console.error("Error clearing all Line Sampling highlighting:", error);
+    }
+  }
+
+  /**
+   * 🆕 FUNCIÓN DE RESPALDO: Restaurar completamente el estado original de Office Sampling
+   * Se usa cuando algo falla en el proceso de cancelación
+   */
+  emergencyRestoreOfficeSampling(rowId, originalData) {
+    const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+    if (!row || !originalData) return false;
+
+    try {
+      console.log("🚨 Emergency restore Office Sampling for:", rowId, originalData);
+
+      const samplerCell = row.querySelector("td:first-child");
+      const startCell = row.querySelector("td:nth-child(2)");
+      const finishCell = row.querySelector("td:nth-child(3)");
+      const hoursCell = row.querySelector("td:nth-child(4)");
+
+      // Restaurar sampler
+      if (samplerCell) {
+        const samplerName = originalData.samplerName || "No Sampler Assigned";
+        samplerCell.innerHTML = `<span class="fw-medium">${samplerName}</span>`;
+        samplerCell.removeAttribute("data-original-value");
+      }
+
+      // Restaurar fechas
+      if (startCell) {
+        const startTime = originalData.startTime || "No Start Time";
+        startCell.innerHTML = startTime;
+        startCell.removeAttribute("data-original-value");
+      }
+
+      if (finishCell) {
+        const finishTime = originalData.finishTime || "No Finish Time";
+        finishCell.innerHTML = finishTime;
+        finishCell.removeAttribute("data-original-value");
+      }
+
+      // Restaurar horas
+      if (hoursCell) {
+        const hours = originalData.hours || "6";
+        hoursCell.textContent = hours;
+        hoursCell.removeAttribute("data-backup-value");
+        hoursCell.removeAttribute("data-original-value");
+        
+        // Restaurar estilos
+        hoursCell.style.fontWeight = "normal";
+        hoursCell.style.color = "var(--text-primary)";
+        hoursCell.style.backgroundColor = "transparent";
+      }
+
+      // Limpiar cualquier DateTimePicker que pueda haber quedado
+      const startContainer = startCell?.querySelector('div[id^="officeStartDateTime_"]');
+      const finishContainer = finishCell?.querySelector('div[id^="officeFinishDateTime_"]');
+
+      if (startContainer && window.officeTimeInstances) {
+        const startInstance = window.officeTimeInstances[startContainer.id];
+        if (startInstance) {
+          startInstance.destroy();
+          delete window.officeTimeInstances[startContainer.id];
+        }
+      }
+
+      if (finishContainer && window.officeTimeInstances) {
+        const finishInstance = window.officeTimeInstances[finishContainer.id];
+        if (finishInstance) {
+          finishInstance.destroy();
+          delete window.officeTimeInstances[finishContainer.id];
+        }
+      }
+
+      // Restaurar estilos de la fila
+      this.resetOfficeSamplingRowStyles(row);
+
+      console.log("✅ Emergency restore completed successfully");
+      return true;
+    } catch (error) {
+      console.error("❌ Error in emergency restore:", error);
+      return false;
+    }
+  }
+
+  /**
+   * 🆕 Obtener datos originales de Office Sampling para respaldo
+   */
+  getOfficeSamplingOriginalData(rowId) {
+    const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+    if (!row) return null;
+
+    try {
+      const samplerCell = row.querySelector("td:first-child");
+      const startCell = row.querySelector("td:nth-child(2)");
+      const finishCell = row.querySelector("td:nth-child(3)");
+      const hoursCell = row.querySelector("td:nth-child(4)");
+
+      // Intentar obtener valores originales primero
+      let samplerName = samplerCell?.getAttribute("data-original-value");
+      let startTime = startCell?.getAttribute("data-original-value");
+      let finishTime = finishCell?.getAttribute("data-original-value");
+      let hours = hoursCell?.getAttribute("data-original-value");
+
+      // Si no hay valores originales, usar valores actuales
+      if (!samplerName) {
+        samplerName = samplerCell?.textContent.trim() || "No Sampler Assigned";
+      }
+      if (!startTime) {
+        startTime = startCell?.textContent.trim() || "No Start Time";
+      }
+      if (!finishTime) {
+        finishTime = finishCell?.textContent.trim() || "No Finish Time";
+      }
+      if (!hours) {
+        hours = hoursCell?.textContent.trim() || "6";
+      }
+
+      return {
+        samplerName,
+        startTime,
+        finishTime,
+        hours: parseInt(hours) || 6
+      };
+    } catch (error) {
+      console.error("Error getting original data:", error);
+      return null;
     }
   }
 }
