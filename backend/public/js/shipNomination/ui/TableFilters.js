@@ -887,8 +887,8 @@ class TableFilters {
     const searchResults = nominationsToSearch.filter(
       (nomination) =>
         nomination.vesselName.toLowerCase().includes(term) ||
-        (nomination.client?.name &&
-          nomination.client.name.toLowerCase().includes(term)) ||
+        (nomination.clientName?.some(c => c.name.toLowerCase().includes(term)) ||
+        (nomination.client?.name && nomination.client.name.toLowerCase().includes(term))) ||
         (nomination.agent?.name &&
           nomination.agent.name.toLowerCase().includes(term)) ||
         (typeof nomination.agent === "string" &&
@@ -1082,11 +1082,24 @@ class TableFilters {
 
     // Client filters
     if (this.activeFilters.clients) {
-      const clientName = nomination.client?.name;
-      if (!clientName || !this.activeFilters.clients.includes(clientName)) {
-        return false;
-      }
-    }
+  let hasMatchingClient = false;
+  
+  // Verificar clientName array (nuevo formato)
+  if (nomination.clientName) {
+    hasMatchingClient = nomination.clientName.some(c => 
+      this.activeFilters.clients.includes(c.name)
+    );
+  }
+  
+  // Fallback para client singular (legacy)
+  if (!hasMatchingClient && nomination.client?.name) {
+    hasMatchingClient = this.activeFilters.clients.includes(nomination.client.name);
+  }
+  
+  if (!hasMatchingClient) {
+    return false;
+  }
+}
 
     // Personnel and location filters - CORREGIDO
     const simpleFilters = [

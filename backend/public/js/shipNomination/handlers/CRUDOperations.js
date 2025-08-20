@@ -643,8 +643,7 @@ class CRUDOperations {
             clientRef: nomination.clientRef || '',
             notes: nomination.notes || '',
             
-            // SingleSelects - mapear correctamente a los IDs de los campos del formulario
-            clientName: nomination.client?.name || '',
+            // SingleSelects - mapear correctamente a los IDs de los campos del formulario            
             agent: nomination.agent?.name || '',
             terminal: nomination.terminal?.name || '',
             berth: nomination.berth?.name || '',
@@ -653,6 +652,7 @@ class CRUDOperations {
             chemist: nomination.chemist?.name || '',
             
             // MultiSelect - array de nombres
+            clientName: nomination.clientName?.map(c => c.name) || [],
             productTypes: nomination.productTypes?.map(pt => pt.name) || [],
             
             // DateTimes - convertir a formato ISO si es necesario
@@ -1020,7 +1020,7 @@ class CRUDOperations {
             vesselName: nomination.vesselName || 'N/A',
             amspecRef: nomination.amspecRef || 'N/A',
             clientRef: nomination.clientRef || 'Not specified',
-            client: nomination.client?.name || 'N/A',
+            client: nomination.clientName?.map(c => c.name).join(', ') || 'N/A',
             agent: nomination.agent?.name || 'N/A',
             terminal: nomination.terminal?.name || 'N/A',
             berth: nomination.berth?.name || 'N/A',

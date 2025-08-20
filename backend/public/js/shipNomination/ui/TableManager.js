@@ -3,7 +3,7 @@
  * Migrado desde ship-form-simple.js para mejor modularización
  */
 
-import { Utils } from '../utils/Utils.js';
+import { Utils } from "../utils/Utils.js";
 
 class TableManager {
   constructor() {
@@ -125,7 +125,9 @@ class TableManager {
     // Formatear datos para mostrar
     const vesselName = nomination.vesselName || "N/A";
     const amspecRef = nomination.amspecRef || "N/A";
-    const clientName = nomination.client?.name || "N/A";
+    const clientName = nomination.clientName
+      ? nomination.clientName.map((c) => c.name).join(", ")
+      : nomination.client?.name || "N/A";
     const productTypes = Utils.formatProductTypes(
       nomination.productTypes,
       "table"

@@ -121,7 +121,7 @@ class ShipFormController {
         onItemAdd: (fieldId, item) => this.addItem(fieldId, item),
         onItemRemove: (fieldId, item) => this.removeItem(fieldId, item),
         onItemEdit: (fieldId, oldName, newName) =>
-          this.editItem(fieldId, oldName, newName),
+          this.editItem(fieldId, oldName, newName, null),
       }
     );
 
@@ -538,6 +538,7 @@ class ShipFormController {
           }
 
           await this.apiManager.loadApiData();
+          this.forceModalUpdateSingleSelect(fieldId);
           if (this.tableFilters) {
             this.tableFilters.refreshData();
           }
@@ -548,23 +549,22 @@ class ShipFormController {
         }
       );
     } else {
-      // Modo simple: item = "nombre"
-      await this.apiManager.addItem(
-        fieldId,
-        item,
-        // onSuccess callback - SIMPLIFICADO
-        async () => {
-          await this.apiManager.loadApiData();
-          if (this.tableFilters) {
-            this.tableFilters.refreshData();
-          }
-        },
-        // onError callback
-        (error) => {
-          alert(error);
-        }
-      );
+  // Modo simple: item = "nombre"
+  await this.apiManager.addItem(
+    fieldId,
+    item,
+    async () => {
+      await this.apiManager.loadApiData();
+      this.forceModalUpdateSingleSelect(fieldId); // Solo para SingleSelects simples
+      if (this.tableFilters) {
+        this.tableFilters.refreshData();
+      }
+    },
+    (error) => {
+      alert(error);
     }
+  );
+}
   }
 
   /**
@@ -573,22 +573,28 @@ class ShipFormController {
    * @param {string} item - Nombre del item
    */
   async removeItem(fieldId, item) {
-    await this.apiManager.removeItem(
-      fieldId,
-      item,
-      // onSuccess callback - SIMPLIFICADO
-      async () => {
-        await this.apiManager.loadApiData();
-        if (this.tableFilters) {
-          this.tableFilters.refreshData();
-        }
-      },
-      // onError callback
-      (error) => {
-        alert(error);
+  await this.apiManager.removeItem(
+    fieldId,
+    item,
+    async () => {
+      await this.apiManager.loadApiData();
+      
+      // Detectar automáticamente si es Single o MultiSelect
+      if (this.singleSelectInstances[fieldId]) {
+        this.forceModalUpdateSingleSelect(fieldId);
+      } else if (this.multiSelectInstances[fieldId]) {
+        this.forceModalUpdateMultiSelect(fieldId);
       }
-    );
-  }
+      
+      if (this.tableFilters) {
+        this.tableFilters.refreshData();
+      }
+    },
+    (error) => {
+      alert(error);
+    }
+  );
+}
 
   /**
    * Editar item a través del API Manager
@@ -627,6 +633,7 @@ class ShipFormController {
           }
 
           await this.apiManager.loadApiData();
+          this.forceModalUpdateSingleSelect(fieldId);
           if (this.tableFilters) {
             this.tableFilters.refreshData();
           }
@@ -637,33 +644,28 @@ class ShipFormController {
         }
       );
     } else {
-      // EXISTENTE: Modo simple solo con nombres (clients, agents, etc.)
+      // Modo simple solo con nombres
       const oldName = updatedDataOrOldName;
       const newName = originalDataOrNewName;
 
       await this.apiManager.updateItem(
         fieldId,
-        updatedData,
-        originalData,
-        // onSuccess callback
+        { name: newName },
+        oldName,
         async () => {
-          // 🆕 ACTUALIZAR CONSTANTES si es sampler con cambio de restricción
-          if (
-            fieldId === "sampler" &&
-            updatedData.weeklyRestriction !== undefined
-          ) {
-            await this.updateSamplerRestrictions(
-              updatedData.name,
-              updatedData.weeklyRestriction
-            );
+          await this.apiManager.loadApiData();
+
+          // Detectar automáticamente si es Single o MultiSelect
+          if (this.singleSelectInstances[fieldId]) {
+            this.forceModalUpdateSingleSelect(fieldId);
+          } else if (this.multiSelectInstances[fieldId]) {
+            this.forceModalUpdateMultiSelect(fieldId);
           }
 
-          await this.apiManager.loadApiData();
           if (this.tableFilters) {
             this.tableFilters.refreshData();
           }
         },
-        // onError callback
         (error) => {
           alert(error);
         }
@@ -724,30 +726,42 @@ class ShipFormController {
    * Forzar actualización del modal SingleSelect
    * @param {string} fieldId - ID del campo
    */
-  forceModalUpdate(fieldId) {
+  forceModalUpdateSingleSelect(fieldId) {
     try {
       const singleSelectInstance = this.singleSelectInstances[fieldId];
-      if (singleSelectInstance) {
-        const modalId = `${fieldId}_modal`;
-        const modal = document.getElementById(modalId);
+      if (!singleSelectInstance) {
+        Logger.warn(`SingleSelect instance not found: ${fieldId}`, {
+          module: "ShipFormController",
+          showNotification: false,
+        });
+        return;
+      }
 
-        if (modal && modal.classList.contains("show")) {
-          if (typeof singleSelectInstance.loadModalItems === "function") {
-            singleSelectInstance.loadModalItems();
-          } else {
-            // Alternativa: cerrar y reabrir
-            const bootstrapModal = bootstrap.Modal.getInstance(modal);
-            if (bootstrapModal) {
-              bootstrapModal.hide();
-              setTimeout(() => {
-                singleSelectInstance.openManageModal();
-              }, 300);
-            }
-          }
+      // Obtener datos actualizados desde la API
+      const config = SHIP_NOMINATION_CONSTANTS.SINGLE_SELECT_CONFIG[fieldId];
+      if (config && config.apiEndpoint) {
+        const updatedItems = this.apiManager.getDataByEndpoint(
+          config.apiEndpoint
+        );
+
+        if (updatedItems && Array.isArray(updatedItems)) {
+          singleSelectInstance.updateItemsFromAPI(updatedItems);
+
+          Logger.debug(`SingleSelect ${fieldId} updated from API`, {
+            module: "ShipFormController",
+            data: { fieldId: fieldId, itemCount: updatedItems.length },
+            showNotification: false,
+          });
         }
+      } else {
+        singleSelectInstance.forceRefresh();
       }
     } catch (error) {
-      console.error("Error updating modal:", error);
+      Logger.error("Error updating SingleSelect modal", {
+        module: "ShipFormController",
+        error: error,
+        showNotification: false,
+      });
     }
   }
 
@@ -759,22 +773,48 @@ class ShipFormController {
     try {
       const multiSelectInstance = this.multiSelectInstances[fieldId];
       if (multiSelectInstance) {
+        // 🆕 OBTENER DATOS ACTUALIZADOS DE LA API
+        const config = SHIP_NOMINATION_CONSTANTS.MULTI_SELECT_CONFIG[fieldId];
+        if (config && config.apiEndpoint) {
+          // Obtener datos actualizados desde la API
+          const updatedItems = this.apiManager.getDataByEndpoint(
+            config.apiEndpoint
+          );
+          if (updatedItems && Array.isArray(updatedItems)) {
+            // 🆕 ACTUALIZAR LISTA LOCAL DEL MULTISELECT
+            if (typeof multiSelectInstance.updateItems === "function") {
+              multiSelectInstance.updateItems(updatedItems);
+              Logger.debug(`MultiSelect ${fieldId} items updated from API`, {
+                module: "ShipFormController",
+                fieldId: fieldId,
+                itemCount: updatedItems.length,
+                showNotification: false,
+              });
+            }
+          }
+        }
+
+        // 🆕 ACTUALIZAR MODAL SI ESTÁ ABIERTO
         const modalId = `${fieldId}_modal`;
         const modal = document.getElementById(modalId);
 
         if (modal && modal.classList.contains("show")) {
+          // 🆕 ACTUALIZAR LA LISTA DE ITEMS EN EL MODAL
           if (typeof multiSelectInstance.loadModalItems === "function") {
             multiSelectInstance.loadModalItems();
-          } else if (
-            typeof multiSelectInstance.updateModalItems === "function"
-          ) {
-            multiSelectInstance.updateModalItems();
-          } else if (
-            typeof multiSelectInstance.renderModalItems === "function"
-          ) {
-            multiSelectInstance.renderModalItems();
+            Logger.debug(`Modal ${fieldId} items refreshed while open`, {
+              module: "ShipFormController",
+              fieldId: fieldId,
+              showNotification: false,
+            });
           }
         }
+
+        Logger.debug(`MultiSelect ${fieldId} interface updated successfully`, {
+          module: "ShipFormController",
+          fieldId: fieldId,
+          showNotification: false,
+        });
       }
     } catch (error) {
       console.error("Error updating MultiSelect modal:", error);

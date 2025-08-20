@@ -1170,12 +1170,12 @@ class SingleSelect {
         `${miniModalId}_weeklyRestriction`
       );
       if (toggleInput) {
-        updatedData.weeklyRestriction = toggleInput.checked;
+        extendedData.weeklyRestriction = toggleInput.checked;
 
         // 🔍 DEBUG temporal (quitar después)
         console.log("🔍 Toggle found:", !!toggleInput);
         console.log("🔍 Toggle checked:", toggleInput.checked);
-        console.log("🔍 Updated data:", updatedData);
+        console.log("🔍 Extended data:", extendedData); 
       } else {
         console.log(
           "🔍 Toggle input NOT found for:",
@@ -1503,13 +1503,11 @@ class SingleSelect {
   }
 
   addNewItem() {
-    // 🆕 DETECCIÓN DE MODO EXTENDIDO
     if (this.config.useExtendedEdit) {
       this.openAddMiniModal();
       return;
     }
 
-    // COMPORTAMIENTO ACTUAL para SingleSelects normales
     const input = document.getElementById(`${this.containerId}_newItemInput`);
     const itemName = input.value.trim();
 
@@ -1526,9 +1524,10 @@ class SingleSelect {
       return;
     }
 
+    // *** ACTUALIZAR INMEDIATAMENTE ***
     this.allItems.push(itemName);
     this.filteredItems = [...this.allItems];
-    this.loadModalItems();
+    this.loadModalItems(); // Refrescar modal inmediatamente
     input.value = "";
 
     if (this.config.onItemAdd) {
@@ -2326,6 +2325,62 @@ body.singleselect-active {
     this.overlayDropdown = null;
     this.scrollListeners = [];
     this.resizeListener = null;
+  }
+
+  /**
+   * Actualizar items desde API (similar a MultiSelect)
+   */
+  updateItemsFromAPI(items) {
+    if (!Array.isArray(items)) {
+      console.warn("SingleSelect updateItemsFromAPI: items must be an array");
+      return;
+    }
+
+    this.allItems = [...items];
+    this.filteredItems = [...items];
+
+    // Verificar si el item seleccionado sigue existiendo
+    if (this.selectedItem && !this.allItems.includes(this.selectedItem)) {
+      this.selectedItem = null;
+      this.updateDisplay();
+
+      if (this.config.onSelectionChange) {
+        this.config.onSelectionChange(null);
+      }
+    }
+
+    // Actualizar dropdown si está abierto
+    if (this.isOpen) {
+      this.renderOptions();
+    }
+
+    // Actualizar modal si está abierto
+    this.refreshModalIfOpen();
+  }
+
+  /**
+   * Refrescar modal si está abierto
+   */
+  refreshModalIfOpen() {
+    const modalId = `${this.containerId}_modal`;
+    const modal = document.getElementById(modalId);
+
+    if (modal && modal.classList.contains("show")) {
+      this.loadModalItems();
+    }
+  }
+
+  /**
+   * Forzar actualización completa
+   */
+  forceRefresh() {
+    this.updateDisplay();
+
+    if (this.isOpen) {
+      this.renderOptions();
+    }
+
+    this.refreshModalIfOpen();
   }
 }
 
