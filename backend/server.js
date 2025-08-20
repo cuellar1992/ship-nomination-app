@@ -47,7 +47,7 @@ async function startServer() {
         await databaseManager.connect();
         
         const baseUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://seahorse-app-u8jyg.ondigitalocean.app' 
+            ? 'https://monkfish-app-aej83.ondigitalocean.app' 
             : `http://localhost:${PORT}`;
         
         app.listen(PORT, '0.0.0.0', () => {
