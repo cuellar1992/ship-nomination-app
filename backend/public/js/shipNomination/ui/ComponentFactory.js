@@ -7,8 +7,11 @@
  */
 
 import { SHIP_NOMINATION_CONSTANTS } from "../utils/Constants.js";
+import { DateTimeValidationManager } from "../services/DateTimeValidationManager.js";
 
 class ComponentFactory {
+  // 🆕 NUEVA: Instancia del validador de fechas
+  static dateTimeValidationManager = null;
   /**
    * Crear todos los componentes SingleSelect
    * @param {Object} singleSelectInstances - Referencia al objeto de instancias
@@ -353,6 +356,9 @@ class ComponentFactory {
         });
       }
     });
+
+    // 🆕 NUEVO: Configurar validaciones de fecha después de crear todos los DateTimePickers
+    ComponentFactory.setupDateTimeValidations(dateTimeInstances);
 
     Logger.success(`All DateTimePicker components created`, {
       module: "ComponentFactory",
@@ -1036,6 +1042,49 @@ static collectComponentDataForAPI(
       module: 'ComponentFactory',
       showNotification: false
     });
+  }
+
+  /**
+   * 🆕 NUEVO: Configurar validaciones de fecha para DateTimePickers
+   * @param {Object} dateTimeInstances - Instancias de DateTimePicker
+   */
+  static setupDateTimeValidations(dateTimeInstances) {
+    try {
+      // Crear instancia del validador si no existe
+      if (!ComponentFactory.dateTimeValidationManager) {
+        ComponentFactory.dateTimeValidationManager = new DateTimeValidationManager();
+        Logger.info('DateTimeValidationManager instance created', {
+          module: 'ComponentFactory',
+          showNotification: false
+        });
+      }
+
+      // Configurar instancias en el validador
+      ComponentFactory.dateTimeValidationManager.setDateTimeInstances(dateTimeInstances);
+      
+      // Configurar validaciones
+      ComponentFactory.dateTimeValidationManager.setupValidations();
+
+      Logger.success('DateTime validations configured successfully', {
+        module: 'ComponentFactory',
+        showNotification: false
+      });
+
+    } catch (error) {
+      Logger.error('Error setting up DateTime validations', {
+        module: 'ComponentFactory',
+        error: error,
+        showNotification: false
+      });
+    }
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener instancia del validador de fechas
+   * @returns {DateTimeValidationManager|null} Instancia del validador
+   */
+  static getDateTimeValidationManager() {
+    return ComponentFactory.dateTimeValidationManager;
   }
 }
 

@@ -123,6 +123,49 @@ export const SHIP_NOMINATION_CONSTANTS = {
       SHOW_SELECT_ALL: true
     }
   },
+
+  // 🆕 NUEVA CONFIGURACIÓN: Reglas de validación de fechas
+  DATETIME_VALIDATION: {
+    // Offset mínimo entre campos (en horas)
+    MIN_OFFSET_HOURS: 2,
+    
+    // Permitir día siguiente para mayor flexibilidad
+    ALLOW_NEXT_DAY: true,
+    
+    // Preservar datos históricos en modo edición
+    PRESERVE_HISTORICAL_DATA: true,
+    
+    // Mensajes de error personalizados
+    ERROR_MESSAGES: {
+      ETB_TOO_EARLY: 'ETB must be at least 2 hours after Pilot On Board time',
+      ETC_TOO_EARLY: 'ETC must be at least 2 hours after ETB time',
+      INVALID_SEQUENCE: 'Date/time sequence is invalid. Please check the order.',
+      REQUIRED_FIELD: 'This field is required for validation'
+    },
+    
+    // Configuración de validación por campo
+    FIELD_RULES: {
+      pilotOnBoard: {
+        required: true,
+        hasRestrictions: false, // Sin restricciones
+        description: 'Pilot On Board time (no restrictions)'
+      },
+      etb: {
+        required: true,
+        hasRestrictions: true,
+        dependsOn: 'pilotOnBoard',
+        minOffsetHours: 2,
+        description: 'Estimated Time of Berthing (min: POB + 2h)'
+      },
+      etc: {
+        required: true,
+        hasRestrictions: true,
+        dependsOn: 'etb',
+        minOffsetHours: 2,
+        description: 'Estimated Time of Completion (min: ETB + 2h)'
+      }
+    }
+  },
   
   // Mensajes del sistema
   MESSAGES: {

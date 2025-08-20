@@ -444,13 +444,33 @@ class FormHandler {
       this.dateTimeInstances
     );
 
+    // 🆕 NUEVO: Limpiar validaciones de fecha
+    try {
+      const dateTimeValidationManager = ComponentFactory.getDateTimeValidationManager();
+      if (dateTimeValidationManager) {
+        dateTimeValidationManager.clearRestrictions();
+        dateTimeValidationManager.resetValidationState();
+        
+        Logger.debug("DateTime validations cleared", {
+          module: "FormHandler",
+          showNotification: false,
+        });
+      }
+    } catch (validationError) {
+      Logger.error("Error clearing DateTime validations", {
+        module: "FormHandler",
+        error: validationError,
+        showNotification: false,
+      });
+    }
+
     // UNA sola notificación global
     Logger.success("Form cleared successfully", {
       module: "FormHandler",
       showNotification: true,
       notificationMessage: "Form data cleared successfully"
     });
-}
+  }
 
   /**
    * Verificar si el formulario tiene datos
@@ -738,6 +758,38 @@ class FormHandler {
         module: "FormHandler",
         showNotification: false,
       });
+
+      // 🆕 NUEVO PASO 5: Aplicar validaciones de fecha para modo edición
+      Logger.debug("Step 5: Applying DateTime validations for edit mode", {
+        module: "FormHandler",
+        showNotification: false,
+      });
+
+      try {
+        // Obtener el validador de fechas desde ComponentFactory
+        const dateTimeValidationManager = ComponentFactory.getDateTimeValidationManager();
+        
+        if (dateTimeValidationManager) {
+          // Cargar datos existentes en el validador para aplicar restricciones
+          dateTimeValidationManager.loadExistingData(data);
+          
+          Logger.success("DateTime validations applied for edit mode", {
+            module: "FormHandler",
+            showNotification: false,
+          });
+        } else {
+          Logger.warning("DateTimeValidationManager not available", {
+            module: "FormHandler",
+            showNotification: false,
+          });
+        }
+      } catch (validationError) {
+        Logger.error("Error applying DateTime validations", {
+          module: "FormHandler",
+          error: validationError,
+          showNotification: false,
+        });
+      }
 
       Logger.success("Form data loaded successfully for editing", {
         module: "FormHandler",

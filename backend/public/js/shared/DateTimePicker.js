@@ -513,11 +513,21 @@ class DateTimePicker {
   }
 
   initializeModal() {
+    Logger.debug('initializeModal called', {
+      module: 'DateTimePicker',
+      containerId: this.containerId,
+      data: {
+        selectedDate: this.selectedDate,
+        selectedDateTime: this.selectedDateTime,
+        selectedTime: this.selectedTime
+      }
+    });
+
     if (!this.selectedDate) {
       if (this.selectedDateTime) {
         this.selectedDate = new Date(this.selectedDateTime);
 
-        Logger.debug("Selected date restored from previous selection", {
+        Logger.debug("Selected date restored from selectedDateTime", {
           module: "DateTimePicker",
           showNotification: false,
           data: { selectedDate: this.selectedDate },
@@ -533,11 +543,27 @@ class DateTimePicker {
       }
     } else {
       this.currentDate = new Date(this.selectedDate);
+      
+      Logger.debug("Selected date already exists, using it", {
+        module: "DateTimePicker",
+        showNotification: false,
+        data: { selectedDate: this.selectedDate, currentDate: this.currentDate },
+      });
     }
 
     if (!this.selectedTime) {
       this.selectedTime = { ...this.config.defaultTime };
     }
+
+    Logger.debug('initializeModal completed', {
+      module: 'DateTimePicker',
+      containerId: this.containerId,
+      data: {
+        finalSelectedDate: this.selectedDate,
+        finalCurrentDate: this.currentDate,
+        finalSelectedTime: this.selectedTime
+      }
+    });
   }
 
   renderCalendar() {
@@ -609,8 +635,30 @@ class DateTimePicker {
       const dayElement = document.createElement("div");
       const isCurrentMonth = date.getMonth() === this.currentDate.getMonth();
       const isToday = date.getTime() === today.getTime();
-      const isSelected =
-        this.selectedDate && date.getTime() === this.selectedDate.getTime();
+      // 🔧 CORREGIDO: Comparar solo día, mes y año (no hora/minutos)
+      const isSelected = this.selectedDate && 
+        date.getDate() === this.selectedDate.getDate() &&
+        date.getMonth() === this.selectedDate.getMonth() &&
+        date.getFullYear() === this.selectedDate.getFullYear();
+      
+      // 🔧 DEBUG: Log para verificar si algún día está siendo marcado como seleccionado
+      if (this.selectedDate && (date.getDate() === this.selectedDate.getDate() && date.getMonth() === this.selectedDate.getMonth())) {
+        Logger.debug('Checking selected day for highlight', {
+          module: 'DateTimePicker',
+          containerId: this.containerId,
+          data: {
+            date: date,
+            selectedDate: this.selectedDate,
+            isSelected: isSelected,
+            dateTime: date.getTime(),
+            selectedDateTime: this.selectedDate.getTime(),
+            dayMatch: date.getDate() === this.selectedDate.getDate(),
+            monthMatch: date.getMonth() === this.selectedDate.getMonth(),
+            yearMatch: date.getFullYear() === this.selectedDate.getFullYear(),
+            timeComparison: `${date.getTime()} === ${this.selectedDate.getTime()}`
+          }
+        });
+      }
 
       dayElement.style.cssText = `
                 padding: 0.5rem 0.2rem;
@@ -640,10 +688,24 @@ class DateTimePicker {
 
       dayElement.textContent = date.getDate();
 
-      // Add click handler
-      dayElement.addEventListener("click", () => {
-        this.selectDate(new Date(date));
-      });
+      // 🔧 NUEVO: Verificar restricciones de fecha antes de permitir selección
+      const isDateDisabled = this.isDateDisabled(date);
+      
+      if (isDateDisabled) {
+        // Deshabilitar días que no cumplen las restricciones
+        dayElement.style.cssText += `
+          opacity: 0.3;
+          cursor: not-allowed;
+          background: var(--bg-secondary);
+          color: var(--text-dim);
+        `;
+        dayElement.title = 'Date not available';
+      } else {
+        // Agregar click handler solo para fechas válidas
+        dayElement.addEventListener("click", () => {
+          this.selectDate(new Date(date));
+        });
+      }
 
       // Hover effects
       if (isCurrentMonth) {
@@ -669,24 +731,48 @@ class DateTimePicker {
     const hourSelect = document.getElementById(`${this.containerId}_hour`);
     const minuteSelect = document.getElementById(`${this.containerId}_minute`);
 
-    // Populate hours
+    // 🔧 NUEVO: Limpiar selects antes de poblar
     hourSelect.innerHTML = "";
+    minuteSelect.innerHTML = "";
+
+    // 🔧 NUEVO: Obtener fecha seleccionada para validación
+    const selectedDate = this.selectedDate || new Date();
+
+    // Populate hours con validación de restricciones
     for (let i = 0; i < 24; i++) {
       const option = document.createElement("option");
       option.value = i;
       option.textContent = String(i).padStart(2, "0");
+      
+      // 🔧 NUEVO: Verificar si la hora está deshabilitada
+      // Para horas, verificamos si TODA la hora está deshabilitada
+      const isHourDisabled = this.isHourCompletelyDisabled(selectedDate, i);
+      if (isHourDisabled) {
+        option.disabled = true;
+        option.style.color = "var(--text-dim)";
+        option.textContent += " (not available)";
+      }
+      
       if (i === this.selectedTime.hour) {
         option.selected = true;
       }
       hourSelect.appendChild(option);
     }
 
-    // Populate minutes
-    minuteSelect.innerHTML = "";
+    // Populate minutes con validación de restricciones
     for (let i = 0; i < 60; i += this.config.minuteStep) {
       const option = document.createElement("option");
       option.value = i;
       option.textContent = String(i).padStart(2, "0");
+      
+      // 🔧 NUEVO: Verificar si el minuto está deshabilitado
+      const isMinuteDisabled = this.isTimeDisabled(selectedDate, this.selectedTime.hour, i);
+      if (isMinuteDisabled) {
+        option.disabled = true;
+        option.style.color = "var(--text-dim)";
+        option.textContent += " (not available)";
+      }
+      
       if (i === this.selectedTime.minute) {
         option.selected = true;
       }
@@ -702,6 +788,38 @@ class DateTimePicker {
     minuteSelect.value = this.selectedTime.minute;
   }
 
+  /**
+   * 🔧 NUEVO: Re-poblar solo los minutos cuando cambia la hora
+   * Esto es necesario para aplicar las restricciones de minutos basadas en la nueva hora
+   */
+  repopulateMinutes() {
+    const minuteSelect = document.getElementById(`${this.containerId}_minute`);
+    if (!minuteSelect || !this.selectedDate) return;
+
+    // Limpiar minutos existentes
+    minuteSelect.innerHTML = "";
+
+    // Re-poblar minutos con validación actualizada
+    for (let i = 0; i < 60; i += this.config.minuteStep) {
+      const option = document.createElement("option");
+      option.value = i;
+      option.textContent = String(i).padStart(2, "0");
+      
+      // Verificar si el minuto está deshabilitado para la hora actual
+      const isMinuteDisabled = this.isTimeDisabled(this.selectedDate, this.selectedTime.hour, i);
+      if (isMinuteDisabled) {
+        option.disabled = true;
+        option.style.color = "var(--text-dim)";
+        option.textContent += " (not available)";
+      }
+      
+      if (i === this.selectedTime.minute) {
+        option.selected = true;
+      }
+      minuteSelect.appendChild(option);
+    }
+  }
+
   navigateMonth(direction) {
     this.currentDate.setMonth(this.currentDate.getMonth() + direction);
     this.renderCalendar();
@@ -709,8 +827,26 @@ class DateTimePicker {
 
   selectDate(date) {
     if (date instanceof Date && !isNaN(date.getTime())) {
+      // 🔧 NUEVO: Validar que la fecha seleccionada cumpla las restricciones
+      if (this.isDateDisabled(date)) {
+        Logger.warn("Attempted to select disabled date", {
+          module: "DateTimePicker",
+          showNotification: true,
+          notificationMessage: "This date is not available",
+          data: { 
+            selectedDate: date,
+            minDate: this.config.minDate,
+            maxDate: this.config.maxDate
+          },
+        });
+        return;
+      }
+
       this.selectedDate = new Date(date);
       this.renderCalendar();
+      
+      // 🔧 NUEVO: Re-poblar selects de tiempo con restricciones actualizadas
+      this.populateTimeSelects();
 
       Logger.debug("Date selected via calendar", {
         module: "DateTimePicker",
@@ -731,9 +867,48 @@ class DateTimePicker {
     const hourSelect = document.getElementById(`${this.containerId}_hour`);
     const minuteSelect = document.getElementById(`${this.containerId}_minute`);
 
+    const newHour = parseInt(hourSelect.value);
+    const newMinute = parseInt(minuteSelect.value);
+
+    // 🔧 NUEVO: Si cambió la hora, re-poblar los minutos con restricciones actualizadas
+    if (newHour !== this.selectedTime.hour) {
+      this.selectedTime.hour = newHour;
+      this.repopulateMinutes();
+      
+      // Si el minuto actual no es válido para la nueva hora, resetear a 0
+      if (this.selectedTime.minute !== 0) {
+        this.selectedTime.minute = 0;
+        minuteSelect.value = 0;
+      }
+    }
+
+    // 🔧 NUEVO: Validar que la nueva hora/minuto cumpla las restricciones
+    if (this.selectedDate && this.config.minDate) {
+      const newDateTime = new Date(this.selectedDate);
+      newDateTime.setHours(newHour, newMinute, 0, 0);
+      
+      if (newDateTime < this.config.minDate) {
+        Logger.warn("Selected time is before minimum allowed", {
+          module: "DateTimePicker",
+          showNotification: true,
+          notificationMessage: `Time must be after ${this.config.minDate.toLocaleTimeString()}`,
+          data: { 
+            newDateTime: newDateTime,
+            minDateTime: this.config.minDate
+          },
+        });
+        
+        // Restaurar valores anteriores
+        hourSelect.value = this.selectedTime.hour;
+        minuteSelect.value = this.selectedTime.minute;
+        return;
+      }
+    }
+
+    // Actualizar tiempo seleccionado
     this.selectedTime = {
-      hour: parseInt(hourSelect.value),
-      minute: parseInt(minuteSelect.value),
+      hour: newHour,
+      minute: newMinute,
     };
   }
 
@@ -772,6 +947,50 @@ class DateTimePicker {
       0,
       0
     );
+
+    // 🔧 NUEVO: Validar que la fecha/hora final cumpla las restricciones
+    if (this.config.minDate && finalDateTime < this.config.minDate) {
+              Logger.warn("Selected date/time is before minimum allowed", {
+          module: "DateTimePicker",
+          showNotification: true,
+          notificationMessage: `Date/time must be after ${this.config.minDate.toLocaleString()}`,
+          data: { 
+            selectedDateTime: finalDateTime,
+            minDateTime: this.config.minDate
+          },
+        });
+      return;
+    }
+
+    // 🔧 NUEVO: Validación adicional usando isTimeDisabled
+    if (this.config.minDate && this.isTimeDisabled(this.selectedDate, this.selectedTime.hour, this.selectedTime.minute)) {
+      Logger.warn("Selected time is disabled by restrictions", {
+        module: "DateTimePicker",
+        showNotification: true,
+        notificationMessage: "Selected time is not available due to restrictions",
+        data: { 
+          selectedDateTime: finalDateTime,
+          minDateTime: this.config.minDate,
+          hour: this.selectedTime.hour,
+          minute: this.selectedTime.minute
+        },
+      });
+      return;
+    }
+
+    if (this.config.maxDate && finalDateTime > this.config.maxDate) {
+              Logger.warn("Selected date/time is after maximum allowed", {
+          module: "DateTimePicker",
+          showNotification: true,
+          notificationMessage: `Date/time must be before ${this.config.maxDate.toLocaleString()}`,
+          data: { 
+            selectedDateTime: finalDateTime,
+            maxDateTime: this.config.maxDate
+          },
+        });
+      return;
+    }
+
     this.selectedDateTime = finalDateTime;
     this.updateDisplay();
 
@@ -1037,17 +1256,53 @@ class DateTimePicker {
   }
 
   setDateTime(dateTime) {
-    if (dateTime) {
+    Logger.debug('setDateTime called', {
+      module: 'DateTimePicker',
+      containerId: this.containerId,
+      data: { 
+        inputDateTime: dateTime,
+        inputType: typeof dateTime,
+        isDate: dateTime instanceof Date,
+        isValid: dateTime instanceof Date && !isNaN(dateTime.getTime())
+      }
+    });
+
+    if (dateTime && dateTime instanceof Date && !isNaN(dateTime.getTime())) {
       this.selectedDateTime = new Date(dateTime);
       this.selectedDate = new Date(dateTime);
       this.selectedTime = {
         hour: dateTime.getHours(),
         minute: dateTime.getMinutes(),
       };
+      
+      // 🔧 NUEVO: Actualizar el calendario para mostrar la fecha seleccionada
+      this.currentDate = new Date(dateTime);
+      
+      Logger.debug('DateTime set successfully', {
+        module: 'DateTimePicker',
+        containerId: this.containerId,
+        data: { 
+          selectedDateTime: this.selectedDateTime,
+          selectedDate: this.selectedDate,
+          selectedTime: this.selectedTime,
+          currentDate: this.currentDate
+        }
+      });
+      
+      // Solo renderizar si el modal ya está inicializado
+      if (document.getElementById(`${this.containerId}_calendar`)) {
+        this.renderCalendar();
+        this.populateTimeSelects();
+      }
     } else {
       this.selectedDateTime = null;
       this.selectedDate = null;
       this.selectedTime = { ...this.config.defaultTime };
+      
+      Logger.debug('DateTime cleared', {
+        module: 'DateTimePicker',
+        containerId: this.containerId
+      });
     }
     this.updateDisplay();
   }
@@ -1085,11 +1340,187 @@ class DateTimePicker {
   }
 
   setMinDate(date) {
-    this.config.minDate = date;
+    if (date && date instanceof Date && !isNaN(date.getTime())) {
+      this.config.minDate = new Date(date);
+      Logger.debug('MinDate restriction set', {
+        module: 'DateTimePicker',
+        containerId: this.containerId,
+        minDate: this.config.minDate,
+        showNotification: false
+      });
+      // 🔧 NUEVO: Re-renderizar calendario y re-poblar selects cuando cambian las restricciones
+      this.renderCalendar();
+      if (this.selectedDate) {
+        this.populateTimeSelects();
+      }
+    } else if (date === null) {
+      this.config.minDate = null;
+      Logger.debug('MinDate restriction cleared', {
+        module: 'DateTimePicker',
+        containerId: this.containerId,
+        showNotification: false
+      });
+      this.renderCalendar();
+      if (this.selectedDate) {
+        this.populateTimeSelects();
+      }
+    }
   }
 
   setMaxDate(date) {
-    this.config.maxDate = date;
+    if (date && date instanceof Date && !isNaN(date.getTime())) {
+      this.config.maxDate = new Date(date);
+      Logger.debug('MaxDate restriction set', {
+        module: 'DateTimePicker',
+        containerId: this.containerId,
+        maxDate: this.config.maxDate,
+        showNotification: false
+      });
+      this.renderCalendar();
+    } else if (date === null) {
+      this.config.maxDate = null;
+      Logger.debug('MaxDate restriction cleared', {
+        module: 'DateTimePicker',
+        containerId: this.containerId,
+        showNotification: false
+      });
+      this.renderCalendar();
+    }
+  }
+
+  /**
+   * 🔧 NUEVO: Limpiar todas las restricciones de fecha
+   */
+  clearDateRestrictions() {
+    this.config.minDate = null;
+    this.config.maxDate = null;
+    Logger.debug('All date restrictions cleared', {
+      module: 'DateTimePicker',
+      containerId: this.containerId,
+      showNotification: false
+    });
+    this.renderCalendar();
+    if (this.selectedDate) {
+      this.populateTimeSelects();
+    }
+  }
+
+  /**
+   * 🔧 NUEVO: Verificar si una fecha está deshabilitada por restricciones
+   * @param {Date} date - Fecha a verificar
+   * @returns {boolean} True si la fecha está deshabilitada
+   */
+  isDateDisabled(date) {
+    // Normalizar la fecha para comparación (solo fecha, sin hora)
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(0, 0, 0, 0);
+
+    // Verificar restricción de fecha mínima
+    if (this.config.minDate) {
+      const minDate = new Date(this.config.minDate);
+      minDate.setHours(0, 0, 0, 0);
+      
+      if (normalizedDate < minDate) {
+        return true;
+      }
+    }
+
+    // Verificar restricción de fecha máxima
+    if (this.config.maxDate) {
+      const maxDate = new Date(this.config.maxDate);
+      maxDate.setHours(0, 0, 0, 0);
+      
+      if (normalizedDate > maxDate) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 🔧 NUEVO: Verificar si una hora específica está deshabilitada para una fecha
+   * @param {Date} date - Fecha a verificar
+   * @param {number} hour - Hora a verificar
+   * @param {number} minute - Minuto a verificar
+   * @returns {boolean} True si la hora está deshabilitada
+   */
+  isTimeDisabled(date, hour, minute) {
+    // Verificar restricción de fecha/hora mínima
+    if (this.config.minDate) {
+      const minDate = new Date(this.config.minDate);
+      const selectedDateTime = new Date(date);
+      selectedDateTime.setHours(hour, minute, 0, 0);
+      
+      // 🔧 CORREGIDO: Verificar si es el mismo día o un día diferente
+      const isSameDay = selectedDateTime.toDateString() === minDate.toDateString();
+      
+      // Si es un día DIFERENTE, todos los minutos están disponibles
+      if (!isSameDay) {
+        return false;
+      }
+      
+      // Si es el MISMO día, aplicar restricciones de minuto
+      // Solo deshabilitar si es estrictamente menor (no igual)
+      if (selectedDateTime < minDate) {
+        return true;
+      }
+    }
+
+    // Verificar restricción de fecha/hora máxima
+    if (this.config.maxDate) {
+      const maxDate = new Date(this.config.maxDate);
+      const selectedDateTime = new Date(date);
+      selectedDateTime.setHours(hour, minute, 0, 0);
+      
+      // 🔧 CORREGIDO: Permitir exactamente la hora máxima
+      if (selectedDateTime > maxDate) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * 🔧 NUEVO: Verificar si una hora completa está deshabilitada para una fecha
+   * Una hora está deshabilitada si está ANTES de la hora mínima permitida
+   * @param {Date} date - Fecha a verificar
+   * @param {number} hour - Hora a verificar
+   * @returns {boolean} True si toda la hora está deshabilitada
+   */
+  isHourCompletelyDisabled(date, hour) {
+    // Si no hay restricciones, la hora está disponible
+    if (!this.config.minDate) {
+      return false;
+    }
+
+    const minDate = new Date(this.config.minDate);
+    
+    // 🔧 CORREGIDO: Verificar si es el mismo día o un día diferente
+    const selectedDate = new Date(date);
+    const isSameDay = selectedDate.toDateString() === minDate.toDateString();
+    
+    // Si es un día DIFERENTE, todas las horas están disponibles
+    if (!isSameDay) {
+      return false;
+    }
+    
+    // Si es el MISMO día, aplicar restricciones de hora
+    const minHour = minDate.getHours();
+    
+    // Si la hora está ANTES de la hora mínima, está completamente deshabilitada
+    if (hour < minHour) {
+      return true;
+    }
+    
+    // Si la hora es IGUAL a la hora mínima, está activa (pero con restricciones de minutos)
+    if (hour === minHour) {
+      return false;
+    }
+    
+    // Si la hora es DESPUÉS de la hora mínima, está completamente activa
+    return false;
   }
 
   setDefaultTime(time) {
