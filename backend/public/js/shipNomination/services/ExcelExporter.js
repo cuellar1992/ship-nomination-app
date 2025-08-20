@@ -535,7 +535,7 @@ class ExcelExporter {
         nomination.vesselName || nomination.shipName || "",
         nomination.amspecRef || "",
         nomination.clientRef || "",
-        nomination.clientName || nomination.client?.name || "",
+        this.formatClientName(nomination.clientName || nomination.client),
         nomination.agent?.name || nomination.agent || "",
         nomination.pilotOnBoard
           ? this.createLocalDateTime(nomination.pilotOnBoard)
@@ -860,7 +860,7 @@ class ExcelExporter {
         nomination.vesselName || nomination.shipName || "",
         nomination.amspecRef || "",
         nomination.clientRef || "",
-        nomination.clientName || nomination.client?.name || "",
+        this.formatClientName(nomination.clientName || nomination.client),
         nomination.agent?.name || nomination.agent || "",
 
         // ⭐ PILOT ON BOARD: DateTime nativo Excel
@@ -1064,6 +1064,39 @@ class ExcelExporter {
       })
       .filter((name) => name)
       .join(", ");
+  }
+
+  /**
+   *  Formatear nombre del cliente
+   */
+  formatClientName(clientData) {
+    if (!clientData) return "";
+    
+    // Si es un string, retornarlo directamente
+    if (typeof clientData === 'string') {
+      return clientData;
+    }
+    
+    // Si es un array de objetos cliente
+    if (Array.isArray(clientData)) {
+      // Extraer los nombres y unirlos con coma
+      return clientData
+        .map(client => client?.name || client)
+        .filter(name => name && typeof name === 'string')
+        .join(", ");
+    }
+    
+    // Si es un objeto cliente individual
+    if (typeof clientData === 'object' && clientData.name) {
+      return clientData.name;
+    }
+    
+    // Si es un objeto pero no tiene name, intentar con otras propiedades
+    if (typeof clientData === 'object') {
+      return clientData.clientName || clientData.client || "";
+    }
+    
+    return "";
   }
 
   /**

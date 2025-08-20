@@ -5,7 +5,15 @@ const Berth = require('../models/Berth');
 // GET / - Obtener todos los berths
 router.get('/', async (req, res) => {
     try {
-        const berths = await Berth.find().sort({ name: 1 });
+        const { populate } = req.query;
+        let query = Berth.find().sort({ name: 1 });
+        
+        // Si se solicita población de terminales, incluirla
+        if (populate === 'terminals') {
+            query = query.populate('terminals', 'name');
+        }
+        
+        const berths = await query;
         res.json({ success: true, data: berths });
     } catch (error) {
         console.error('Error fetching berths:', error);
@@ -16,13 +24,20 @@ router.get('/', async (req, res) => {
 // POST / - Crear nuevo berth
 router.post('/', async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, terminals } = req.body;
         
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'Name is required' });
         }
 
-        const berth = new Berth({ name: name.trim() });
+        if (!terminals || !Array.isArray(terminals) || terminals.length === 0) {
+            return res.status(400).json({ success: false, message: 'At least one terminal is required' });
+        }
+
+        const berth = new Berth({ 
+            name: name.trim(),
+            terminals: terminals
+        });
         const savedBerth = await berth.save();
         
         res.status(201).json({ success: true, data: savedBerth });
@@ -39,15 +54,22 @@ router.post('/', async (req, res) => {
 // PUT /:id - Actualizar berth existente
 router.put('/:id', async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, terminals } = req.body;
         
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'Name is required' });
         }
 
+        if (!terminals || !Array.isArray(terminals) || terminals.length === 0) {
+            return res.status(400).json({ success: false, message: 'At least one terminal is required' });
+        }
+
         const updatedBerth = await Berth.findByIdAndUpdate(
             req.params.id,
-            { name: name.trim() },
+            { 
+                name: name.trim(),
+                terminals: terminals
+            },
             { new: true, runValidators: true }
         );
 

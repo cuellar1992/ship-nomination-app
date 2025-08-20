@@ -35,7 +35,61 @@ class APIManager {
   }
 
   /**
-   * Cargar datos desde todas las APIs
+   * 🆕 NUEVO: Obtener berths filtrados por terminal
+   * @param {string} terminalName - Nombre del terminal
+   * @returns {Array} Lista de berths del terminal
+   */
+  getBerthsByTerminal(terminalName) {
+    if (!terminalName || !this.berthsFullData) {
+      Logger.debug('getBerthsByTerminal: Missing data', {
+        module: 'APIManager',
+        data: { terminalName, hasBerthsData: !!this.berthsFullData },
+        showNotification: false
+      });
+      return [];
+    }
+    
+    Logger.debug('getBerthsByTerminal: Processing data', {
+      module: 'APIManager',
+      data: { 
+        terminalName, 
+        berthsCount: this.berthsFullData.length,
+        sampleBerth: this.berthsFullData[0],
+        allBerths: this.berthsFullData.map(b => ({ name: b.name, terminals: b.terminals }))
+      },
+      showNotification: false
+    });
+    
+    const filteredBerths = this.berthsFullData
+      .filter(berth => berth.terminals && berth.terminals.some(terminal => terminal.name === terminalName))
+      .map(berth => berth.name);
+    
+    Logger.debug('getBerthsByTerminal: Filtered result', {
+      module: 'APIManager',
+      data: { terminalName, filteredBerths, count: filteredBerths.length },
+      showNotification: false
+    });
+    
+    return filteredBerths;
+  }
+
+  /**
+   * 🆕 NUEVO: Obtener berths filtrados por terminal (por ID)
+   * @param {string} terminalId - ID del terminal
+   * @returns {Array} Lista de berths del terminal
+   */
+  getBerthsByTerminalId(terminalId) {
+    if (!terminalId || !this.berthsFullData) {
+      return [];
+    }
+    
+    return this.berthsFullData
+      .filter(berth => berth.terminals && berth.terminals.some(terminal => terminal._id === terminalId))
+      .map(berth => berth.name);
+  }
+
+  /**
+   * Cargar berths desde la API
    * @returns {Promise<void>}
    */
   async loadApiData() {
@@ -118,7 +172,7 @@ class APIManager {
         module: "APIManager",
         showNotification: false,
       });
-      const berthsResponse = await fetch(`${this.baseURL}/api/berths`);
+      const berthsResponse = await fetch(`${this.baseURL}/api/berths?populate=terminals`);
       const berthsResult = await berthsResponse.json();
 
       if (berthsResult.success) {

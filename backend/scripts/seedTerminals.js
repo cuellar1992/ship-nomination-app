@@ -6,11 +6,13 @@ const Terminal = require('../models/Terminal');
 const initialTerminals = [
     'Vopak',
     'Quantem',
-    'Ampol Kurnell',
-    'Orica - Newcastle',
-    'Orica - BIP',
+    'Orica Newcastle',
+    'Orica Botany',
     'Stolthaven',
-    'Park Fuels'
+    'Ampol Kurnell',
+    'BP ATOM',
+    'Park Fuels Newcastle',
+    'Park Fuels Kembla'
 ];
 
 async function seedTerminals() {

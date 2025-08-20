@@ -110,6 +110,7 @@ class ShipFormController {
           this.editItem(fieldId, updatedData, originalData, index),
         onGetItemData: (fieldId, itemName) =>
           this.getItemData(fieldId, itemName),
+        apiManager: this.apiManager, // 🆕 NUEVO: Agregar apiManager para filtrado
       }
     );
 

@@ -6,7 +6,12 @@ const berthSchema = new mongoose.Schema({
         required: true,
         unique: true,
         trim: true
-    }
+    },
+    terminals: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Terminal',
+        required: true
+    }]
 }, {
     timestamps: true
 });

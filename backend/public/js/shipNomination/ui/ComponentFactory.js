@@ -185,6 +185,9 @@ class ComponentFactory {
       createdCount: Object.keys(singleSelectInstances).length,
       showNotification: false,
     });
+
+    // 🆕 NUEVO: Configurar filtrado de berths por terminal
+    ComponentFactory.setupTerminalBerthFiltering(singleSelectInstances, callbacks);
   }
 
   /**
@@ -952,9 +955,87 @@ static collectComponentDataForAPI(
       extendedFields: ComponentFactory.getExtendedFields(fieldId),
       extendedModalTitle: `${baseConfig.label} Contact Management`,
       extendedAddTitle: `Add New ${baseConfig.label}`,
-      extendedEditTitle: `Edit ${baseConfig.label}`,
       extendedDeleteTitle: `Delete ${baseConfig.label}`,
     };
+  }
+
+  /**
+   * 🆕 NUEVO: Configurar filtrado automático de berths por terminal
+   * @param {Object} singleSelectInstances - Instancias de SingleSelect
+   * @param {Object} callbacks - Callbacks del sistema
+   */
+  static setupTerminalBerthFiltering(singleSelectInstances, callbacks) {
+    const terminalSelect = singleSelectInstances.terminal;
+    const berthSelect = singleSelectInstances.berth;
+
+    if (!terminalSelect || !berthSelect) {
+      Logger.warning('Terminal or Berth SingleSelect not found for filtering', {
+        module: 'ComponentFactory',
+        showNotification: false
+      });
+      return;
+    }
+
+    // Guardar el callback original del terminal
+    const originalOnSelectionChange = terminalSelect.config.onSelectionChange;
+
+    // Configurar el nuevo callback que incluye el filtrado
+    terminalSelect.config.onSelectionChange = (selectedTerminal) => {
+      // Llamar al callback original si existe
+      if (originalOnSelectionChange) {
+        originalOnSelectionChange(selectedTerminal);
+      }
+
+      // 🆕 DEBUG: Verificar que apiManager esté disponible
+      if (!callbacks.apiManager) {
+        Logger.error('API Manager not available in callbacks', {
+          module: 'ComponentFactory',
+          showNotification: false
+        });
+        return;
+      }
+
+      if (selectedTerminal) {
+        // Filtrar berths según el terminal seleccionado
+        const filteredBerths = callbacks.apiManager.getBerthsByTerminal(selectedTerminal);
+        
+        Logger.debug(`Filtering berths for terminal ${selectedTerminal}`, {
+          module: 'ComponentFactory',
+          data: { 
+            terminal: selectedTerminal, 
+            berthsCount: filteredBerths.length,
+            filteredBerths: filteredBerths,
+            allBerths: callbacks.apiManager.apiData.berths
+          },
+          showNotification: false
+        });
+        
+        // Actualizar el SingleSelect de berths
+        berthSelect.updateItems(filteredBerths);
+        berthSelect.clearSelection(); // Limpiar selección previa
+        
+        Logger.success(`Filtered berths for terminal ${selectedTerminal}: ${filteredBerths.length} items`, {
+          module: 'ComponentFactory',
+          showNotification: false
+        });
+      } else {
+        // Si no hay terminal seleccionado, mostrar todos los berths
+        const allBerths = callbacks.apiManager.apiData.berths;
+        berthSelect.updateItems(allBerths);
+        berthSelect.clearSelection();
+        
+        Logger.debug('Showing all berths (no terminal selected)', {
+          module: 'ComponentFactory',
+          data: { berthsCount: allBerths.length },
+          showNotification: false
+        });
+      }
+    };
+
+    Logger.success('Terminal-Berth filtering configured successfully', {
+      module: 'ComponentFactory',
+      showNotification: false
+    });
   }
 }
 
