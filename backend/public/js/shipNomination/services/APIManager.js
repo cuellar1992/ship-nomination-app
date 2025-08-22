@@ -436,6 +436,9 @@ class APIManager {
                   ...(item.weeklyRestriction !== undefined && {
                     weeklyRestriction: Boolean(item.weeklyRestriction),
                   }),
+                  ...(item.weekDayRestrictions && {
+                    weekDayRestrictions: item.weekDayRestrictions,
+                  }),
                 }
               : { name: item }
           ),
@@ -653,12 +656,32 @@ class APIManager {
           }
         );
 
+        // Preparar datos de actualización
+        const updateData = { name: newName };
+        
+        // Si newName es un objeto con datos extendidos, incluirlos
+        if (typeof newName === "object" && newName !== null) {
+          updateData.name = newName.name;
+          if (newName.email !== undefined) {
+            updateData.email = newName.email && newName.email.trim() !== "" ? newName.email.trim() : null;
+          }
+          if (newName.phone !== undefined) {
+            updateData.phone = newName.phone && newName.phone.trim() !== "" ? newName.phone.trim() : null;
+          }
+          if (newName.weeklyRestriction !== undefined) {
+            updateData.weeklyRestriction = Boolean(newName.weeklyRestriction);
+          }
+          if (newName.weekDayRestrictions) {
+            updateData.weekDayRestrictions = newName.weekDayRestrictions;
+          }
+        }
+
         const response = await fetch(`${config.apiEndpoint}/${itemData._id}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ name: newName }),
+          body: JSON.stringify(updateData),
         });
 
         const result = await response.json();
@@ -805,6 +828,10 @@ class APIManager {
           requestBody.weeklyRestriction = Boolean(
             updatedData.weeklyRestriction
           );
+        }
+
+        if (updatedData.weekDayRestrictions) {
+          requestBody.weekDayRestrictions = updatedData.weekDayRestrictions;
         }
 
         const response = await fetch(`${config.apiEndpoint}/${itemData._id}`, {

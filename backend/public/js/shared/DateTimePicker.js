@@ -15,6 +15,10 @@ class DateTimePicker {
     this.selectedDate = null;
     this.selectedTime = { hour: 12, minute: 0 };
 
+    // 🔧 NUEVO: Estado interno para validación mejorada
+    this._hasValidDate = false;
+    this._isDateSelected = false;
+
     // Configuration options
     this.config = {
       placeholder: options.placeholder || "Select date and time...",
@@ -38,6 +42,16 @@ class DateTimePicker {
   }
 
   init() {
+    Logger.debug("DateTimePicker init started", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        config: this.config,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.container = document.getElementById(this.containerId);
     if (!this.container) {
       console.error(
@@ -50,9 +64,27 @@ class DateTimePicker {
     this.createModal();
     this.setupEventListeners();
     this.injectStyles();
+
+    Logger.debug("DateTimePicker init completed", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
   }
 
   createHTML() {
+    Logger.debug("createHTML called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.container.innerHTML = `
             <div style="position: relative;">
                 <label class="datetime-picker-label" style="
@@ -138,6 +170,15 @@ class DateTimePicker {
   }
 
   createModal() {
+    Logger.debug("createModal called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const modalId = `${this.containerId}_modal`;
     const modalHTML = `
             <!-- DateTime Picker Modal - COMPACT VERSION -->
@@ -369,6 +410,15 @@ class DateTimePicker {
   }
 
   setupEventListeners() {
+    Logger.debug("setupEventListeners started", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const container = document.getElementById(`${this.containerId}_container`);
     const clearBtn = document.getElementById(`${this.containerId}_clear`);
 
@@ -388,7 +438,7 @@ class DateTimePicker {
     }
 
     // Focus/blur events
-    container.addEventListener("focus", () => {
+    container.addEventListener("click", () => {
       container.style.borderColor = "var(--accent-primary)";
       container.style.boxShadow = "0 0 0 0.2rem rgba(31, 181, 212, 0.25)";
     });
@@ -400,11 +450,29 @@ class DateTimePicker {
 
     // Setup modal event listeners
     this.setupModalEventListeners();
+
+    Logger.debug("setupEventListeners completed", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
   }
 
   setupModalEventListeners() {
+    Logger.debug("setupModalEventListeners called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const prevMonthBtn = document.getElementById(
-      `${this.containerId}_prevMonth`
+      `${this.containerId}_nextMonth`
     );
     const nextMonthBtn = document.getElementById(
       `${this.containerId}_nextMonth`
@@ -441,9 +509,27 @@ class DateTimePicker {
 
     // Button hover effects
     this.setupButtonHoverEffects();
+
+    Logger.debug("setupModalEventListeners completed", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
   }
 
   setupQuickTimeButtons() {
+    Logger.debug("setupQuickTimeButtons called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const quickTimeButtons = document.querySelectorAll(
       `#${this.containerId}_modal .btn-quick-time`
     );
@@ -458,6 +544,15 @@ class DateTimePicker {
   }
 
   setupButtonHoverEffects() {
+    Logger.debug("setupButtonHoverEffects called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const modalElement = document.getElementById(`${this.containerId}_modal`);
 
     // Month navigation buttons
@@ -503,6 +598,18 @@ class DateTimePicker {
   }
 
   openModal() {
+    Logger.debug("openModal called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDate: this.selectedDate,
+        selectedDateTime: this.selectedDateTime,
+        selectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.initializeModal();
     this.renderCalendar();
     this.populateTimeSelects();
@@ -510,44 +617,82 @@ class DateTimePicker {
     const modalId = `${this.containerId}_modal`;
     this.modalInstance = new bootstrap.Modal(document.getElementById(modalId));
     this.modalInstance.show();
+
+    Logger.debug("Modal opened successfully", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        modalId: modalId,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
   }
 
-  initializeModal() {
+    initializeModal() {
     Logger.debug('initializeModal called', {
       module: 'DateTimePicker',
       containerId: this.containerId,
       data: {
         selectedDate: this.selectedDate,
         selectedDateTime: this.selectedDateTime,
-        selectedTime: this.selectedTime
+        selectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
       }
     });
 
     if (!this.selectedDate) {
       if (this.selectedDateTime) {
         this.selectedDate = new Date(this.selectedDateTime);
+        
+        // 🔧 CORREGIDO: Sincronizar estado interno cuando se restaura selectedDate
+        this._hasValidDate = true;
+        this._isDateSelected = true;
 
-        Logger.debug("Selected date restored from selectedDateTime", {
+        Logger.debug("Selected date restored from selectedDateTime - State synchronized", {
           module: "DateTimePicker",
+          containerId: this.containerId,
           showNotification: false,
-          data: { selectedDate: this.selectedDate },
+          data: { 
+            selectedDate: this.selectedDate,
+            hasValidDate: this._hasValidDate,
+            isDateSelected: this._isDateSelected
+          },
         });
       } else {
         this.currentDate = new Date();
         this.selectedDate = null;
+        
+        // 🔧 CORREGIDO: Asegurar que el estado interno esté limpio
+        this._hasValidDate = false;
+        this._isDateSelected = false;
 
         Logger.info("No previous date found; initialized with current date", {
           module: "DateTimePicker",
+          containerId: this.containerId,
           showNotification: false,
         });
       }
     } else {
       this.currentDate = new Date(this.selectedDate);
       
-      Logger.debug("Selected date already exists, using it", {
+      // 🔧 CORREGIDO: Asegurar que el estado interno esté sincronizado
+      if (this.selectedDate instanceof Date && !isNaN(this.selectedDate.getTime())) {
+        this._hasValidDate = true;
+        this._isDateSelected = true;
+      }
+      
+      Logger.debug("Selected date already exists, using it - State synchronized", {
         module: "DateTimePicker",
+        containerId: this.containerId,
         showNotification: false,
-        data: { selectedDate: this.selectedDate, currentDate: this.currentDate },
+        data: { 
+          selectedDate: this.selectedDate, 
+          currentDate: this.currentDate,
+          hasValidDate: this._hasValidDate,
+          isDateSelected: this._isDateSelected
+        },
       });
     }
 
@@ -561,12 +706,25 @@ class DateTimePicker {
       data: {
         finalSelectedDate: this.selectedDate,
         finalCurrentDate: this.currentDate,
-        finalSelectedTime: this.selectedTime
+        finalSelectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
       }
     });
   }
 
   renderCalendar() {
+    Logger.debug("renderCalendar called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        currentDate: this.currentDate,
+        selectedDate: this.selectedDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     const calendar = document.getElementById(`${this.containerId}_calendar`);
     const monthYear = document.getElementById(`${this.containerId}_monthYear`);
 
@@ -738,6 +896,18 @@ class DateTimePicker {
     // 🔧 NUEVO: Obtener fecha seleccionada para validación
     const selectedDate = this.selectedDate || new Date();
 
+    Logger.debug("populateTimeSelects called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDate: selectedDate,
+        selectedTime: this.selectedTime,
+        minuteStep: this.config.minuteStep,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Populate hours con validación de restricciones
     for (let i = 0; i < 24; i++) {
       const option = document.createElement("option");
@@ -765,7 +935,7 @@ class DateTimePicker {
       option.value = i;
       option.textContent = String(i).padStart(2, "0");
       
-      // 🔧 NUEVO: Verificar si el minuto está deshabilitado
+      // 🔧 CORREGIDO: Verificar si el minuto está deshabilitado
       const isMinuteDisabled = this.isTimeDisabled(selectedDate, this.selectedTime.hour, i);
       if (isMinuteDisabled) {
         option.disabled = true;
@@ -773,19 +943,63 @@ class DateTimePicker {
         option.textContent += " (not available)";
       }
       
+      // 🔧 CORREGIDO: Seleccionar el minuto correcto basado en minuteStep
       if (i === this.selectedTime.minute) {
         option.selected = true;
+        Logger.debug("Minute option selected", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: {
+            minute: i,
+            selectedTime: this.selectedTime.minute,
+            minuteStep: this.config.minuteStep
+          }
+        });
       }
       minuteSelect.appendChild(option);
     }
+
+    Logger.debug("Time selects populated", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hourSelectValue: hourSelect.value,
+        minuteSelectValue: minuteSelect.value,
+        hourOptionsCount: hourSelect.options.length,
+        minuteOptionsCount: minuteSelect.options.length
+      }
+    });
   }
 
   updateTimeSelects() {
     const hourSelect = document.getElementById(`${this.containerId}_hour`);
     const minuteSelect = document.getElementById(`${this.containerId}_minute`);
 
-    hourSelect.value = this.selectedTime.hour;
-    minuteSelect.value = this.selectedTime.minute;
+    Logger.debug("updateTimeSelects called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedTime: this.selectedTime,
+        hourSelectValue: hourSelect?.value,
+        minuteSelectValue: minuteSelect?.value,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
+    if (hourSelect && minuteSelect) {
+      hourSelect.value = this.selectedTime.hour;
+      minuteSelect.value = this.selectedTime.minute;
+
+      Logger.debug("Time selects updated", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        data: {
+          newHourSelectValue: hourSelect.value,
+          newMinuteSelectValue: minuteSelect.value
+        }
+      });
+    }
   }
 
   /**
@@ -796,6 +1010,18 @@ class DateTimePicker {
     const minuteSelect = document.getElementById(`${this.containerId}_minute`);
     if (!minuteSelect || !this.selectedDate) return;
 
+    Logger.debug("repopulateMinutes called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDate: this.selectedDate,
+        selectedTime: this.selectedTime,
+        minuteStep: this.config.minuteStep,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Limpiar minutos existentes
     minuteSelect.innerHTML = "";
 
@@ -805,7 +1031,7 @@ class DateTimePicker {
       option.value = i;
       option.textContent = String(i).padStart(2, "0");
       
-      // Verificar si el minuto está deshabilitado para la hora actual
+      // 🔧 CORREGIDO: Verificar si el minuto está deshabilitado para la hora actual
       const isMinuteDisabled = this.isTimeDisabled(this.selectedDate, this.selectedTime.hour, i);
       if (isMinuteDisabled) {
         option.disabled = true;
@@ -813,14 +1039,45 @@ class DateTimePicker {
         option.textContent += " (not available)";
       }
       
+      // 🔧 CORREGIDO: Seleccionar el minuto correcto basado en minuteStep
       if (i === this.selectedTime.minute) {
         option.selected = true;
+        Logger.debug("Minute option selected in repopulate", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: {
+            minute: i,
+            selectedTime: this.selectedTime.minute,
+            minuteStep: this.config.minuteStep
+          }
+        });
       }
       minuteSelect.appendChild(option);
     }
+
+    Logger.debug("Minutes repopulated", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        minuteSelectValue: minuteSelect.value,
+        minuteOptionsCount: minuteSelect.options.length,
+        selectedMinute: this.selectedTime.minute
+      }
+    });
   }
 
   navigateMonth(direction) {
+    Logger.debug("navigateMonth called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        direction: direction,
+        currentDate: this.currentDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.currentDate.setMonth(this.currentDate.getMonth() + direction);
     this.renderCalendar();
   }
@@ -831,6 +1088,7 @@ class DateTimePicker {
       if (this.isDateDisabled(date)) {
         Logger.warn("Attempted to select disabled date", {
           module: "DateTimePicker",
+          containerId: this.containerId,
           showNotification: true,
           notificationMessage: "This date is not available",
           data: { 
@@ -843,19 +1101,34 @@ class DateTimePicker {
       }
 
       this.selectedDate = new Date(date);
+      
+      // 🔧 CORREGIDO: Actualizar estado interno cuando se selecciona fecha
+      this._hasValidDate = true;
+      this._isDateSelected = true;
+      
+      Logger.debug("Date selected via calendar - State updated", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        showNotification: false,
+        data: { 
+          selectedDate: this.selectedDate,
+          hasValidDate: this._hasValidDate,
+          isDateSelected: this._isDateSelected,
+          previousState: {
+            selectedDateTime: this.selectedDateTime,
+            selectedTime: this.selectedTime
+          }
+        },
+      });
+      
       this.renderCalendar();
       
       // 🔧 NUEVO: Re-poblar selects de tiempo con restricciones actualizadas
       this.populateTimeSelects();
-
-      Logger.debug("Date selected via calendar", {
-        module: "DateTimePicker",
-        showNotification: false,
-        data: { selectedDate: this.selectedDate },
-      });
     } else {
       Logger.warn("Attempted to select invalid date", {
         module: "DateTimePicker",
+        containerId: this.containerId,
         showNotification: true,
         notificationMessage: "Invalid date selected",
         data: { date },
@@ -870,19 +1143,49 @@ class DateTimePicker {
     const newHour = parseInt(hourSelect.value);
     const newMinute = parseInt(minuteSelect.value);
 
-    // 🔧 NUEVO: Si cambió la hora, re-poblar los minutos con restricciones actualizadas
+    Logger.debug("updateSelectedTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        newHour: newHour,
+        newMinute: newMinute,
+        currentSelectedTime: this.selectedTime,
+        selectedDate: this.selectedDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected,
+        minuteStep: this.config.minuteStep
+      }
+    });
+
+    // 🔧 CORREGIDO: Si cambió la hora, re-poblar los minutos con restricciones actualizadas
     if (newHour !== this.selectedTime.hour) {
       this.selectedTime.hour = newHour;
       this.repopulateMinutes();
       
-      // Si el minuto actual no es válido para la nueva hora, resetear a 0
-      if (this.selectedTime.minute !== 0) {
-        this.selectedTime.minute = 0;
-        minuteSelect.value = 0;
+      // 🔧 CORREGIDO: Mantener el minuto seleccionado si es válido para la nueva hora
+      const validMinute = this.selectedTime.minute;
+      if (validMinute % this.config.minuteStep === 0) {
+        // El minuto actual es válido, mantenerlo
+        minuteSelect.value = validMinute;
+      } else {
+        // El minuto actual no es válido, resetear al minuto válido más cercano
+        const adjustedMinute = Math.floor(validMinute / this.config.minuteStep) * this.config.minuteStep;
+        this.selectedTime.minute = adjustedMinute;
+        minuteSelect.value = adjustedMinute;
+        
+        Logger.debug("Minute adjusted to valid step", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: {
+            originalMinute: validMinute,
+            adjustedMinute: adjustedMinute,
+            minuteStep: this.config.minuteStep
+          }
+        });
       }
     }
 
-    // 🔧 NUEVO: Validar que la nueva hora/minuto cumpla las restricciones
+    // 🔧 CORREGIDO: Validar que la nueva hora/minuto cumpla las restricciones
     if (this.selectedDate && this.config.minDate) {
       const newDateTime = new Date(this.selectedDate);
       newDateTime.setHours(newHour, newMinute, 0, 0);
@@ -890,6 +1193,7 @@ class DateTimePicker {
       if (newDateTime < this.config.minDate) {
         Logger.warn("Selected time is before minimum allowed", {
           module: "DateTimePicker",
+          containerId: this.containerId,
           showNotification: true,
           notificationMessage: `Time must be after ${this.config.minDate.toLocaleTimeString()}`,
           data: { 
@@ -905,11 +1209,23 @@ class DateTimePicker {
       }
     }
 
-    // Actualizar tiempo seleccionado
+    // 🔧 CORREGIDO: Actualizar tiempo seleccionado con los valores reales del select
     this.selectedTime = {
       hour: newHour,
       minute: newMinute,
     };
+
+    Logger.debug("Time updated successfully", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        newSelectedTime: this.selectedTime,
+        selectedDate: this.selectedDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected,
+        minuteStep: this.config.minuteStep
+      }
+    });
   }
 
   confirmSelection() {
@@ -921,17 +1237,38 @@ class DateTimePicker {
       this._isConfirming = false;
     }, 300);
 
+    // 🔧 NUEVO: Logging detallado del estado antes de la validación
+    Logger.debug("confirmSelection - State before validation", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDate: this.selectedDate,
+        selectedDateTime: this.selectedDateTime,
+        selectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected,
+        isValidDate: this.selectedDate instanceof Date && !isNaN(this.selectedDate?.getTime()),
+        currentDate: this.currentDate
+      }
+    });
+
+    // 🔧 CORREGIDO: Validación mejorada usando estado interno
     if (
+      !this._hasValidDate ||
+      !this._isDateSelected ||
       !this.selectedDate ||
       !(this.selectedDate instanceof Date) ||
       isNaN(this.selectedDate.getTime())
     ) {
       Logger.error("Validation failed: Date not selected or invalid", {
         module: "DateTimePicker",
+        containerId: this.containerId,
         showNotification: true,
         notificationMessage: "Please select a date",
         data: {
           selectedDate: this.selectedDate,
+          hasValidDate: this._hasValidDate,
+          isDateSelected: this._isDateSelected,
           isValidDate:
             this.selectedDate instanceof Date &&
             !isNaN(this.selectedDate?.getTime()),
@@ -1004,7 +1341,7 @@ class DateTimePicker {
     if (this.config.onDateTimeSelect)
       this.config.onDateTimeSelect(this.selectedDateTime);
     if (this.config.onDateTimeChange)
-      this.config.onDateTimeChange(this.selectedDateTime);
+      this.config.onDateTimeChange(this.selectedDateTime, this.containerId);
 
     if (this.modalInstance) this.modalInstance.hide();
   }
@@ -1017,6 +1354,18 @@ class DateTimePicker {
       .getElementById(`${this.containerId}_display`)
       .querySelector(".selected-text");
     const clearBtn = document.getElementById(`${this.containerId}_clear`);
+
+    Logger.debug("updateDisplay called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDateTime: this.selectedDateTime,
+        selectedDate: this.selectedDate,
+        selectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
 
     if (!this.selectedDateTime) {
       placeholderText.style.display = "block";
@@ -1033,6 +1382,16 @@ class DateTimePicker {
   }
 
   formatDateTime(date) {
+    Logger.debug("formatDateTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        inputDate: date,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     if (!date) return "";
 
     const day = String(date.getDate()).padStart(2, "0");
@@ -1041,17 +1400,42 @@ class DateTimePicker {
     const hours = String(date.getHours()).padStart(2, "0");
     const minutes = String(date.getMinutes()).padStart(2, "0");
 
-    return `${day}-${month}-${year} ${hours}:${minutes}`;
+    const formatted = `${day}-${month}-${year} ${hours}:${minutes}`;
+
+    Logger.debug("formatDateTime result", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        formatted: formatted
+      }
+    });
+
+    return formatted;
   }
 
   clearDateTime(showNotification = true) {
+    Logger.debug("clearDateTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        previousSelectedDateTime: this.selectedDateTime,
+        previousSelectedDate: this.selectedDate,
+        previousSelectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.selectedDateTime = null;
     this.selectedDate = null;
     this.selectedTime = { ...this.config.defaultTime };
+    this._hasValidDate = false;
+    this._isDateSelected = false;
+    
     this.updateDisplay();
 
     if (this.config.onDateTimeChange) {
-      this.config.onDateTimeChange(null);
+      this.config.onDateTimeChange(null, this.containerId);
     }
 
     // Solo mostrar notificación si se solicita
@@ -1061,7 +1445,22 @@ class DateTimePicker {
   }
 
   injectStyles() {
-    if (document.getElementById("datetime-picker-styles")) return;
+    Logger.debug("injectStyles called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
+    if (document.getElementById("datetime-picker-styles")) {
+      Logger.debug("Styles already injected, skipping", {
+        module: "DateTimePicker",
+        containerId: this.containerId
+      });
+      return;
+    }
 
     const style = document.createElement("style");
     style.id = "datetime-picker-styles";
@@ -1232,6 +1631,17 @@ class DateTimePicker {
   }
 
   showNotification(message, type = "info") {
+    Logger.debug("showNotification called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        message: message,
+        type: type,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Mapear tipos del sistema viejo al nuevo
     const levelMap = {
       info: "info",
@@ -1245,6 +1655,7 @@ class DateTimePicker {
 
     Logger[level](message, {
       module: "DateTimePicker",
+      containerId: this.containerId,
       showNotification: true,
       notificationMessage: message,
     });
@@ -1252,6 +1663,18 @@ class DateTimePicker {
 
   // Public API Methods
   getDateTime() {
+    Logger.debug("getDateTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDateTime: this.selectedDateTime,
+        selectedDate: this.selectedDate,
+        selectedTime: this.selectedTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     return this.selectedDateTime;
   }
 
@@ -1263,11 +1686,18 @@ class DateTimePicker {
         inputDateTime: dateTime,
         inputType: typeof dateTime,
         isDate: dateTime instanceof Date,
-        isValid: dateTime instanceof Date && !isNaN(dateTime.getTime())
+        isValid: dateTime instanceof Date && !isNaN(dateTime.getTime()),
+        previousState: {
+          selectedDateTime: this.selectedDateTime,
+          selectedDate: this.selectedDate,
+          hasValidDate: this._hasValidDate,
+          isDateSelected: this._isDateSelected
+        }
       }
     });
 
     if (dateTime && dateTime instanceof Date && !isNaN(dateTime.getTime())) {
+      // 🔧 CORREGIDO: Sincronización completa de fechas
       this.selectedDateTime = new Date(dateTime);
       this.selectedDate = new Date(dateTime);
       this.selectedTime = {
@@ -1275,8 +1705,12 @@ class DateTimePicker {
         minute: dateTime.getMinutes(),
       };
       
-      // 🔧 NUEVO: Actualizar el calendario para mostrar la fecha seleccionada
+      // 🔧 CORREGIDO: Actualizar el calendario para mostrar la fecha seleccionada
       this.currentDate = new Date(dateTime);
+      
+      // 🔧 NUEVO: Marcar como fecha válida y seleccionada
+      this._hasValidDate = true;
+      this._isDateSelected = true;
       
       Logger.debug('DateTime set successfully', {
         module: 'DateTimePicker',
@@ -1285,7 +1719,9 @@ class DateTimePicker {
           selectedDateTime: this.selectedDateTime,
           selectedDate: this.selectedDate,
           selectedTime: this.selectedTime,
-          currentDate: this.currentDate
+          currentDate: this.currentDate,
+          hasValidDate: this._hasValidDate,
+          isDateSelected: this._isDateSelected
         }
       });
       
@@ -1298,6 +1734,8 @@ class DateTimePicker {
       this.selectedDateTime = null;
       this.selectedDate = null;
       this.selectedTime = { ...this.config.defaultTime };
+      this._hasValidDate = false;
+      this._isDateSelected = false;
       
       Logger.debug('DateTime cleared', {
         module: 'DateTimePicker',
@@ -1308,10 +1746,31 @@ class DateTimePicker {
   }
 
   getISOString() {
+    Logger.debug("getISOString called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDateTime: this.selectedDateTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     return this.selectedDateTime ? this.selectedDateTime.toISOString() : null;
   }
 
   getFormattedDateTime(format) {
+    Logger.debug("getFormattedDateTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        format: format,
+        selectedDateTime: this.selectedDateTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     if (!this.selectedDateTime) return "";
 
     const date = this.selectedDateTime;
@@ -1332,14 +1791,42 @@ class DateTimePicker {
       );
     });
 
+    Logger.debug("getFormattedDateTime result", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        formattedDate: formattedDate
+      }
+    });
+
     return formattedDate;
   }
 
   clearSelection(showNotification = true) {
+    Logger.debug("clearSelection called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        showNotification: showNotification,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.clearDateTime(showNotification); // Pasar el parámetro
   }
 
   setMinDate(date) {
+    Logger.debug("setMinDate called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        newMinDate: date,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     if (date && date instanceof Date && !isNaN(date.getTime())) {
       this.config.minDate = new Date(date);
       Logger.debug('MinDate restriction set', {
@@ -1368,6 +1855,16 @@ class DateTimePicker {
   }
 
   setMaxDate(date) {
+    Logger.debug("setMaxDate called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        newMaxDate: date,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     if (date && date instanceof Date && !isNaN(date.getTime())) {
       this.config.maxDate = new Date(date);
       Logger.debug('MaxDate restriction set', {
@@ -1392,6 +1889,15 @@ class DateTimePicker {
    * 🔧 NUEVO: Limpiar todas las restricciones de fecha
    */
   clearDateRestrictions() {
+    Logger.debug("clearDateRestrictions called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.config.minDate = null;
     this.config.maxDate = null;
     Logger.debug('All date restrictions cleared', {
@@ -1411,6 +1917,18 @@ class DateTimePicker {
    * @returns {boolean} True si la fecha está deshabilitada
    */
   isDateDisabled(date) {
+    Logger.debug("isDateDisabled called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        inputDate: date,
+        minDate: this.config.minDate,
+        maxDate: this.config.maxDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Normalizar la fecha para comparación (solo fecha, sin hora)
     const normalizedDate = new Date(date);
     normalizedDate.setHours(0, 0, 0, 0);
@@ -1421,6 +1939,14 @@ class DateTimePicker {
       minDate.setHours(0, 0, 0, 0);
       
       if (normalizedDate < minDate) {
+        Logger.debug("Date is disabled by minDate restriction", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: {
+            normalizedDate: normalizedDate,
+            minDate: minDate
+          }
+        });
         return true;
       }
     }
@@ -1431,6 +1957,14 @@ class DateTimePicker {
       maxDate.setHours(0, 0, 0, 0);
       
       if (normalizedDate > maxDate) {
+        Logger.debug("Date is disabled by maxDate restriction", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: {
+            normalizedDate: normalizedDate,
+            maxDate: maxDate
+          }
+        });
         return true;
       }
     }
@@ -1446,6 +1980,20 @@ class DateTimePicker {
    * @returns {boolean} True si la hora está deshabilitada
    */
   isTimeDisabled(date, hour, minute) {
+    Logger.debug("isTimeDisabled called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        inputDate: date,
+        inputHour: hour,
+        inputMinute: minute,
+        minDate: this.config.minDate,
+        maxDate: this.config.maxDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Verificar restricción de fecha/hora mínima
     if (this.config.minDate) {
       const minDate = new Date(this.config.minDate);
@@ -1457,12 +2005,32 @@ class DateTimePicker {
       
       // Si es un día DIFERENTE, todos los minutos están disponibles
       if (!isSameDay) {
+        Logger.debug("Different day, time is available", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: { 
+            selectedDateTime: selectedDateTime.toDateString(),
+            minDate: minDate.toDateString(),
+            hour: hour,
+            minute: minute
+          }
+        });
         return false;
       }
       
       // Si es el MISMO día, aplicar restricciones de minuto
       // Solo deshabilitar si es estrictamente menor (no igual)
       if (selectedDateTime < minDate) {
+        Logger.debug("Time is before minDate, disabled", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: { 
+            selectedDateTime: selectedDateTime,
+            minDate: minDate,
+            hour: hour,
+            minute: minute
+          }
+        });
         return true;
       }
     }
@@ -1475,9 +2043,28 @@ class DateTimePicker {
       
       // 🔧 CORREGIDO: Permitir exactamente la hora máxima
       if (selectedDateTime > maxDate) {
+        Logger.debug("Time is after maxDate, disabled", {
+          module: "DateTimePicker",
+          containerId: this.containerId,
+          data: { 
+            selectedDateTime: selectedDateTime,
+            maxDate: maxDate,
+            hour: hour,
+            minute: minute
+          }
+        });
         return true;
       }
     }
+
+    Logger.debug("Time is available", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: { 
+        hour: hour,
+        minute: minute
+      }
+    });
 
     return false;
   }
@@ -1490,8 +2077,25 @@ class DateTimePicker {
    * @returns {boolean} True si toda la hora está deshabilitada
    */
   isHourCompletelyDisabled(date, hour) {
+    Logger.debug("isHourCompletelyDisabled called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        inputDate: date,
+        inputHour: hour,
+        minDate: this.config.minDate,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Si no hay restricciones, la hora está disponible
     if (!this.config.minDate) {
+      Logger.debug("No minDate restriction, hour is available", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        data: { hour: hour }
+      });
       return false;
     }
 
@@ -1503,6 +2107,15 @@ class DateTimePicker {
     
     // Si es un día DIFERENTE, todas las horas están disponibles
     if (!isSameDay) {
+      Logger.debug("Different day, hour is available", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        data: { 
+          selectedDate: selectedDate.toDateString(),
+          minDate: minDate.toDateString(),
+          hour: hour
+        }
+      });
       return false;
     }
     
@@ -1511,27 +2124,80 @@ class DateTimePicker {
     
     // Si la hora está ANTES de la hora mínima, está completamente deshabilitada
     if (hour < minHour) {
+      Logger.debug("Hour is before minHour, completely disabled", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        data: { 
+          hour: hour,
+          minHour: minHour
+        }
+      });
       return true;
     }
     
     // Si la hora es IGUAL a la hora mínima, está activa (pero con restricciones de minutos)
     if (hour === minHour) {
+      Logger.debug("Hour equals minHour, active with minute restrictions", {
+        module: "DateTimePicker",
+        containerId: this.containerId,
+        data: { 
+          hour: hour,
+          minHour: minHour
+        }
+      });
       return false;
     }
     
     // Si la hora es DESPUÉS de la hora mínima, está completamente activa
+    Logger.debug("Hour is after minHour, completely available", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: { 
+        hour: hour,
+        minHour: minHour
+      }
+    });
     return false;
   }
 
   setDefaultTime(time) {
+    Logger.debug("setDefaultTime called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        newDefaultTime: time,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     this.config.defaultTime = time;
   }
 
   isValid() {
+    Logger.debug("isValid called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        selectedDateTime: this.selectedDateTime,
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     return this.selectedDateTime !== null;
   }
 
   destroy() {
+    Logger.debug("destroy called", {
+      module: "DateTimePicker",
+      containerId: this.containerId,
+      data: {
+        hasValidDate: this._hasValidDate,
+        isDateSelected: this._isDateSelected
+      }
+    });
+
     // Remove modal
     const modalId = `${this.containerId}_modal`;
     const modal = document.getElementById(modalId);
@@ -1549,6 +2215,8 @@ class DateTimePicker {
     this.selectedDateTime = null;
     this.selectedDate = null;
     this.selectedTime = null;
+    this._hasValidDate = false;
+    this._isDateSelected = false;
   }
 }
 

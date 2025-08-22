@@ -546,26 +546,36 @@ class ShipFormController {
         },
         // onError callback
         (error) => {
-          alert(error);
+          Logger.error("Error in operation", {
+            module: "ShipFormController",
+            error: new Error(error),
+            showNotification: true,
+            notificationMessage: error,
+          });
         }
       );
     } else {
-  // Modo simple: item = "nombre"
-  await this.apiManager.addItem(
-    fieldId,
-    item,
-    async () => {
-      await this.apiManager.loadApiData();
-      this.forceModalUpdateSingleSelect(fieldId); // Solo para SingleSelects simples
-      if (this.tableFilters) {
-        this.tableFilters.refreshData();
-      }
-    },
-    (error) => {
-      alert(error);
+      // Modo simple: item = "nombre"
+      await this.apiManager.addItem(
+        fieldId,
+        item,
+        async () => {
+          await this.apiManager.loadApiData();
+          this.forceModalUpdateSingleSelect(fieldId); // Solo para SingleSelects simples
+          if (this.tableFilters) {
+            this.tableFilters.refreshData();
+          }
+        },
+        (error) => {
+          Logger.error("Error in API operation", {
+            module: "ShipFormController",
+            error: new Error(error),
+            showNotification: true,
+            notificationMessage: error,
+          });
+        }
+      );
     }
-  );
-}
   }
 
   /**
@@ -574,28 +584,33 @@ class ShipFormController {
    * @param {string} item - Nombre del item
    */
   async removeItem(fieldId, item) {
-  await this.apiManager.removeItem(
-    fieldId,
-    item,
-    async () => {
-      await this.apiManager.loadApiData();
-      
-      // Detectar automáticamente si es Single o MultiSelect
-      if (this.singleSelectInstances[fieldId]) {
-        this.forceModalUpdateSingleSelect(fieldId);
-      } else if (this.multiSelectInstances[fieldId]) {
-        this.forceModalUpdateMultiSelect(fieldId);
+    await this.apiManager.removeItem(
+      fieldId,
+      item,
+      async () => {
+        await this.apiManager.loadApiData();
+
+        // Detectar automáticamente si es Single o MultiSelect
+        if (this.singleSelectInstances[fieldId]) {
+          this.forceModalUpdateSingleSelect(fieldId);
+        } else if (this.multiSelectInstances[fieldId]) {
+          this.forceModalUpdateMultiSelect(fieldId);
+        }
+
+        if (this.tableFilters) {
+          this.tableFilters.refreshData();
+        }
+      },
+      (error) => {
+        Logger.error("Error in API operation", {
+          module: "ShipFormController",
+          error: new Error(error),
+          showNotification: true,
+          notificationMessage: error,
+        });
       }
-      
-      if (this.tableFilters) {
-        this.tableFilters.refreshData();
-      }
-    },
-    (error) => {
-      alert(error);
-    }
-  );
-}
+    );
+  }
 
   /**
    * Editar item a través del API Manager
@@ -641,7 +656,12 @@ class ShipFormController {
         },
         // onError callback
         (error) => {
-          alert(error);
+          Logger.error("Error in API operation", {
+            module: "ShipFormController",
+            error: new Error(error),
+            showNotification: true,
+            notificationMessage: error,
+          });
         }
       );
     } else {
@@ -668,7 +688,12 @@ class ShipFormController {
           }
         },
         (error) => {
-          alert(error);
+          Logger.error("Error in API operation", {
+            module: "ShipFormController",
+            error: new Error(error),
+            showNotification: true,
+            notificationMessage: error,
+          });
         }
       );
     }

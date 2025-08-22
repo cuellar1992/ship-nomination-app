@@ -15,6 +15,15 @@ router.get("/", async (req, res) => {
       email: sampler.email || null,
       phone: sampler.phone || null,
       weeklyRestriction: sampler.weeklyRestriction || false,
+      weekDayRestrictions: sampler.weekDayRestrictions || {
+        monday: false,
+        tuesday: false,
+        wednesday: false,
+        thursday: false,
+        friday: false,
+        saturday: false,
+        sunday: false,
+      },
       hasEmail: !!(sampler.email && sampler.email.trim()),
       createdAt: sampler.createdAt,
       updatedAt: sampler.updatedAt,
@@ -30,7 +39,8 @@ router.get("/", async (req, res) => {
 // POST /api/samplers - Crear nuevo sampler CON EMAIL/PHONE OPCIONALES
 router.post("/", async (req, res) => {
   try {
-    const { name, email, phone, weeklyRestriction } = req.body;
+    const { name, email, phone, weeklyRestriction, weekDayRestrictions } =
+      req.body;
 
     // Validación de campos requeridos
     if (!name || name.trim() === "") {
@@ -58,6 +68,11 @@ router.post("/", async (req, res) => {
     // AGREGAR WEEKLY RESTRICTION
     if (weeklyRestriction !== undefined) {
       samplerData.weeklyRestriction = Boolean(weeklyRestriction);
+    }
+
+    // AGREGAR WEEK DAY RESTRICTIONS
+    if (weekDayRestrictions !== undefined) {
+      samplerData.weekDayRestrictions = weekDayRestrictions;
     }
 
     const sampler = new Sampler(samplerData);
@@ -111,7 +126,8 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, weeklyRestriction } = req.body;
+    const { name, email, phone, weeklyRestriction, weekDayRestrictions } =
+      req.body;
 
     // Validación de campos requeridos
     if (!name || name.trim() === "") {
@@ -140,6 +156,11 @@ router.put("/:id", async (req, res) => {
     // 🆕 MANEJAR WEEKLY RESTRICTION
     if (weeklyRestriction !== undefined) {
       updateData.weeklyRestriction = Boolean(weeklyRestriction);
+    }
+
+    // AGREGAR WEEK DAY RESTRICTIONS
+    if (weekDayRestrictions !== undefined) {
+      updateData.weekDayRestrictions = weekDayRestrictions;
     }
 
     const updatedSampler = await Sampler.findByIdAndUpdate(id, updateData, {

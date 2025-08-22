@@ -163,6 +163,19 @@ El sistema incluye control granular de restricciones semanales para samplers:
 - **Persistencia MongoDB**: Campo `weeklyRestriction: Boolean`
 - **Sin Hardcode**: Configuración 100% dinámica desde interfaz
 
+## 🆕 Sistema de Restricciones por Días de la Semana
+
+### **Nueva Funcionalidad v2.3** ✅ COMPLETADA
+
+El sistema ahora incluye **restricciones granulares por días de la semana** para samplers:
+
+- **Control por Día**: Toggles individuales para cada día (L, M, M, J, V, S, D)
+- **Validación Automática**: Integrada en generación automática de rosters
+- **Validación Manual**: Bloqueo estricto en edición manual de rosters
+- **Validación de Continuidad**: Prevención en cálculo de primer turno (office → line)
+- **Persistencia MongoDB**: Campo `weekDayRestrictions` con estructura completa
+- **Logs de Debug**: Visibilidad completa del proceso de validación
+
 ### **Implementación Técnica**
 
 ```javascript
@@ -190,6 +203,10 @@ if (isRestricted) {
 - **Laura**: ✅ weeklyRestriction: true
 - **Edwind**: ✅ weeklyRestriction: false
 - **Cesar**: ✅ weeklyRestriction: false
+
+### **Estado de Restricciones por Días** ✅ NUEVO
+- **Test**: ✅ weekDayRestrictions: L-M-M-J-V-S (disponible solo domingos)
+- **Otros samplers**: Sin restricciones de días (disponibles todos los días)
 
 ## 🔌 API Endpoints
 
@@ -523,10 +540,10 @@ SINGLE_SELECT_CONFIG: {
 
 ### **Estado del Proyecto**
 
-- **📅 Versión**: 2.1 - Sistema con Restricción de 24 Horas
+- **📅 Versión**: 2.3 - Sistema con Restricciones por Días de la Semana ✅ ACTUALIZADA
 - **✅ Estado**: Completamente Funcional
 - **🔄 Última actualización**: Agosto 2025
-- **🆕 Funcionalidad reciente**: Sistema de restricción de 24 horas implementado
+- **🆕 Funcionalidad reciente**: Sistema de restricciones por días de la semana implementado
 
 ## 🎉 Funcionalidades Completadas
 
@@ -534,10 +551,347 @@ SINGLE_SELECT_CONFIG: {
 2. ✅ **Sampling Roster System** - Auto-generación con validación cruzada  
 3. ✅ **Sistema de Emails** - Campos extendidos para personal
 4. ✅ **🆕 Restricción 24 Horas** - Control granular por sampler
-5. ✅ **Auto-save Inteligente** - Persistencia automática
-6. ✅ **Exportación Excel Premium** - Con detección real de descarga
-7. ✅ **Sistema de Notificaciones v2.0** - Logger unificado profesional
-8. ✅ **Arquitectura Modular** - ES6 modules por responsabilidad
+5. ✅ **🆕 Restricciones por Días de la Semana** - Control granular por día ✅ NUEVO
+6. ✅ **Auto-save Inteligente** - Persistencia automática
+7. ✅ **Exportación Excel Premium** - Con detección real de descarga
+8. ✅ **Sistema de Notificaciones v2.0** - Logger unificado profesional
+9. ✅ **Arquitectura Modular** - ES6 modules por responsabilidad
+
+# Sistema de Restricciones por Días de la Semana - Documentación v2.3 ✅ COMPLETADO
+
+## Resumen de la Nueva Funcionalidad
+
+El sistema ahora incluye **restricciones granulares por días de la semana** para samplers, complementando el sistema existente de restricción semanal de 24 horas. Los usuarios pueden marcar días específicos cuando un sampler no está disponible.
+
+## Características Implementadas
+
+### Backend
+- **Modelo Sampler extendido** con campo `weekDayRestrictions`
+- **APIs actualizadas** para manejar datos de días (GET, POST, PUT)
+- **Persistencia completa** en MongoDB Atlas
+- **Retrocompatibilidad** mantenida con sistema existente
+
+### Frontend
+- **UI intuitiva** con toggles circulares para cada día (M, T, W, TH, F, S, SU)
+- **Integración seamless** en modales de SingleSelect
+- **Estados visuales claros**: días restringidos en rojo, disponibles en blanco
+- **Captura automática** de datos al guardar
+
+### Validaciones ✅ COMPLETADAS
+- **ValidationService extendido** para verificar disponibilidad por días
+- **Integración completa con generación automática** de Sampling Rosters
+- **Validación en edición manual** de rosters
+- **Validación en cálculo de primer turno** (office → line sampling)
+- **Compatibilidad total** con restricciones semanales de 24h
+
+## Estructura de Datos
+
+### MongoDB Schema
+```javascript
+// Campo agregado al modelo Sampler
+weekDayRestrictions: {
+  type: {
+    monday: { type: Boolean, default: false },
+    tuesday: { type: Boolean, default: false },
+    wednesday: { type: Boolean, default: false },
+    thursday: { type: Boolean, default: false },
+    friday: { type: Boolean, default: false },
+    saturday: { type: Boolean, default: false },
+    sunday: { type: Boolean, default: false }
+  },
+  default: {
+    monday: false,
+    tuesday: false,
+    wednesday: false,
+    thursday: false,
+    friday: false,
+    saturday: false,
+    sunday: false
+  }
+}
+```
+
+### API Response Example
+```json
+{
+  "_id": "68a82bb4550b7986631313a2",
+  "name": "Ruben",
+  "email": "ruben.alcantara@amspecgroup.com",
+  "phone": "+61 452 524 722",
+  "weeklyRestriction": true,
+  "weekDayRestrictions": {
+    "monday": true,
+    "tuesday": false,
+    "wednesday": false,
+    "thursday": false,
+    "friday": true,
+    "saturday": false,
+    "sunday": false
+  }
+}
+```
+
+## Lógica de Restricciones
+
+### Interpretación de Datos
+- `true` = Sampler **NO disponible** ese día
+- `false` = Sampler **disponible** ese día
+- Sin restricciones = Disponible todos los días
+
+### Prioridad de Validaciones
+1. **Restricción de días** se verifica primero
+2. **Restricción semanal de 24h** se aplica a días disponibles
+3. **Ambas restricciones** pueden estar activas simultáneamente
+
+### Ejemplo Práctico
+**Sampler: Ruben**
+- `weeklyRestriction: true` (máximo 24h por semana)
+- `monday: true, friday: true` (no disponible lunes y viernes)
+- **Resultado**: Máximo 24h distribuidas en martes, miércoles, jueves, sábado y domingo
+
+## Archivos Modificados
+
+### Backend
+```
+backend/models/Sampler.js
+├── ✅ Campo weekDayRestrictions agregado
+├── ✅ Métodos helper: isDayRestricted(), hasAnyDayRestrictions()
+└── ✅ getDisplayInfo() actualizado
+
+backend/routes/samplers.js
+├── ✅ GET / incluye weekDayRestrictions
+├── ✅ POST / acepta weekDayRestrictions
+└── ✅ PUT /:id maneja weekDayRestrictions
+```
+
+### Frontend - UI y Gestión de Datos
+```
+js/shared/singleselect.js
+├── ✅ renderDayToggles() - UI component
+├── ✅ createAddMiniModalHTML() extendido
+├── ✅ createEditMiniModalHTML() extendido
+├── ✅ setupAddMiniModalEvents() con captura de días
+└── ✅ setupEditMiniModalEvents() con captura de días
+
+js/shipNomination/services/APIManager.js
+├── ✅ addItem() maneja weekDayRestrictions
+├── ✅ editItem() maneja weekDayRestrictions
+└── ✅ updateItem() maneja weekDayRestrictions
+
+css/style.css
+└── ✅ Estilos para weekday-restrictions-container
+```
+
+### Frontend - Sistema de Validaciones ✅ NUEVO
+```
+js/samplingRoster/services/ValidationService.js
+├── ✅ validateSamplerDayRestriction() - Validación principal de días
+├── ✅ Integración en validateSamplerForGeneration() - Generación automática
+├── ✅ Integración en findAvailableSamplersForGeneration() - Búsqueda de samplers
+├── ✅ Logs de debug detallados para troubleshooting
+└── ✅ getSamplerData() con logging de datos completos
+
+js/samplingRoster/controllers/SamplingRosterController.js
+├── ✅ validateSamplerForEdit() - Validación en edición manual
+├── ✅ Integración de dayRestriction como validación estricta
+└── ✅ Bloqueo de ediciones que violen restricciones de días
+
+js/samplingRoster/services/ScheduleCalculator.js
+├── ✅ calculateFirstTurnWithValidations() - Validación en primer turno
+├── ✅ Integración de dayRestriction para office → line sampling
+└── ✅ Prevención de continuidad en días restringidos
+```
+
+## Uso del Sistema
+
+### Para Usuarios
+
+1. **Crear Sampler con Restricciones**
+   - Abrir modal "Add New Sampler"
+   - Completar información básica
+   - Activar/desactivar "24h Weekly Restriction"
+   - **Marcar días no disponibles** (círculos rojos)
+   - Guardar
+
+2. **Editar Restricciones Existentes**
+   - Seleccionar sampler → "Edit"
+   - Modificar días marcados según necesidad
+   - Guardar cambios
+
+3. **Interpretación Visual**
+   - **Círculo blanco**: Día disponible
+   - **Círculo rojo**: Día no disponible
+   - **Toggle OFF/ON**: Restricción de 24h por semana
+
+### Para Desarrolladores
+
+#### Verificar Restricciones de un Sampler
+```javascript
+// Obtener datos completos
+const samplerData = apiManager.findSamplerByName('Ruben');
+
+// Verificar restricción semanal
+const hasWeeklyLimit = samplerData.weeklyRestriction;
+
+// Verificar día específico
+const isMondayRestricted = samplerData.weekDayRestrictions.monday;
+
+// Verificar cualquier restricción de día
+const hasAnyDayRestrictions = Object.values(samplerData.weekDayRestrictions)
+  .some(day => day === true);
+```
+
+#### Validar Disponibilidad ✅ IMPLEMENTADO
+```javascript
+// En ValidationService.js
+const dayValidation = await ValidationService.validateSamplerDayRestriction(
+  'Ruben', 
+  new Date('2025-08-25'), // Monday
+  currentRosterId
+);
+
+console.log(dayValidation.isValid); // false (Ruben no disponible lunes)
+```
+
+#### Logs de Debug para Troubleshooting ✅ NUEVO
+```javascript
+// 🔍 DEBUG: Log de validación de días
+console.log(`🔍 DAY RESTRICTION VALIDATION for ${samplerName}:`, {
+  proposedDate: proposedDate.toISOString(),
+  dayOfWeek: dayOfWeek,
+  dayName: dayName,
+  weekDayRestrictions: samplerData.weekDayRestrictions,
+  isDayRestricted: isDayRestricted,
+  isValid: !isDayRestricted
+});
+
+// 🔍 DEBUG: Log de validación en generación
+console.log(`🔍 DAY RESTRICTION in validateSamplerForGeneration for ${samplerName}:`, {
+  dayRestriction: validations.dayRestriction,
+  startTime: startTime.toISOString()
+});
+
+// 🔍 DEBUG: Log de datos del sampler
+console.log(`🔍 SAMPLER DATA from API for ${samplerName}:`, {
+  found: !!foundSampler,
+  data: foundSampler,
+  weekDayRestrictions: foundSampler?.weekDayRestrictions
+});
+```
+
+## Estado de Samplers Actuales
+
+| Sampler | Weekly Restriction | Day Restrictions |
+|---------|-------------------|------------------|
+| Sakib   | ✅ true           | Ninguna         |
+| Ruben   | ✅ true           | Lunes, Viernes  |
+| Laura   | ✅ true           | Ninguna         |
+| Edwind  | ❌ false          | Ninguna         |
+| Cesar   | ❌ false          | Ninguna         |
+
+## Implementación de Validaciones ✅ COMPLETADA
+
+### Fase 6: Integración de Validaciones (COMPLETADA)
+- ✅ **Implementado** `validateSamplerDayRestriction()` en ValidationService
+- ✅ **Integrado** validación en `validateSamplerForGeneration()`
+- ✅ **Actualizado** ScheduleCalculator para usar ambas restricciones
+- ✅ **Testing completo** con generación automática de rosters
+
+### Flujos de Validación Implementados
+
+#### 1. **Generación Automática de Rosters**
+```javascript
+// ValidationService.js - validateSamplerForGeneration()
+const allValid =
+  (!validations.weekly || validations.weekly.isValid) &&
+  validations.rest.isValid &&
+  validations.crossRoster.isAvailable &&
+  validations.pobConflict.isValid &&
+  validations.dayRestriction.isValid; // ← Validación de días integrada
+```
+
+#### 2. **Edición Manual de Rosters**
+```javascript
+// SamplingRosterController.js - validateSamplerForEdit()
+// ✅ VALIDACIÓN 3: RESTRICCIÓN DE DÍAS DE LA SEMANA (ESTRICTA)
+const dayRestrictionValidation = await ValidationService.validateSamplerDayRestriction(
+  samplerName,
+  startTime,
+  currentRosterId
+);
+
+if (!dayRestrictionValidation.isValid) {
+  return {
+    isValid: false,
+    message: `❌ ${dayRestrictionValidation.message}`,
+    details: {
+      dayRestriction: dayRestrictionValidation,
+      type: "STRICT_VIOLATION",
+    },
+  };
+}
+```
+
+#### 3. **Cálculo de Primer Turno (Office → Line Sampling)**
+```javascript
+// ScheduleCalculator.js - calculateFirstTurnWithValidations()
+// ✅ VALIDACIÓN 2: RESTRICCIÓN DE DÍAS DE LA SEMANA
+const dayRestrictionValidation = await ValidationService.validateSamplerDayRestriction(
+  officeData.samplerName,
+  officeFinishTime,
+  currentRosterId
+);
+
+if (!dayRestrictionValidation.isValid) {
+  return {
+    canContinue: false,
+    reason: `Office sampler not available on ${dayRestrictionValidation.restrictedDay}s`,
+    dayRestrictionValidation: dayRestrictionValidation,
+    hoursToNextBlock: hoursToNextBlock,
+  };
+}
+```
+
+### Consideraciones Futuras
+- **Horarios específicos**: Extender a horarios dentro del día (ej: solo mañanas)
+- **Restricciones temporales**: Fechas específicas (ej: vacaciones)
+- **Bulk operations**: Configurar múltiples samplers simultáneamente
+
+## Testing y Verificación
+
+### Comandos de Debug
+```javascript
+// Verificar datos en navegador
+fetch('/api/samplers').then(r => r.json()).then(console.log);
+
+// Ver sampler específico
+fetch('/api/samplers').then(r => r.json())
+  .then(data => console.log(data.data.find(s => s.name === 'Ruben')));
+
+// Verificar desde APIManager
+const rubenData = window.simpleShipForm.getApiManager().findSamplerByName('Ruben');
+console.log('Ruben restrictions:', rubenData.weekDayRestrictions);
+```
+
+### Tests Realizados
+- ✅ Crear sampler con días marcados
+- ✅ Editar sampler existente cambiando días
+- ✅ Persistencia correcta en MongoDB
+- ✅ UI responsiva e intuitiva
+- ✅ Retrocompatibilidad con sistema existente
+- ✅ **Validación automática en generación de rosters** ✅ NUEVO
+- ✅ **Validación estricta en edición manual** ✅ NUEVO
+- ✅ **Validación en cálculo de primer turno** ✅ NUEVO
+- ✅ **Bloqueo de asignaciones en días restringidos** ✅ NUEVO
+
+## Versión y Compatibilidad
+
+- **Versión Sistema**: 2.3 ✅ ACTUALIZADA
+- **Compatibilidad**: Totalmente retrocompatible
+- **Base de Datos**: Campos opcionales, sin migración requerida
+- **APIs**: Extensiones backward-compatible
+- **Validaciones**: Sistema completo de restricciones por días implementado
+
 
 ## 🤝 Contribución
 
@@ -574,3 +928,35 @@ Este proyecto está bajo licencia MIT. Ver archivo `LICENSE` para más detalles.
 **🚢 Desarrollado con ❤️ para optimizar operaciones portuarias a nivel ENTERPRISE**
 
 *Sistema completamente funcional con todas las funcionalidades principales implementadas - Agosto 2025*
+
+---
+
+## 📋 **Resumen de Implementación DAY RESTRICTION VALIDATION**
+
+### **Estado**: ✅ **COMPLETADO Y FUNCIONANDO**
+
+La implementación de **DAY RESTRICTION VALIDATION** está **100% funcional** y cubre todos los flujos del sistema:
+
+#### **✅ Flujos Validados:**
+1. **Generación Automática de Rosters** - Los samplers con restricciones de días NO son asignados en días no disponibles
+2. **Edición Manual de Rosters** - El sistema bloquea cualquier intento de asignar un sampler en un día restringido
+3. **Cálculo de Primer Turno** - Previene que un sampler de office continúe en line sampling si el día siguiente está restringido
+
+#### **✅ Casos de Prueba Exitosos:**
+- **Sampler "Test"**: Restringido de lunes a sábado (disponible solo domingos)
+- **Sábado 16/08/2025**: ❌ **BLOQUEADO** correctamente (día restringido)
+- **Viernes 15/08/2025**: ❌ **BLOQUEADO** correctamente (día restringido)
+- **Domingo 17/08/2025**: ✅ **PERMITIDO** correctamente (día disponible)
+
+#### **✅ Logs de Debug Implementados:**
+- Validación de días con detalles completos
+- Datos del sampler obtenidos de la API
+- Resultados de validación en cada flujo
+- Visibilidad completa del proceso de validación
+
+#### **✅ Archivos Modificados:**
+- `ValidationService.js` - Lógica central de validación
+- `SamplingRosterController.js` - Validación en edición manual
+- `ScheduleCalculator.js` - Validación en cálculo de primer turno
+
+**🎯 RESULTADO**: El sistema ahora respeta completamente las restricciones de días de la semana en todos los flujos, proporcionando un control granular y robusto para la gestión de personal en operaciones portuarias.

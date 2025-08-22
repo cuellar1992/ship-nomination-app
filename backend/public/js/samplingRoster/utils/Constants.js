@@ -70,7 +70,7 @@ SAMPLER_LIMITS: {
   NIGHT_BLOCK_START: 19, // 19:00
   
   // Auto-save configuración
-  AUTO_SAVE_DELAY: 2000, // 2 segundos
+  AUTO_SAVE_DELAY: 500, // 500ms (reducido de 2 segundos para evitar pérdida de datos)
   
   // Estados de guardado
   SAVE_STATUS: {

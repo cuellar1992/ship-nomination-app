@@ -1014,6 +1014,7 @@ select:-ms-input-placeholder {
     .advanced-search-panel {
         padding: 1rem !important;
     }
+   } 
     
    /* ==================== SINGLESELECT SCROLLBAR FIX ==================== */
 
@@ -1062,4 +1063,64 @@ select:-ms-input-placeholder {
 
 .items-list::-webkit-scrollbar-thumb:hover {
     background: var(--accent-hover) !important;
+}
+
+/* Weekday Restrictions Styles - OPTIMIZED */
+.weekday-restrictions-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 0.5rem;
+}
+
+.weekday-toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.day-toggle {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.day-checkbox {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.day-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  border: 2px solid #dee2e6;
+  border-radius: 50%;
+  background-color: #ffffff;
+  font-weight: 700;
+  font-size: 11px;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+  margin: 0;
+}
+
+.day-label:hover {
+  border-color: #6c757d;
+  background-color: #f8f9fa;
+  transform: translateY(-1px);
+}
+
+.day-checkbox:checked + .day-label {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }

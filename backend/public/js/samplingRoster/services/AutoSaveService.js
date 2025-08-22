@@ -57,6 +57,32 @@ export class AutoSaveService {
 
       const rosterData = dataCollector();
 
+      // ✅ VALIDACIÓN MEJORADA: Verificar datos críticos antes de enviar
+      if (!rosterData) {
+        throw new Error("No roster data available for auto-save");
+      }
+
+      // ✅ VALIDACIÓN CRÍTICA: Verificar que startDischarge y etcTime estén presentes
+      if (!rosterData.startDischarge || !rosterData.etcTime) {
+        console.warn('⚠️ Auto-save validation: Missing critical time data', {
+          hasStartDischarge: !!rosterData.startDischarge,
+          hasETC: !!rosterData.etcTime,
+          startDischarge: rosterData.startDischarge,
+          etcTime: rosterData.etcTime
+        });
+        
+        // No fallar, pero loggear la advertencia
+      }
+
+      // ✅ VALIDACIÓN: Verificar Office Sampling data
+      if (!rosterData.officeSampling || !rosterData.officeSampling.startTime || !rosterData.officeSampling.finishTime) {
+        console.warn('⚠️ Auto-save validation: Missing Office Sampling data', {
+          hasOfficeSampling: !!rosterData.officeSampling,
+          startTime: rosterData.officeSampling?.startTime,
+          finishTime: rosterData.officeSampling?.finishTime
+        });
+      }
+
       // Validación adicional solo si es un nuevo roster
       if (!this.currentRosterId) {
         const lineData = rosterData.lineSampling || [];
@@ -70,6 +96,22 @@ export class AutoSaveService {
           };
         }
       }
+
+      // ✅ LOGGING MEJORADO: Mostrar qué datos se van a enviar
+      console.log('💾 Auto-save data being sent:', {
+        changeType: changeType,
+        hasRosterId: !!this.currentRosterId,
+        rosterId: this.currentRosterId,
+        startDischarge: rosterData.startDischarge,
+        etcTime: rosterData.etcTime,
+        hasCustomStartDischarge: rosterData.hasCustomStartDischarge,
+        hasCustomETC: rosterData.hasCustomETC,
+        officeSampling: rosterData.officeSampling ? {
+          startTime: rosterData.officeSampling.startTime,
+          finishTime: rosterData.officeSampling.finishTime,
+          hours: rosterData.officeSampling.hours
+        } : null
+      });
 
       let response;
       if (this.currentRosterId) {
@@ -108,6 +150,13 @@ export class AutoSaveService {
         this.hasUnsavedChanges = false;
         this.saveStatus = SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.SAVED;
 
+        // ✅ LOGGING DE ÉXITO MEJORADO
+        console.log('✅ Auto-save completed successfully:', {
+          changeType: changeType,
+          rosterId: this.currentRosterId,
+          message: result.message
+        });
+
         return {
           success: true,
           message: "Auto-save completed",
@@ -118,6 +167,13 @@ export class AutoSaveService {
       }
     } catch (error) {
       this.saveStatus = SAMPLING_ROSTER_CONSTANTS.SAVE_STATUS.UNSAVED;
+
+      // ✅ LOGGING DE ERROR MEJORADO
+      console.error('❌ Auto-save failed:', {
+        changeType: changeType,
+        error: error.message,
+        stack: error.stack
+      });
 
       return {
         success: false,

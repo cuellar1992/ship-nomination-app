@@ -227,6 +227,120 @@ export class ValidationService {
   }
 
   /**
+   * Validar restricción de días específicos
+   */
+  static async validateSamplerDayRestriction(
+    samplerName,
+    proposedDate,
+    excludeRosterId = null
+  ) {
+    try {
+      // Obtener datos del sampler desde API
+      const samplerData = await this.getSamplerData(samplerName);
+
+      if (!samplerData || !samplerData.weekDayRestrictions) {
+        return {
+          isValid: true,
+          hasdayRestrictions: false,
+          message: `${samplerName} has no day restrictions`,
+        };
+      }
+
+      // Obtener día de la semana de la fecha propuesta
+      const dayOfWeek = proposedDate.getDay(); // 0=Sunday, 1=Monday, etc.
+      const dayMapping = {
+        0: "sunday",
+        1: "monday",
+        2: "tuesday",
+        3: "wednesday",
+        4: "thursday",
+        5: "friday",
+        6: "saturday",
+      };
+
+      const dayName = dayMapping[dayOfWeek];
+      const isDayRestricted = samplerData.weekDayRestrictions[dayName] || false;
+
+      // 🔍 DEBUG: Log de validación de días
+      console.log(`🔍 DAY RESTRICTION VALIDATION for ${samplerName}:`, {
+        proposedDate: proposedDate.toISOString(),
+        dayOfWeek: dayOfWeek,
+        dayName: dayName,
+        weekDayRestrictions: samplerData.weekDayRestrictions,
+        isDayRestricted: isDayRestricted,
+        isValid: !isDayRestricted
+      });
+
+      return {
+        isValid: !isDayRestricted,
+        hasDataRestrictions: true,
+        restrictedDay: dayName,
+        isRestrictedDay: isDayRestricted,
+        samplerName: samplerName,
+        proposedDate: proposedDate,
+        message: isDayRestricted
+          ? `${samplerName} is not available on ${dayName}s`
+          : `${samplerName} is available on ${dayName}s`,
+      };
+    } catch (error) {
+      Logger.error("Error validating day restriction", {
+        module: "ValidationService",
+        error: error,
+        showNotification: false,
+      });
+
+      return {
+        isValid: true, // Fallback: permitir si hay error
+        hasDataRestrictions: false,
+        error: error.message,
+        message: `Error validating day restriction for ${samplerName}, allowing by default`,
+      };
+    }
+  }
+
+  /**
+   * Obtener datos completos de un sampler
+   */
+  static async getSamplerData(samplerName) {
+    try {
+      // Intentar desde APIManager primero
+      if (window.simpleShipForm?.getApiManager) {
+        const apiManager = window.simpleShipForm.getApiManager();
+        const samplerData = apiManager.samplersFullData?.find(
+          (s) => s.name === samplerName
+        );
+        if (samplerData) return samplerData;
+      }
+
+      // Fallback: consulta directa a API
+      const response = await fetch("/api/samplers");
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const foundSampler = result.data.find((s) => s.name === samplerName);
+        
+        // 🔍 DEBUG: Log de datos obtenidos del sampler
+        console.log(`🔍 SAMPLER DATA from API for ${samplerName}:`, {
+          found: !!foundSampler,
+          data: foundSampler,
+          weekDayRestrictions: foundSampler?.weekDayRestrictions
+        });
+        
+        return foundSampler;
+      }
+
+      return null;
+    } catch (error) {
+      Logger.error("Error getting sampler data", {
+        module: "ValidationService",
+        error: error,
+        showNotification: false,
+      });
+      return null;
+    }
+  }
+
+  /**
    * 🆕 Validar sampler para generación de turnos (considera turnos en memoria)
    */
   static async validateSamplerForGeneration(
@@ -256,6 +370,19 @@ export class ValidationService {
         { officeData, turnsInMemory },
         excludeRosterId
       );
+
+      // 1.5. VALIDACIÓN DE DÍAS ESPECÍFICOS
+      validations.dayRestriction = await this.validateSamplerDayRestriction(
+        samplerName,
+        startTime,
+        excludeRosterId
+      );
+
+      // 🔍 DEBUG: Log de validación de días en generación
+      console.log(`🔍 DAY RESTRICTION in validateSamplerForGeneration for ${samplerName}:`, {
+        dayRestriction: validations.dayRestriction,
+        startTime: startTime.toISOString()
+      });
 
       // 2. VALIDACIÓN DE DESCANSO (10h mínimo) - considera turnos en memoria
       const restValidation = await this.validateMinimumRestWithMemory(
@@ -289,7 +416,8 @@ export class ValidationService {
         (!validations.weekly || validations.weekly.isValid) &&
         validations.rest.isValid &&
         validations.crossRoster.isAvailable &&
-        validations.pobConflict.isValid;
+        validations.pobConflict.isValid &&
+        validations.dayRestriction.isValid;
 
       validations.overall = {
         isValid: allValid,
@@ -687,6 +815,8 @@ export class ValidationService {
       console.log(`🔍 SAMPLER VALIDATION: ${sampler.name}`, {
         weekly: validations.weekly?.isValid,
         weeklyMsg: validations.weekly?.message,
+        dayRestriction: validations.dayRestriction?.isValid,
+        dayRestrictionMsg: validations.dayRestriction?.message,
         rest: validations.rest?.isValid,
         restMsg: validations.rest?.message,
         crossRoster: validations.crossRoster?.isAvailable,

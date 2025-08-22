@@ -250,7 +250,23 @@ export class ScheduleCalculator {
       };
     }
 
-    // ✅ VALIDACIÓN 2: Límite semanal
+    // ✅ VALIDACIÓN 2: RESTRICCIÓN DE DÍAS DE LA SEMANA
+    const dayRestrictionValidation = await ValidationService.validateSamplerDayRestriction(
+      officeData.samplerName,
+      officeFinishTime,
+      currentRosterId
+    );
+
+    if (!dayRestrictionValidation.isValid) {
+      return {
+        canContinue: false,
+        reason: `Office sampler not available on ${dayRestrictionValidation.restrictedDay}s`,
+        dayRestrictionValidation: dayRestrictionValidation,
+        hoursToNextBlock: hoursToNextBlock,
+      };
+    }
+
+    // ✅ VALIDACIÓN 3: Límite semanal
     const actualHours = Math.min(hoursToNextBlock, remainingHours);
     const weeklyValidation = await ValidationService.validateSamplerWeeklyLimit(
       officeData.samplerName,

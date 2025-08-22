@@ -107,22 +107,115 @@ export class TableManager {
 
   /**
    * Obtener datos de Office Sampling de la tabla
+   * 🔧 CORREGIDO: Priorizar valores de DateTimePickers activos sobre texto de celdas
    */
   getOfficeSamplingData() {
-    const officeRow = document.querySelector(
-      'tr[data-row-id="office-sampler-row"]'
-    );
-    if (!officeRow) return null;
+    try {
+      const officeRow = document.querySelector(
+        'tr[data-row-id="office-sampler-row"]'
+      );
+      if (!officeRow) return null;
 
-    const cells = officeRow.querySelectorAll("td");
-    if (cells.length < 4) return null;
+      const cells = officeRow.querySelectorAll("td");
+      if (cells.length < 4) return null;
 
-    return {
-      samplerName: cells[0].textContent.trim(),
-      startTime: cells[1].textContent.trim(),
-      finishTime: cells[2].textContent.trim(),
-      hours: parseInt(cells[3].textContent.trim()) || 6,
-    };
+      // 🔧 CORREGIDO: Intentar obtener valores de DateTimePickers activos primero
+      let startTime = null;
+      let finishTime = null;
+      let hours = parseInt(cells[3].textContent.trim()) || 6;
+
+      // ✅ PRIORIDAD 1: Buscar DateTimePickers activos para Office Sampling
+      if (window.officeTimeInstances && Object.keys(window.officeTimeInstances).length > 0) {
+        // 🔧 CORREGIDO: Buscar DateTimePickers activos por patrón de ID
+        const activeStartPickers = Object.keys(window.officeTimeInstances).filter(id => 
+          id.startsWith('officeStartDateTime_')
+        );
+        const activeFinishPickers = Object.keys(window.officeTimeInstances).filter(id => 
+          id.startsWith('officeFinishDateTime_')
+        );
+        
+        console.log('🔧 Office Sampling DateTimePicker search:', {
+          totalInstances: Object.keys(window.officeTimeInstances).length,
+          activeStartPickers: activeStartPickers,
+          activeFinishPickers: activeFinishPickers
+        });
+        
+        // Intentar obtener startTime del DateTimePicker activo
+        if (activeStartPickers.length > 0) {
+          const startPicker = window.officeTimeInstances[activeStartPickers[0]];
+          if (startPicker && typeof startPicker.getDateTime === 'function') {
+            const startDateTime = startPicker.getDateTime();
+            if (startDateTime) {
+              startTime = this.formatDateTime(startDateTime);
+              console.log('✅ Office Sampling startTime from active DateTimePicker:', startTime);
+            } else {
+              console.log('⚠️ Start DateTimePicker found but getDateTime() returned null');
+            }
+          } else {
+            console.log('⚠️ Start DateTimePicker found but getDateTime method not available');
+          }
+        }
+
+        // Intentar obtener finishTime del DateTimePicker activo
+        if (activeFinishPickers.length > 0) {
+          const finishPicker = window.officeTimeInstances[activeFinishPickers[0]];
+          if (finishPicker && typeof finishPicker.getDateTime === 'function') {
+            const finishDateTime = finishPicker.getDateTime();
+            if (finishDateTime) {
+              finishTime = this.formatDateTime(finishDateTime);
+              console.log('✅ Office Sampling finishTime from active DateTimePicker:', finishTime);
+            } else {
+              console.log('⚠️ Finish DateTimePicker found but getDateTime() returned null');
+            }
+          } else {
+            console.log('⚠️ Finish DateTimePicker found but getDateTime method not available');
+          }
+        }
+
+        // ✅ Si ambos DateTimePickers están activos, recalcular horas
+        if (startTime && finishTime) {
+          const startDate = this.parseDateTime(startTime);
+          const finishDate = this.parseDateTime(finishTime);
+          if (startDate && finishDate) {
+            hours = this.calculateHoursFromDates(startDate, finishDate);
+            console.log('✅ Office Sampling hours recalculated from active DateTimePickers:', hours);
+          }
+        }
+      } else {
+        console.log('🔧 No active DateTimePicker instances found for Office Sampling');
+      }
+
+      // ✅ PRIORIDAD 2: Fallback - usar valores de celdas si no hay DateTimePickers activos
+      if (!startTime) {
+        startTime = cells[1].textContent.trim();
+        console.log('🔧 Office Sampling startTime fallback to cell text:', startTime);
+      }
+      if (!finishTime) {
+        finishTime = cells[2].textContent.trim();
+        console.log('🔧 Office Sampling finishTime fallback to cell text:', finishTime);
+      }
+
+      // ✅ VALIDACIÓN: Asegurar que tenemos valores válidos
+      if (!startTime || !finishTime) {
+        console.warn('⚠️ Office Sampling data incomplete:', { startTime, finishTime, hours });
+        return null;
+      }
+
+      const result = {
+        samplerName: cells[0].textContent.trim(),
+        startTime: startTime,
+        finishTime: finishTime,
+        hours: hours,
+        source: startTime && finishTime ? 'datetime_pickers' : 'cell_text'
+      };
+
+      console.log('✅ Office Sampling data collected successfully:', result);
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error in getOfficeSamplingData:', error);
+      return null;
+    }
   }
 
   /**
@@ -724,8 +817,11 @@ export class TableManager {
             ? "Select Start Office Time"
             : "Select Finish Sampling Time",
         onDateTimeChange: (dateTime) => {
-          // Recalcular horas automáticamente al cambiar fecha/hora
+          // 🔧 NUEVO: Recalcular horas automáticamente al cambiar fecha/hora
           this.updateOfficeSamplingHours(rowId);
+          
+          // 🔧 NUEVO: AUTO-SAVE INMEDIATO para Office Sampling
+          this.triggerOfficeSamplingAutoSave(rowId, dateTime);
         },
         onDateTimeSelect: (dateTime) => {
           // Opcional: Log cuando se selecciona fecha/hora
@@ -802,10 +898,22 @@ export class TableManager {
       if (!startDate || !finishDate) return 0;
 
       const diffMs = finishDate - startDate;
-      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
+      
+      // 🔧 NUEVO: Calcular horas con precisión decimal (soporta medias horas)
+      const diffHours = diffMs / (1000 * 60 * 60);
+      
+      // Redondear a 2 decimales para mantener precisión (ej: 5.5, 6.25, etc.)
+      const roundedHours = Math.round(diffHours * 100) / 100;
+      
+      // Opcional: Log para debug
+      console.log('🔧 calculateHoursFromDates - Precision calculation', {
+        diffHours: diffHours,
+        roundedHours: roundedHours
+      });
 
-      return Math.max(0, diffHours);
+      return Math.max(0, roundedHours);
     } catch (error) {
+      console.error('Error in calculateHoursFromDates:', error);
       return 0;
     }
   }
@@ -1159,8 +1267,11 @@ export class TableManager {
             ? "Select Line Start Time"
             : "Select Line Finish Time",
         onDateTimeChange: (dateTime) => {
-          // Trigger recálculo de toda la línea de sampling cuando cambie la primera línea
+          // 🔧 NUEVO: Trigger recálculo de toda la línea de sampling cuando cambie la primera línea
           this.triggerLineSamplingRecalculation(rowId);
+          
+          // 🔧 NUEVO: AUTO-SAVE INMEDIATO para Line Sampling (primera línea)
+          this.triggerLineSamplingAutoSave(rowId, dateTime);
         },
         onDateTimeSelect: (dateTime) => {
           // Log cuando se selecciona fecha/hora
@@ -1935,6 +2046,70 @@ export class TableManager {
     } catch (error) {
       console.error("Error getting original data:", error);
       return null;
+    }
+  }
+
+  /**
+   * 🔧 NUEVO: Trigger auto-save inmediato para Office Sampling
+   * Se ejecuta automáticamente cuando cambian las fechas/horas
+   */
+  triggerOfficeSamplingAutoSave(rowId, dateTime) {
+    try {
+      console.log('🔧 Office Sampling auto-save triggered', {
+        rowId: rowId,
+        dateTime: dateTime,
+        timestamp: new Date().toISOString()
+      });
+
+      // Verificar si el controlador principal está disponible
+      if (window.samplingRosterController && 
+          window.samplingRosterController.autoSaveService) {
+        
+        // Trigger auto-save inmediato
+        window.samplingRosterController.autoSaveService.triggerAutoSaveImmediate(
+          "officeSamplingChange",
+          () => window.samplingRosterController.collectCurrentRosterData()
+        );
+        
+        console.log('✅ Office Sampling auto-save sent to controller');
+      } else {
+        console.warn('⚠️ SamplingRosterController not available for auto-save');
+      }
+
+    } catch (error) {
+      console.error('❌ Error triggering Office Sampling auto-save:', error);
+    }
+  }
+
+  /**
+   * 🔧 NUEVO: Trigger auto-save inmediato para Line Sampling
+   * Se ejecuta automáticamente cuando cambian las fechas/horas de la primera línea
+   */
+  triggerLineSamplingAutoSave(rowId, dateTime) {
+    try {
+      console.log('🔧 Line Sampling auto-save triggered', {
+        rowId: rowId,
+        dateTime: dateTime,
+        timestamp: new Date().toISOString()
+      });
+
+      // Verificar si el controlador principal está disponible
+      if (window.samplingRosterController && 
+          window.samplingRosterController.autoSaveService) {
+        
+        // Trigger auto-save inmediato
+        window.samplingRosterController.autoSaveService.triggerAutoSaveImmediate(
+          "lineSamplingChange",
+          () => window.samplingRosterController.collectCurrentRosterData()
+        );
+        
+        console.log('✅ Line Sampling auto-save sent to controller');
+      } else {
+        console.warn('⚠️ SamplingRosterController not available for auto-save');
+      }
+
+    } catch (error) {
+      console.error('❌ Error triggering Line Sampling auto-save:', error);
     }
   }
 }

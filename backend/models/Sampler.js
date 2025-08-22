@@ -9,7 +9,7 @@ const samplerSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    // NUEVOS CAMPOS OPCIONALES - NO ROMPEN NADA EXISTENTE
+    // NUEVOS CAMPOS OPCIONALES
     email: {
       type: String,
       required: false, // Opcional para compatibilidad
@@ -49,6 +49,27 @@ const samplerSchema = new mongoose.Schema(
       required: false, // Opcional para compatibilidad
       default: false, // Por defecto sin restricción
     },
+    // 🆕 RESTRICCIONES POR DÍAS DE LA SEMANA
+    weekDayRestrictions: {
+      type: {
+        monday: { type: Boolean, default: false },
+        tuesday: { type: Boolean, default: false },
+        wednesday: { type: Boolean, default: false },
+        thursday: { type: Boolean, default: false },
+        friday: { type: Boolean, default: false },
+        saturday: { type: Boolean, default: false },
+        sunday: { type: Boolean, default: false }
+      },
+      default: {
+        monday: false,
+        tuesday: false,
+        wednesday: false,
+        thursday: false,
+        friday: false,
+        saturday: false,
+        sunday: false
+      }
+    },
   },
   {
     timestamps: true, // Mantiene createdAt y updatedAt automáticos
@@ -77,6 +98,24 @@ samplerSchema.methods.hasWeeklyRestriction = function() {
     return Boolean(this.weeklyRestriction);
 };
 
+// Verificar si un día está restringido
+samplerSchema.methods.isDayRestricted = function(dayName) {
+    if (!this.weekDayRestrictions) return false;
+    return Boolean(this.weekDayRestrictions[dayName]);
+};
+
+// Verificar si tiene alguna restricción de día
+samplerSchema.methods.hasAnyDayRestrictions = function() {
+    if (!this.weekDayRestrictions) return false;
+    return Object.values(this.weekDayRestrictions).some(day => day === true);
+};
+
+// Obtener días restringidos
+samplerSchema.methods.getRestrictedDays = function() {
+    if (!this.weekDayRestrictions) return [];
+    return Object.keys(this.weekDayRestrictions).filter(day => this.weekDayRestrictions[day]);
+};
+
 samplerSchema.methods.getDisplayInfo = function () {
   return {
     id: this._id,
@@ -84,6 +123,15 @@ samplerSchema.methods.getDisplayInfo = function () {
     email: this.email || null,
     phone: this.phone || null,
     weeklyRestriction: this.weeklyRestriction || false,
+    weekDayRestrictions: this.weekDayRestrictions || {
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false,
+      sunday: false
+    },
     hasEmail: this.hasContactInfo(),
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,

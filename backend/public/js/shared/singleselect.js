@@ -1088,6 +1088,29 @@ class SingleSelect {
     `;
     }
 
+    // AGREGAR RESTRICCIONES POR DÍAS
+    if (
+      this.config.label === "Sampler" ||
+      this.containerId.toLowerCase().includes("sampler")
+    ) {
+      fieldsHTML += `
+    <div class="mb-3">
+      <div class="weekday-restrictions-container">
+        <label class="form-label mb-2">
+          <i class="fas fa-calendar-week me-2"></i>
+          Day Restrictions
+        </label>
+        <div class="weekday-toggles">
+          ${this.renderDayToggles({})}
+        </div>
+        <small class="text-muted d-block mt-2">
+          Select days when this sampler is <strong>not available</strong>
+        </small>
+      </div>
+    </div>
+  `;
+    }
+
     return `
     <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
@@ -1114,6 +1137,45 @@ class SingleSelect {
       </div>
     </div>
   `;
+  }
+
+  /**
+   * Renderizar toggles de días de la semana
+   */
+  renderDayToggles(restrictions = {}) {
+    const dayLabels = {
+      monday: "M",
+      tuesday: "T",
+      wednesday: "W",
+      thursday: "TH",
+      friday: "F",
+      saturday: "S",
+      sunday: "SU",
+    };
+
+    return Object.keys(dayLabels)
+      .map((day) => {
+        const isRestricted = restrictions[day] || false;
+        const dayLabel = dayLabels[day];
+
+        return `
+      <div class="day-toggle" title="${
+        day.charAt(0).toUpperCase() + day.slice(1)
+      }">
+        <input 
+          type="checkbox" 
+          id="day-${day}" 
+          data-day="${day}"
+          class="day-checkbox"
+          ${isRestricted ? "checked" : ""}
+        >
+        <label for="day-${day}" class="day-label">
+          ${dayLabel}
+        </label>
+      </div>
+    `;
+      })
+      .join("");
   }
 
   /**
@@ -1172,10 +1234,28 @@ class SingleSelect {
       if (toggleInput) {
         extendedData.weeklyRestriction = toggleInput.checked;
 
+        // CAPTURAR RESTRICCIONES DE DÍAS
+        const dayRestrictions = {};
+        [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday",
+        ].forEach((day) => {
+          const dayInput = document.getElementById(`day-${day}`);
+          if (dayInput) {
+            dayRestrictions[day] = dayInput.checked;
+          }
+        });
+        extendedData.weekDayRestrictions = dayRestrictions;
+
         // 🔍 DEBUG temporal (quitar después)
         console.log("🔍 Toggle found:", !!toggleInput);
         console.log("🔍 Toggle checked:", toggleInput.checked);
-        console.log("🔍 Extended data:", extendedData); 
+        console.log("🔍 Extended data:", extendedData);
       } else {
         console.log(
           "🔍 Toggle input NOT found for:",
@@ -1357,6 +1437,31 @@ class SingleSelect {
     `;
     }
 
+    // AGREGAR RESTRICCIONES POR DÍAS
+    if (
+      this.config.label === "Sampler" ||
+      this.containerId.toLowerCase().includes("sampler")
+    ) {
+      fieldsHTML += `
+    <div class="mb-3">
+      <div class="weekday-restrictions-container">
+        <label class="form-label mb-2">
+          <i class="fas fa-calendar-week me-2"></i>
+          Day Restrictions
+        </label>
+        <div class="weekday-toggles">
+          ${this.renderDayToggles(
+            currentData ? currentData.weekDayRestrictions : {}
+          )}
+        </div>
+        <small class="text-muted d-block mt-2">
+          Select days when this sampler is <strong>not available</strong>
+        </small>
+      </div>
+    </div>
+  `;
+    }
+
     return `
     <div class="modal fade" id="${miniModalId}" tabindex="-1" data-bs-backdrop="static" aria-labelledby="${miniModalId}Label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered" style="max-width: 500px;">
@@ -1444,6 +1549,24 @@ class SingleSelect {
       );
       if (toggleInput) {
         updatedData.weeklyRestriction = toggleInput.checked;
+
+        // CAPTURAR RESTRICCIONES DE DÍAS
+        const dayRestrictions = {};
+        [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday",
+        ].forEach((day) => {
+          const dayInput = document.getElementById(`day-${day}`);
+          if (dayInput) {
+            dayRestrictions[day] = dayInput.checked;
+          }
+        });
+        updatedData.weekDayRestrictions = dayRestrictions;
 
         // 🔍 DEBUG temporal (quitar después)
         console.log("🔍 Toggle found:", !!toggleInput);

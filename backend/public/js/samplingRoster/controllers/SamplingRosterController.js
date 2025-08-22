@@ -118,22 +118,9 @@ export class SamplingRosterController {
     // Flag para evitar callbacks durante limpieza
     this.isClearing = false;
 
-    // Crear DateTimePickers CON PROTECCIÓN AVANZADA
-    this.uiManager.createDateTimePickers((dateTime) => {
-      // ✅ DOBLE PROTECCIÓN: No ejecutar durante limpieza Y validar ship nomination
-      if (!this.isClearing && this.selectedShipNomination) {
-        try {
-          this.validateDateTimeSequence();
-          this.calculateAndUpdateETC();
-        } catch (error) {
-          Logger.error("Error in DateTimePicker callback", {
-            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-            error: error,
-            showNotification: false,
-          });
-        }
-      }
-    });
+    // 🆕 CONFIGURAR DATETIMEPICKERS CON AUTO-SAVE UNA SOLA VEZ
+    // (Este método crea los DateTimePickers Y configura el callback)
+    this.setupDateTimePickersWithAutoSave();
 
     // Resto del método...
     this.uiManager.createShipNominationSelector(
@@ -223,103 +210,210 @@ export class SamplingRosterController {
    * Cargar datos de roster existente
    */
   async loadExistingRoster(rosterData) {
-    // Cargar tiempos en DateTimePickers
-    const dateTimeInstances = this.uiManager.getDateTimeInstances();
+    try {
+      // Cargar tiempos en DateTimePickers
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
 
-    // 1️⃣ CARGAR START DISCHARGE
-    if (rosterData.startDischarge) {
-      dateTimeInstances.startDischarge.setDateTime(
-        new Date(rosterData.startDischarge)
-      );
-    }
-
-    // 2️⃣ LÓGICA MEJORADA PARA ETC - PRIORIZAR ETC PERSONALIZADO
-    if (rosterData.etcTime) {
-      // Usar ETC personalizado del roster (prioritario)
-      dateTimeInstances.etcTime.setDateTime(new Date(rosterData.etcTime));
-
-      // 🆕 LOG DETALLADO SOBRE ETC
-      if (rosterData.hasCustomETC) {
-        Logger.success("Loaded custom ETC from saved roster", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          data: {
-            customETC: rosterData.etcTime,
-            originalETC:
-              rosterData.originalShipNominationETC ||
-              this.selectedShipNomination?.etc,
-            modifiedAt: rosterData.etcModificationTimestamp,
-            differenceFromOriginal: this.calculateETCDifference(
-              rosterData.etcTime,
-              rosterData.originalShipNominationETC ||
-                this.selectedShipNomination?.etc
-            ),
-          },
-          showNotification: true,
-          notificationMessage: "Loaded roster with custom ETC timing",
-        });
-      } else {
-        Logger.info("Loaded standard ETC from roster", {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          data: { etcTime: rosterData.etcTime },
-          showNotification: false,
-        });
-      }
-    } else if (this.selectedShipNomination?.etc) {
-      // Fallback: usar ETC del ship nomination si no hay ETC guardado en roster
-      dateTimeInstances.etcTime.setDateTime(
-        new Date(this.selectedShipNomination.etc)
-      );
-
-      Logger.info("Using fallback ETC from ship nomination", {
+      // 🔧 MEJORADO: Log de datos recibidos para debugging
+      Logger.info("Loading existing roster data", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
-          fallbackETC: this.selectedShipNomination.etc,
-          reason: "No ETC found in saved roster",
+          hasStartDischarge: !!rosterData.startDischarge,
+          hasETC: !!rosterData.etcTime,
+          hasOfficeSampling: !!rosterData.officeSampling,
+          hasLineSampling: rosterData.lineSampling?.length > 0,
+          startDischargeValue: rosterData.startDischarge,
+          etcValue: rosterData.etcTime,
+          hasCustomETC: rosterData.hasCustomETC,
+          hasCustomStartDischarge: rosterData.hasCustomStartDischarge
         },
         showNotification: false,
       });
-    } else {
-      // 🚨 Caso edge: ni roster ni ship nomination tienen ETC
-      Logger.warn("No ETC found in roster or ship nomination", {
+
+      // 1️⃣ CARGAR START DISCHARGE - CORREGIDO PARA PERSISTENCIA
+      if (rosterData.startDischarge) {
+        // ✅ PRIORIDAD 1: Usar startDischarge guardado en roster (personalizado)
+        const savedStartDischarge = new Date(rosterData.startDischarge);
+        dateTimeInstances.startDischarge.setDateTime(savedStartDischarge);
+        
+        Logger.success("Start Discharge loaded from saved roster", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            startDischarge: rosterData.startDischarge,
+            hasCustomStartDischarge: rosterData.hasCustomStartDischarge,
+            originalStartDischarge: rosterData.originalShipNominationStartDischarge,
+            source: "saved_roster"
+          },
+          showNotification: false,
+        });
+      } else if (rosterData.hasCustomStartDischarge && rosterData.originalShipNominationStartDischarge) {
+        // ✅ PRIORIDAD 2: Si hay indicador de personalización, usar valor original personalizado
+        const customStartDischarge = new Date(rosterData.originalShipNominationStartDischarge);
+        dateTimeInstances.startDischarge.setDateTime(customStartDischarge);
+        
+        Logger.info("Start Discharge loaded from custom value indicator", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            customStartDischarge: rosterData.originalShipNominationStartDischarge,
+            hasCustomStartDischarge: rosterData.hasCustomStartDischarge,
+            source: "custom_indicator"
+          },
+          showNotification: false,
+        });
+      } else {
+        // ✅ PRIORIDAD 3: Fallback - calcular desde ETB solo si no hay datos personalizados
+        if (this.selectedShipNomination?.etb) {
+          const calculatedStartDischarge = new Date(this.selectedShipNomination.etb);
+          calculatedStartDischarge.setHours(
+            calculatedStartDischarge.getHours() +
+              SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+          );
+          
+          dateTimeInstances.startDischarge.setDateTime(calculatedStartDischarge);
+          
+          Logger.info("Start Discharge calculated from ETB (fallback)", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              etb: this.selectedShipNomination.etb,
+              calculatedStartDischarge: calculatedStartDischarge.toISOString(),
+              offset: SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET,
+              source: "etb_calculation"
+            },
+            showNotification: false,
+          });
+        }
+      }
+
+      // 2️⃣ LÓGICA MEJORADA PARA ETC - PRIORIZAR ETC PERSONALIZADO - CORREGIDA
+      if (rosterData.etcTime) {
+        // ✅ PRIORIDAD 1: Usar ETC guardado en roster (personalizado)
+        const savedETC = new Date(rosterData.etcTime);
+        dateTimeInstances.etcTime.setDateTime(savedETC);
+
+        // 🆕 LOG DETALLADO SOBRE ETC
+        if (rosterData.hasCustomETC) {
+          Logger.success("Loaded custom ETC from saved roster", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              customETC: rosterData.etcTime,
+              originalETC:
+                rosterData.originalShipNominationETC ||
+                this.selectedShipNomination?.etc,
+              modifiedAt: rosterData.etcModificationTimestamp,
+              differenceFromOriginal: this.calculateETCDifference(
+                rosterData.etcTime,
+                rosterData.originalShipNominationETC ||
+                  this.selectedShipNomination?.etc
+              ),
+              source: "saved_roster_custom"
+            },
+            showNotification: true,
+            notificationMessage: "Loaded roster with custom ETC timing",
+          });
+        } else {
+          Logger.info("Loaded standard ETC from roster", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: { 
+              etcTime: rosterData.etcTime,
+              source: "saved_roster_standard"
+            },
+            showNotification: false,
+          });
+        }
+      } else if (rosterData.hasCustomETC && rosterData.originalShipNominationETC) {
+        // ✅ PRIORIDAD 2: Si hay indicador de personalización, usar valor original personalizado
+        const customETC = new Date(rosterData.originalShipNominationETC);
+        dateTimeInstances.etcTime.setDateTime(customETC);
+        
+        Logger.info("ETC loaded from custom value indicator", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            customETC: rosterData.originalShipNominationETC,
+            hasCustomETC: rosterData.hasCustomETC,
+            source: "custom_indicator"
+          },
+          showNotification: false,
+        });
+      } else if (this.selectedShipNomination?.etc) {
+        // ✅ PRIORIDAD 3: Fallback - usar ETC del ship nomination solo si no hay datos personalizados
+        const fallbackETC = new Date(this.selectedShipNomination.etc);
+        dateTimeInstances.etcTime.setDateTime(fallbackETC);
+
+        Logger.info("Using fallback ETC from ship nomination", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            fallbackETC: this.selectedShipNomination.etc,
+            reason: "No ETC found in saved roster or custom indicators",
+            source: "ship_nomination_fallback"
+          },
+          showNotification: false,
+        });
+      } else {
+        // 🚨 Caso edge: ni roster ni ship nomination tienen ETC
+        Logger.warn("No ETC found in roster or ship nomination", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage:
+            "Warning: No ETC time available. Please set ETC manually.",
+        });
+      }
+
+      // 3️⃣ CARGAR DISCHARGE TIME HOURS
+      if (rosterData.dischargeTimeHours) {
+        this.uiManager.setFieldValue(
+          "dischargeTimeHours",
+          rosterData.dischargeTimeHours.toString()
+        );
+      }
+
+      // 4️⃣ CARGAR TABLAS
+      if (rosterData.officeSampling) {
+        this.tableManager.loadOfficeSamplingFromRoster(rosterData.officeSampling);
+      }
+      if (rosterData.lineSampling && rosterData.lineSampling.length > 0) {
+        this.tableManager.loadLineSamplingFromRoster(rosterData.lineSampling);
+      }
+
+      // 5️⃣ SETUP EVENT LISTENERS PARA LAS TABLAS
+      this.setupTableEventListeners();
+
+      // 6️⃣ 🔧 MEJORADO: VERIFICAR ESTADO FINAL DE LOS DATETIMEPICKERS
+      const finalStartDischarge = dateTimeInstances.startDischarge?.getDateTime();
+      const finalETC = dateTimeInstances.etcTime?.getDateTime();
+      
+      Logger.info("Final DateTimePicker state after loading roster", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage:
-          "Warning: No ETC time available. Please set ETC manually.",
+        data: {
+          startDischarge: finalStartDischarge?.toISOString(),
+          etcTime: finalETC?.toISOString(),
+          startDischargeValid: !!finalStartDischarge,
+          etcTimeValid: !!finalETC
+        },
+        showNotification: false,
+      });
+
+      // 6️⃣ LOG RESUMEN DE CARGA
+      Logger.success("Existing roster loaded successfully", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          rosterId: this.autoSaveService.getCurrentRosterId(),
+          vesselName: rosterData.vesselName,
+          hasOfficeSampling: !!rosterData.officeSampling,
+          lineSamplingTurns: rosterData.lineSampling?.length || 0,
+          hasCustomETC: rosterData.hasCustomETC || false,
+          hasCustomStartDischarge: rosterData.hasCustomStartDischarge || false,
+          dischargeHours: rosterData.dischargeTimeHours || 0,
+        },
+        showNotification: false,
+      });
+
+    } catch (error) {
+      Logger.error("Error loading existing roster", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
       });
     }
-
-    // 3️⃣ CARGAR DISCHARGE TIME HOURS
-    if (rosterData.dischargeTimeHours) {
-      this.uiManager.setFieldValue(
-        "dischargeTimeHours",
-        rosterData.dischargeTimeHours.toString()
-      );
-    }
-
-    // 4️⃣ CARGAR TABLAS
-    if (rosterData.officeSampling) {
-      this.tableManager.loadOfficeSamplingFromRoster(rosterData.officeSampling);
-    }
-    if (rosterData.lineSampling && rosterData.lineSampling.length > 0) {
-      this.tableManager.loadLineSamplingFromRoster(rosterData.lineSampling);
-    }
-
-    // 5️⃣ SETUP EVENT LISTENERS PARA LAS TABLAS
-    this.setupTableEventListeners();
-
-    // 6️⃣ LOG RESUMEN DE CARGA
-    Logger.success("Existing roster loaded successfully", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: {
-        rosterId: this.autoSaveService.getCurrentRosterId(),
-        vesselName: rosterData.vesselName,
-        hasOfficeSampling: !!rosterData.officeSampling,
-        lineSamplingTurns: rosterData.lineSampling?.length || 0,
-        hasCustomETC: rosterData.hasCustomETC || false,
-        dischargeHours: rosterData.dischargeTimeHours || 0,
-      },
-      showNotification: false,
-    });
   }
 
   /**
@@ -365,6 +459,20 @@ export class SamplingRosterController {
     // Configurar DateTimePickers
     this.setupInitialDateTimes(nomination);
 
+    // 🔧 NUEVO: Verificar estado de DateTimePickers después de la configuración
+    setTimeout(() => {
+      const status = this.checkDateTimePickerStatus();
+      
+      Logger.info("Vessel info populated and DateTimePickers configured", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          vesselName: nomination.vesselName,
+          dateTimePickerStatus: status
+        },
+        showNotification: false,
+      });
+    }, 100);
+
     // Auto-poblar Office Sampling
     this.tableManager.autoPopulateOfficeSampling(nomination);
     this.setupTableEventListeners();
@@ -372,34 +480,88 @@ export class SamplingRosterController {
 
   /**
    * Configurar fechas iniciales en DateTimePickers
+   * 🔧 CORREGIDO: No sobrescribir valores personalizados existentes
    */
   setupInitialDateTimes(nomination) {
-    const dateTimeInstances = this.uiManager.getDateTimeInstances();
+    try {
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      const currentRosterId = this.autoSaveService.getCurrentRosterId();
 
-    if (nomination.etb) {
-      // Start Discharge = ETB + 3 horas
-      const startDischargeTime = new Date(nomination.etb);
-      startDischargeTime.setHours(
-        startDischargeTime.getHours() +
-          SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
-      );
-      dateTimeInstances.startDischarge.setDateTime(startDischargeTime);
-    }
+      // ✅ SOLO CONFIGURAR SI NO HAY ROSTER EXISTENTE (evitar sobrescribir valores personalizados)
+      if (currentRosterId) {
+        Logger.info("Skipping initial date setup - roster exists", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { 
+            currentRosterId: currentRosterId,
+            reason: "loadExistingRoster() will handle date configuration"
+          },
+          showNotification: false,
+        });
+        return;
+      }
 
-    // 🆕 LÓGICA MEJORADA: Solo establecer ETC si NO hay roster existente
-    const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      // ✅ CONFIGURACIÓN SOLO PARA ROSTERES NUEVOS
+      if (nomination.etb) {
+        // Start Discharge = ETB + 3 horas (solo para rosteres nuevos)
+        const startDischargeTime = new Date(nomination.etb);
+        startDischargeTime.setHours(
+          startDischargeTime.getHours() +
+            SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+        );
+        
+        // 🔧 CORREGIDO: Establecer fecha y marcar como válida
+        dateTimeInstances.startDischarge.setDateTime(startDischargeTime);
+        
+        Logger.info("Start Discharge time set from ETB (new roster)", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { 
+            etb: nomination.etb,
+            startDischarge: startDischargeTime.toISOString(),
+            offset: SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET,
+            context: "new_roster_initial_setup"
+          },
+          showNotification: false,
+        });
+      }
 
-    if (!currentRosterId && nomination.etc) {
-      // Solo para rosteres nuevos: usar ETC del ship nomination
-      dateTimeInstances.etcTime.setDateTime(new Date(nomination.etc));
+      // ✅ ETC solo para rosteres nuevos
+      if (nomination.etc) {
+        dateTimeInstances.etcTime.setDateTime(new Date(nomination.etc));
 
-      Logger.info("Set initial ETC from ship nomination", {
+        Logger.info("Set initial ETC from ship nomination (new roster)", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { 
+            initialETC: nomination.etc,
+            context: "new_roster_initial_setup"
+          },
+          showNotification: false,
+        });
+      }
+
+      // 🔧 MEJORADO: Verificar estado final de los DateTimePickers
+      const finalStartDischarge = dateTimeInstances.startDischarge?.getDateTime();
+      const finalETC = dateTimeInstances.etcTime?.getDateTime();
+      
+      Logger.success("Initial DateTimePicker configuration completed (new roster)", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: { initialETC: nomination.etc },
+        data: {
+          startDischarge: finalStartDischarge?.toISOString(),
+          etcTime: finalETC?.toISOString(),
+          startDischargeValid: !!finalStartDischarge,
+          etcTimeValid: !!finalETC,
+          hasRosterId: !!currentRosterId,
+          context: "new_roster_initial_setup"
+        },
+        showNotification: false,
+      });
+
+    } catch (error) {
+      Logger.error("Error setting up initial date times", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
         showNotification: false,
       });
     }
-    // Si hay roster existente, loadExistingRoster() se encargará del ETC
   }
 
   /**
@@ -457,8 +619,7 @@ export class SamplingRosterController {
       });
     }
 
-    // 4️⃣ 🆕 SETUP DATETIMEPICKERS CON AUTO-SAVE ETC
-    this.setupDateTimePickersWithAutoSave();
+    // 4️⃣ 🆕 SETUP DATETIMEPICKERS CON AUTO-SAVE ETC - MOVIDO A createUIComponents()
 
     // 5️⃣ 🆕 BOTÓN EXPORT (si existe)
     const exportBtn = document.getElementById("exportRosterBtn");
@@ -516,6 +677,19 @@ export class SamplingRosterController {
     const startDischarge = dateTimeInstances.startDischarge?.getDateTime();
     const etcTime = dateTimeInstances.etcTime?.getDateTime();
 
+    // 🔧 CORREGIDO: Validación más robusta
+    if (!startDischarge || !etcTime) {
+      Logger.debug("DateTime sequence validation skipped - missing data", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          hasStartDischarge: !!startDischarge,
+          hasETC: !!etcTime
+        },
+        showNotification: false,
+      });
+      return true; // No fallar si faltan datos
+    }
+
     const validation = this.validationService.validateDateTimeSequence(
       startDischarge,
       etcTime
@@ -526,6 +700,16 @@ export class SamplingRosterController {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         showNotification: true,
         notificationMessage: validation.message,
+      });
+    } else {
+      Logger.debug("DateTime sequence validation passed", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          startDischarge: startDischarge.toISOString(),
+          etcTime: etcTime.toISOString(),
+          timeDiff: etcTime.getTime() - startDischarge.getTime()
+        },
+        showNotification: false,
       });
     }
 
@@ -569,45 +753,90 @@ export class SamplingRosterController {
    * Manejar Auto Generate
    */
   async handleAutoGenerate() {
-    // Validaciones
-    const shipValidation =
-      this.validationService.validateShipNominationSelected(
-        this.selectedShipNomination
-      );
-    if (!shipValidation.isValid) {
-      Logger.warn(shipValidation.message, {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: shipValidation.message,
-      });
-      return;
-    }
-
-    const officeValidation =
-      this.validationService.validateOfficeSamplingExists();
-    if (!officeValidation.isValid) {
-      Logger.warn(officeValidation.message, {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: officeValidation.message,
-      });
-      return;
-    }
-
-    const dischargeHours = this.getDischargeTimeHours();
-    const hoursValidation =
-      this.validationService.validateDischargeTimeHours(dischargeHours);
-    if (!hoursValidation.isValid) {
-      Logger.warn(hoursValidation.message, {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: hoursValidation.message,
-      });
-      return;
-    }
-
     try {
+      // 🔧 MEJORADO: Log del inicio del proceso
+      Logger.info("Auto Generate process started", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          vesselName: this.selectedShipNomination?.vesselName,
+          hasRosterId: !!this.autoSaveService.getCurrentRosterId()
+        },
+        showNotification: false,
+      });
+
+      // Validaciones
+      const shipValidation =
+        this.validationService.validateShipNominationSelected(
+          this.selectedShipNomination
+        );
+      if (!shipValidation.isValid) {
+        Logger.warn(shipValidation.message, {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: shipValidation.message,
+        });
+        return;
+      }
+
+      const officeValidation =
+        this.validationService.validateOfficeSamplingExists();
+      if (!officeValidation.isValid) {
+        Logger.warn(officeValidation.message, {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: officeValidation.message,
+        });
+        return;
+      }
+
+      const dischargeHours = this.getDischargeTimeHours();
+      const hoursValidation =
+        this.validationService.validateDischargeTimeHours(dischargeHours);
+      if (!hoursValidation.isValid) {
+        Logger.warn(hoursValidation.message, {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: hoursValidation.message,
+        });
+        return;
+      }
+
+      // 🔧 MEJORADO: Verificar estado actual de los DateTimePickers antes de generar
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      const currentStartDischarge = dateTimeInstances.startDischarge?.getDateTime();
+      const currentETC = dateTimeInstances.etcTime?.getDateTime();
+      
+      Logger.info("Current DateTimePicker state before auto-generate", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          startDischarge: currentStartDischarge?.toISOString(),
+          etcTime: currentETC?.toISOString(),
+          dischargeHours: dischargeHours,
+          hasValidData: !!(currentStartDischarge && currentETC)
+        },
+        showNotification: false,
+      });
+
+      // 🔧 MEJORADO: Guardar cambios pendientes antes de generar el roster
+      if (this.autoSaveService.hasUnsaved()) {
+        Logger.info("Saving pending changes before auto-generate", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: false,
+        });
+        
+        // Forzar guardado inmediato de cambios pendientes
+        await new Promise((resolve) => {
+          this.autoSaveService.triggerAutoSaveImmediate("preAutoGenerate", () => {
+            this.collectCurrentRosterData();
+            resolve();
+          });
+        });
+      }
+
+      // Generar el schedule
       await this.generateLineSamplingSchedule(dischargeHours);
+      
+      // 🔧 MEJORADO: Guardar el roster completo después de generar
       this.autoSaveService.triggerAutoSaveImmediate("autoGenerate", () =>
         this.collectCurrentRosterData()
       );
@@ -617,6 +846,7 @@ export class SamplingRosterController {
         showNotification: true,
         notificationMessage: `Line Sampling Schedule generated for ${dischargeHours} hours`,
       });
+
     } catch (error) {
       Logger.error("Error generating Line Sampling Schedule", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -657,80 +887,228 @@ export class SamplingRosterController {
    */
 
   collectCurrentRosterData() {
-    const officeData = this.tableManager.getOfficeSamplingData();
-    const lineData = this.tableManager.getCurrentLineTurns();
-    const dischargeHours = this.getDischargeTimeHours();
-    const dateTimeInstances = this.uiManager.getDateTimeInstances();
-    const startDischarge = dateTimeInstances.startDischarge?.getDateTime();
-    const etcTime = dateTimeInstances.etcTime?.getDateTime();
-
-    // 🆕 DETECTAR SI ETC HA SIDO PERSONALIZADO
-    const originalETC = this.selectedShipNomination?.etc
-      ? new Date(this.selectedShipNomination.etc)
-      : null;
-    const hasCustomETC =
-      etcTime &&
-      originalETC &&
-      Math.abs(etcTime.getTime() - originalETC.getTime()) > 60000; // Diferencia > 1 minuto
-
-    // 🆕 LOG DE DEBUG PARA TRACKING
-    if (hasCustomETC) {
-      Logger.info("Custom ETC detected in roster data", {
+    try {
+      const officeData = this.tableManager.getOfficeSamplingData();
+      
+      // 🔧 NUEVO: Log detallado de officeData para debugging
+      Logger.debug("Office Sampling data retrieved", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
-          originalETC: originalETC?.toISOString(),
-          customETC: etcTime?.toISOString(),
-          differenceHours: Math.round(
-            (etcTime.getTime() - originalETC.getTime()) / (1000 * 60 * 60)
-          ),
+          officeData: officeData,
+          hasOfficeData: !!officeData,
+          startTime: officeData?.startTime,
+          finishTime: officeData?.finishTime,
+          hours: officeData?.hours,
+          samplerName: officeData?.samplerName
         },
         showNotification: false,
       });
-    }
+      
+      const lineData = this.tableManager.getCurrentLineTurns();
+      const dischargeHours = this.getDischargeTimeHours();
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      const startDischarge = dateTimeInstances.startDischarge?.getDateTime();
+      const etcTime = dateTimeInstances.etcTime?.getDateTime();
 
-    return {
-      shipNomination: String(this.selectedShipNomination._id),
-      vesselName: this.selectedShipNomination.vesselName,
-      amspecRef: this.selectedShipNomination.amspecRef,
-      startDischarge: startDischarge,
-      etcTime: etcTime, // 🆕 ETC personalizado del formulario
-      dischargeTimeHours: dischargeHours || 0,
-      totalTurns: lineData.length,
-      totalSamplers: new Set(lineData.map((t) => t.samplerName)).size,
+      // 🔧 MEJORADO: Validación de datos críticos
+      if (!startDischarge || !etcTime) {
+        Logger.warn("Missing critical DateTimePicker data", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            hasStartDischarge: !!startDischarge,
+            hasETC: !!etcTime,
+            startDischargeValue: startDischarge?.toISOString(),
+            etcValue: etcTime?.toISOString()
+          },
+          showNotification: false,
+        });
+      }
 
-      // 🆕 NUEVAS PROPIEDADES PARA TRACKING DE ETC
-      hasCustomETC: hasCustomETC,
-      originalShipNominationETC: this.selectedShipNomination?.etc || null,
-      etcModificationTimestamp: hasCustomETC ? new Date().toISOString() : null,
+      // 🆕 DETECTAR SI ETC HA SIDO PERSONALIZADO
+      const originalETC = this.selectedShipNomination?.etc
+        ? new Date(this.selectedShipNomination.etc)
+        : null;
+      const hasCustomETC =
+        etcTime &&
+        originalETC &&
+        Math.abs(etcTime.getTime() - originalETC.getTime()) > 60000; // Diferencia > 1 minuto
 
-      officeSampling: officeData
-        ? {
-            sampler: {
-              id:
-                this.selectedShipNomination.sampler?.id ||
-                this.selectedShipNomination.sampler,
-              name: officeData.samplerName,
+      // 🔧 MEJORADO: DETECTAR SI START DISCHARGE HA SIDO PERSONALIZADO - CORREGIDO
+      let hasCustomStartDischarge = false;
+      let originalStartDischarge = null;
+      
+      if (this.selectedShipNomination?.etb && startDischarge) {
+        const calculatedStartDischarge = new Date(this.selectedShipNomination.etb);
+        calculatedStartDischarge.setHours(
+          calculatedStartDischarge.getHours() +
+            SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+        );
+        
+        // ✅ DETECCIÓN MÁS PRECISA: Diferencia > 1 minuto para considerar personalizado
+        const timeDifference = Math.abs(startDischarge.getTime() - calculatedStartDischarge.getTime());
+        hasCustomStartDischarge = timeDifference > 60000; // 1 minuto = 60,000 ms
+        
+        if (hasCustomStartDischarge) {
+          // ✅ GUARDAR EL VALOR PERSONALIZADO ACTUAL, NO el calculado
+          originalStartDischarge = startDischarge.toISOString();
+          
+          Logger.info("Custom Start Discharge detected", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              calculatedFromETB: calculatedStartDischarge.toISOString(),
+              customValue: startDischarge.toISOString(),
+              differenceMinutes: Math.round(timeDifference / (1000 * 60)),
+              differenceHours: Math.round(timeDifference / (1000 * 60 * 60) * 100) / 100,
+              willBePersisted: true
             },
-            startTime: DateUtils.parseDateTime(officeData.startTime),
-            finishTime: DateUtils.parseDateTime(officeData.finishTime),
-            hours: parseInt(officeData.hours) || 6,
-          }
-        : null,
+            showNotification: false,
+          });
+        } else {
+          // ✅ NO personalizado: usar el valor calculado estándar
+          originalStartDischarge = calculatedStartDischarge.toISOString();
+          
+          Logger.debug("Start Discharge using standard calculation", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              calculatedFromETB: calculatedStartDischarge.toISOString(),
+              currentValue: startDischarge.toISOString(),
+              differenceMinutes: Math.round(timeDifference / (1000 * 60)),
+              willBePersisted: false
+            },
+            showNotification: false,
+          });
+        }
+      }
 
-      lineSampling: lineData.map((turn, index) => ({
-        sampler: {
-          id:
-            this.selectedShipNomination.sampler?.id ||
-            this.selectedShipNomination.sampler,
-          name: turn.samplerName,
+      // 🆕 LOG DE DEBUG PARA TRACKING MEJORADO
+      if (hasCustomETC || hasCustomStartDischarge) {
+        Logger.info("Custom DateTime values detected in roster data", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            hasCustomETC: hasCustomETC,
+            hasCustomStartDischarge: hasCustomStartDischarge,
+            originalETC: originalETC?.toISOString(),
+            customETC: etcTime?.toISOString(),
+            originalStartDischarge: originalStartDischarge,
+            customStartDischarge: startDischarge?.toISOString(),
+            etcDifferenceHours: hasCustomETC ? Math.round(
+              (etcTime.getTime() - originalETC.getTime()) / (1000 * 60 * 60)
+            ) : 0,
+            startDischargeDifferenceHours: hasCustomStartDischarge ? Math.round(
+              (startDischarge.getTime() - new Date(originalStartDischarge).getTime()) / (1000 * 60 * 60)
+            ) : 0,
+            vesselName: this.selectedShipNomination?.vesselName
+          },
+          showNotification: false,
+        });
+      }
+
+      const rosterData = {
+        shipNomination: String(this.selectedShipNomination._id),
+        vesselName: this.selectedShipNomination.vesselName,
+        amspecRef: this.selectedShipNomination.amspecRef,
+        startDischarge: startDischarge,
+        etcTime: etcTime, // 🆕 ETC personalizado del formulario
+        dischargeTimeHours: dischargeHours || 0,
+        totalTurns: lineData.length,
+        totalSamplers: new Set(lineData.map((t) => t.samplerName)).size,
+
+        // 🆕 NUEVAS PROPIEDADES PARA TRACKING DE ETC Y START DISCHARGE
+        hasCustomETC: hasCustomETC,
+        hasCustomStartDischarge: hasCustomStartDischarge,
+        originalShipNominationETC: this.selectedShipNomination?.etc || null,
+        originalShipNominationStartDischarge: originalStartDischarge,
+        etcModificationTimestamp: hasCustomETC ? new Date().toISOString() : null,
+        startDischargeModificationTimestamp: hasCustomStartDischarge ? new Date().toISOString() : null,
+
+        officeSampling: officeData
+          ? {
+              sampler: {
+                id:
+                  this.selectedShipNomination.sampler?.id ||
+                  this.selectedShipNomination.sampler,
+                name: officeData.samplerName,
+              },
+              startTime: DateUtils.parseDateTime(officeData.startTime),
+              finishTime: DateUtils.parseDateTime(officeData.finishTime),
+              hours: officeData.hours,
+            }
+          : null,
+
+        lineSampling: lineData.map((turn, index) => ({
+          sampler: {
+            id:
+              this.selectedShipNomination.sampler?.id ||
+              this.selectedShipNomination.sampler,
+            name: turn.samplerName,
+          },
+          startTime: DateUtils.parseDateTime(turn.startTime),
+          finishTime: DateUtils.parseDateTime(turn.finishTime),
+          hours: turn.hours,
+          blockType: this.scheduleCalculator.determineBlockType(turn.startTime),
+          turnOrder: index,
+        })),
+      };
+
+      // 🔧 MEJORADO: Log de datos recopilados para debugging - CORREGIDO
+      Logger.success("Roster data collected successfully", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          hasOfficeSampling: !!rosterData.officeSampling,
+          hasLineSampling: rosterData.lineSampling.length > 0,
+          startDischarge: rosterData.startDischarge?.toISOString(),
+          etcTime: rosterData.etcTime?.toISOString(),
+          totalTurns: rosterData.totalTurns,
+          hasCustomValues: hasCustomETC || hasCustomStartDischarge,
+          customizations: {
+            startDischarge: {
+              isCustom: hasCustomStartDischarge,
+              originalValue: rosterData.originalShipNominationStartDischarge,
+              customValue: rosterData.startDischarge?.toISOString(),
+              willPersist: hasCustomStartDischarge
+            },
+            etc: {
+              isCustom: hasCustomETC,
+              originalValue: rosterData.originalShipNominationETC,
+              customValue: rosterData.etcTime?.toISOString(),
+              willPersist: hasCustomETC
+            }
+          },
+          persistenceInfo: {
+            willPersistStartDischarge: hasCustomStartDischarge,
+            willPersistETC: hasCustomETC,
+            needsAutoSave: hasCustomETC || hasCustomStartDischarge,
+            autoSaveTriggered: true
+          }
         },
-        startTime: DateUtils.parseDateTime(turn.startTime),
-        finishTime: DateUtils.parseDateTime(turn.finishTime),
-        hours: turn.hours,
-        blockType: this.scheduleCalculator.determineBlockType(turn.startTime),
-        turnOrder: index,
-      })),
-    };
+        showNotification: false,
+      });
+
+      return rosterData;
+
+    } catch (error) {
+      Logger.error("Error collecting roster data", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+      
+      // Retornar datos mínimos en caso de error
+      return {
+        shipNomination: String(this.selectedShipNomination?._id || ''),
+        vesselName: this.selectedShipNomination?.vesselName || '',
+        amspecRef: this.selectedShipNomination?.amspecRef || '',
+        startDischarge: null,
+        etcTime: null,
+        dischargeTimeHours: 0,
+        totalTurns: 0,
+        totalSamplers: 0,
+        hasCustomETC: false,
+        hasCustomStartDischarge: false,
+        officeSampling: null,
+        lineSampling: []
+      };
+    }
   }
 
   // ==================================================================================
@@ -1526,7 +1904,26 @@ export class SamplingRosterController {
         };
       }
 
-      // ✅ VALIDACIÓN 3: LÍMITE SEMANAL (FLEXIBLE - advertencia + confirmación)
+      // ✅ VALIDACIÓN 3: RESTRICCIÓN DE DÍAS DE LA SEMANA (ESTRICTA)
+      const dayRestrictionValidation =
+        await ValidationService.validateSamplerDayRestriction(
+          samplerName,
+          startTime,
+          currentRosterId
+        );
+
+      if (!dayRestrictionValidation.isValid) {
+        return {
+          isValid: false,
+          message: `❌ ${dayRestrictionValidation.message}`,
+          details: {
+            dayRestriction: dayRestrictionValidation,
+            type: "STRICT_VIOLATION",
+          },
+        };
+      }
+
+      // ✅ VALIDACIÓN 4: LÍMITE SEMANAL (FLEXIBLE - advertencia + confirmación)
       const turnHours = DateUtils.getHoursBetween(startTime, finishTime);
       const weeklyValidation =
         await ValidationService.validateSamplerWeeklyLimit(
@@ -2346,7 +2743,7 @@ export class SamplingRosterController {
  */
 setupDateTimePickersWithAutoSave() {
   try {
-    // 🎯 CALLBACK MEJORADO PARA DATETIMEPICKERS
+    // 🎯 CREAR DATETIMEPICKERS Y CONFIGURAR CALLBACK MEJORADO
     this.uiManager.createDateTimePickers((dateTime, pickerId) => {
       // ✅ PROTECCIÓN EXISTENTE: No ejecutar durante limpieza
       if (this.isClearing || !this.selectedShipNomination) {
@@ -2354,30 +2751,66 @@ setupDateTimePickersWithAutoSave() {
       }
 
       try {
+        // 🔧 CORREGIDO: Log del callback con pickerId
+        Logger.debug("DateTimePicker callback triggered", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            dateTime: dateTime?.toISOString(),
+            pickerId: pickerId,
+            hasValidData: !!dateTime
+          },
+          showNotification: false,
+        });
+
         // 🔄 VALIDACIONES EXISTENTES
         this.validateDateTimeSequence();
         this.calculateAndUpdateETC();
 
-        // 🆕 DETECTAR SI EL CAMBIO ES EN ETC
+        // 🔧 MEJORADO: AUTO-SAVE INMEDIATO PARA TODOS LOS CAMBIOS CRÍTICOS
         const isETCChange = pickerId && pickerId.includes('etcTime');
+        const isStartDischargeChange = pickerId && pickerId.includes('startDischarge');
         
-        if (isETCChange) {
-          // 🆕 AUTO-SAVE INMEDIATO PARA CAMBIOS DE ETC
-          Logger.info("ETC changed manually, triggering immediate save", {
+        if (isETCChange || isStartDischargeChange) {
+          // 🆕 AUTO-SAVE INMEDIATO PARA CAMBIOS CRÍTICOS (ETC y Start Discharge)
+          
+          // 🔧 MEJORADO: Obtener valores actuales de los DateTimePickers para logging más preciso
+          const dateTimeInstances = this.uiManager.getDateTimeInstances();
+          const currentStartDischarge = dateTimeInstances.startDischarge?.getDateTime();
+          const currentETC = dateTimeInstances.etcTime?.getDateTime();
+          
+          // 🔧 MEJORADO: Calcular startDischarge original desde ETB si no está disponible
+          let originalStartDischarge = null;
+          if (this.selectedShipNomination?.etb) {
+            const originalStartDischargeTime = new Date(this.selectedShipNomination.etb);
+            originalStartDischargeTime.setHours(
+              originalStartDischargeTime.getHours() +
+                SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+            );
+            originalStartDischarge = originalStartDischargeTime.toISOString();
+          }
+          
+          Logger.info("Critical DateTimePicker change detected, triggering immediate save", {
             module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
             data: {
-              newETC: dateTime?.toISOString(),
+              newDateTime: dateTime?.toISOString(),
               pickerId: pickerId,
-              originalETC: this.selectedShipNomination?.etc
+              changeType: isETCChange ? 'etcManualChange' : 'startDischargeChange',
+              originalETC: this.selectedShipNomination?.etc,
+              originalStartDischarge: originalStartDischarge,
+              currentStartDischarge: currentStartDischarge?.toISOString(),
+              currentETC: currentETC?.toISOString(),
+              shipNominationETB: this.selectedShipNomination?.etb,
+              vesselName: this.selectedShipNomination?.vesselName
             },
             showNotification: false,
           });
 
-          this.autoSaveService.triggerAutoSaveImmediate("etcManualChange", () =>
-            this.collectCurrentRosterData()
+          this.autoSaveService.triggerAutoSaveImmediate(
+            isETCChange ? "etcManualChange" : "startDischargeChange", 
+            () => this.collectCurrentRosterData()
           );
         } else {
-          // 🔄 AUTO-SAVE NORMAL PARA OTROS CAMBIOS
+          // 🔄 AUTO-SAVE NORMAL PARA OTROS CAMBIOS (con delay reducido)
           this.autoSaveService.triggerAutoSave("dateTimeChange", () =>
             this.collectCurrentRosterData()
           );
@@ -2434,20 +2867,135 @@ handleExportRoster() {
   }
 }
 
-/**
- * 🆕 Manejar guardado manual de roster
- */
-handleManualSave() {
-  try {
-    Logger.info("Manual save requested", {
+  /**
+   * 🔧 NUEVO: Verificar estado de DateTimePickers
+   */
+  checkDateTimePickerStatus() {
+    const dateTimeInstances = this.uiManager.getDateTimeInstances();
+    const status = {};
+
+    if (dateTimeInstances.startDischarge) {
+      status.startDischarge = {
+        hasDateTime: !!dateTimeInstances.startDischarge.getDateTime(),
+        hasValidDate: dateTimeInstances.startDischarge._hasValidDate,
+        isDateSelected: dateTimeInstances.startDischarge._isDateSelected,
+        selectedDateTime: dateTimeInstances.startDischarge.getDateTime()?.toISOString()
+      };
+    }
+
+    if (dateTimeInstances.etcTime) {
+      status.etcTime = {
+        hasDateTime: !!dateTimeInstances.etcTime.getDateTime(),
+        hasValidDate: dateTimeInstances.etcTime._hasValidDate,
+        isDateSelected: dateTimeInstances.etcTime._isDateSelected,
+        selectedDateTime: dateTimeInstances.etcTime.getDateTime()?.toISOString()
+      };
+    }
+
+    Logger.debug("DateTimePicker status check", {
       module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      data: status,
       showNotification: false,
     });
 
-    // Forzar guardado inmediato
-    this.autoSaveService.triggerAutoSaveImmediate("manualSave", () =>
-      this.collectCurrentRosterData()
-    );
+    return status;
+  }
+
+  /**
+   * 🔧 NUEVO: Debug de persistencia - Verificar que los datos se guarden correctamente
+   */
+  debugPersistenceStatus() {
+    try {
+      const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      
+      // Obtener datos actuales de los DateTimePickers
+      const currentStartDischarge = dateTimeInstances.startDischarge?.getDateTime();
+      const currentETC = dateTimeInstances.etcTime?.getDateTime();
+      
+      // Obtener datos del ship nomination para comparar
+      const shipNominationETB = this.selectedShipNomination?.etb;
+      const shipNominationETC = this.selectedShipNomination?.etc;
+      
+      // Calcular valores estándar
+      let standardStartDischarge = null;
+      if (shipNominationETB) {
+        standardStartDischarge = new Date(shipNominationETB);
+        standardStartDischarge.setHours(
+          standardStartDischarge.getHours() +
+            SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
+        );
+      }
+      
+      // Detectar personalizaciones
+      const hasCustomStartDischarge = currentStartDischarge && standardStartDischarge && 
+        Math.abs(currentStartDischarge.getTime() - standardStartDischarge.getTime()) > 60000;
+      
+      const hasCustomETC = currentETC && shipNominationETC && 
+        Math.abs(currentETC.getTime() - new Date(shipNominationETC).getTime()) > 60000;
+      
+      const persistenceReport = {
+        timestamp: new Date().toISOString(),
+        rosterId: currentRosterId,
+        currentValues: {
+          startDischarge: currentStartDischarge?.toISOString(),
+          etcTime: currentETC?.toISOString()
+        },
+        shipNominationValues: {
+          etb: shipNominationETB,
+          etc: shipNominationETC,
+          standardStartDischarge: standardStartDischarge?.toISOString()
+        },
+        customizations: {
+          hasCustomStartDischarge: hasCustomStartDischarge,
+          hasCustomETC: hasCustomETC,
+          startDischargeDifference: hasCustomStartDischarge ? 
+            Math.round((currentStartDischarge.getTime() - standardStartDischarge.getTime()) / (1000 * 60)) : 0,
+          etcDifference: hasCustomETC ? 
+            Math.round((currentETC.getTime() - new Date(shipNominationETC).getTime()) / (1000 * 60)) : 0
+        },
+        persistenceStatus: {
+          willPersistStartDischarge: hasCustomStartDischarge,
+          willPersistETC: hasCustomETC,
+          needsAutoSave: hasCustomStartDischarge || hasCustomETC
+        }
+      };
+      
+      console.log('🔍 PERSISTENCE DEBUG REPORT:', persistenceReport);
+      
+      Logger.info("Persistence status debug report generated", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: persistenceReport,
+        showNotification: false,
+      });
+      
+      return persistenceReport;
+      
+    } catch (error) {
+      Logger.error("Error generating persistence debug report", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+      
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * 🆕 Manejar guardado manual de roster
+   */
+  handleManualSave() {
+    try {
+      Logger.info("Manual save requested", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: false,
+      });
+
+      // Forzar guardado inmediato
+      this.autoSaveService.triggerAutoSaveImmediate("manualSave", () =>
+        this.collectCurrentRosterData()
+      );
 
     this.showNotification("Roster saved successfully", "success");
 
