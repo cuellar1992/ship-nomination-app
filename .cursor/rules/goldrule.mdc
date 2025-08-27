@@ -1,0 +1,174 @@
+---
+description: 1. MODULAR ARCHITECTURE - The Foundation
+Understanding Separation of Concerns
+Controllers → Orchestration and main flow
+Services    → Business logic and validations  
+Handlers    → Specific operations (CRUD, forms)
+UI          → Reusable visual components
+Utils       → Utilities and helpers
+Golden Rule #1:
+
+"One module, one responsibility" - Never mix different logics in the same file
+
+🔧 2. IMPORT/EXPORT SYSTEM - The Backbone
+Mandatory Conventions
+javascript// ✅ CORRECT - Named exports/imports
+export class ValidationService { }
+import { ValidationService } from './services/ValidationService.js';
+
+// ✅ CORRECT - Default exports for controllers
+export default class ShipFormController { }
+import ShipFormController from './controllers/ShipFormController.js';
+
+// ⛔ INCORRECT - Mixed patterns
+export default { ValidationService }; // Confusing
+Golden Rule #2:
+
+"Coherent imports, clear dependencies" - Maintain consistency in import patterns
+
+📋 3. CONSTANTS.JS - Configuration Center
+Everything Configurable Must Be Centralized
+javascript// ✅ New field requires configuration here FIRST
+SINGLE_SELECT_CONFIG: {
+    newField: {
+        label: 'New Field',
+        icon: 'fas fa-icon',
+        apiEndpoint: '/api/newfields'
+    }
+}
+Golden Rule #3:
+
+"Constants first, code second" - Configure before implementing
+
+🔍 4. VALIDATION PATTERNS - System Robustness
+Validation Hierarchy
+javascript// MANDATORY validation order:
+1. Day Restrictions    (Strict - total blocking)
+2. Weekly Restrictions (24h limit)  
+3. Cross-roster       (Conflicts between rosters)
+4. Rest periods       (Rest between shifts)
+5. POB conflicts      (Pilot on Board)
+Golden Rule #4:
+
+"Validate early, fail fast" - Most restrictive validations go first
+
+📊 5. LOGGING STRATEGY - Total Visibility
+Unified Logger System
+javascript// ✅ ALWAYS use centralized Logger
+Logger.success("Operation completed", {
+    module: 'YourModule',
+    showNotification: true,
+    notificationMessage: "Success message"
+});
+
+// ⛔ NEVER use console.log directly in production
+console.log("Something happened"); // Only for temporary debug
+Golden Rule #5:
+
+"Log everything meaningful" - If it's important, it must be logged
+
+🎨 6. UI COMPONENTS - Smart Reuse
+Shared Components - SingleSelect Pattern
+javascript// ✅ Extend existing components
+const componentFactory = new ComponentFactory(apiManager);
+componentFactory.createSingleSelect('newField', config);
+
+// ⛔ DON'T recreate existing functionality
+// If SingleSelect doesn't fit, extend it, don't replace it
+Golden Rule #6:
+
+"Reuse first, create later" - Maximize shared components
+
+🗄️ 7. DATABASE PATTERNS - Evolution Without Breaking
+Mandatory Backward Compatibility
+javascript// ✅ New fields always optional
+weekDayRestrictions: {
+  type: Object,
+  default: {
+    monday: false,
+    tuesday: false,
+    // ... all default to false
+  }
+}
+
+// ✅ Helper methods for compatibility
+isDayRestricted(dayName) {
+  return this.weekDayRestrictions?.[dayName] || false;
+}
+Golden Rule #7:
+
+"Evolve, never break" - Changes must be backward-compatible
+
+🚀 8. DEPLOYMENT WORKFLOW - Frictionless Process
+Mandatory Pre-Deploy Checklist
+bash# ✅ Exact verification order
+1. All imports/exports working
+2. Constants.js properly configured  
+3. Backend APIs responding
+4. Debug logs disabled (production)
+5. Basic tests passing
+Golden Rule #8:
+
+"Deploy only if everything passes the checklist" - Zero exceptions
+
+🧪 9. TESTING APPROACH - Code Confidence
+Module-by-Module Testing
+javascript// ✅ Each module must be independently testable
+const validationService = new ValidationService(mockApiManager);
+const result = await validationService.validateSamplerDayRestriction('Test', date);
+
+// ✅ Mock dependencies for isolation
+const mockApiManager = {
+  findSamplerByName: () => ({ weekDayRestrictions: { monday: true } })
+};
+Golden Rule #9:
+
+"Independent modules, isolated tests" - Each module must work alone
+
+📝 10. DOCUMENTATION - Documented Evolution
+README Always Updated
+markdown# ✅ For each new feature:
+1. Update version in README
+2. Document modified files
+3. Include usage examples
+4. Add troubleshooting if applicable
+
+Golden Rule #10:
+
+"Undocumented code is non-existent code" - README reflects reality
+
+
+🎯 GOLDEN RULES SUMMARY
+RulePrinciple1Modular ArchitectureOne module, one responsibility2Import ConsistencyCoherent imports, clear dependencies3Constants FirstConfigure before implementing4Validation HierarchyValidate early, fail fast5Unified LoggingLog everything meaningful6Component ReuseReuse first, create later7Backward CompatibilityEvolve, never break8Deploy DisciplineDeploy only if everything passes checklist9Isolated TestingIndependent modules, isolated tests10Living DocumentationREADME reflects reality
+
+🚨 MASTER RULE
+
+"Understand before modifying" - Read existing code, understand the pattern, follow established conventions.
+
+🔥 CRITICAL SUCCESS FACTORS
+Before Writing Any Code
+
+Study the existing pattern in similar modules
+Check Constants.js for configuration requirements
+Understand the data flow through Controllers → Services → Handlers
+Identify reusable components in the shared folder
+
+While Developing
+
+Follow the established naming conventions (PascalCase classes, camelCase variables)
+Use the Logger system for all meaningful operations
+Validate inputs early using the ValidationService patterns
+Test module isolation - ensure your module works independently
+
+Before Deployment
+
+Update documentation to reflect your changes
+Run the complete checklist - no shortcuts allowed
+Verify backward compatibility - existing functionality must work
+Test cross-module integration - ensure no breaking changes
+
+These rules ensure that any developer can contribute to the project while maintaining the quality, consistency, and scalability you've already achieved. 🏆
+Remember: This system handles critical port operations - reliability and maintainability are non-negotiable! 🚢
+globs:
+alwaysApply: true
+---
