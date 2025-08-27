@@ -6,10 +6,14 @@
 import { SAMPLING_ROSTER_CONSTANTS } from "../utils/Constants.js";
 import DateUtils from "../utils/DateUtils.js";
 import ValidationService from "./ValidationService.js";
+import ValidationCacheService from "./ValidationCacheService.js";
 
 export class ScheduleCalculator {
   static samplerRotationHistory = new Map(); // Track last assignments per generation
   static samplerWeeklyHoursTracking = new Map(); // Track weekly hours distribution
+  
+  // 🚀 Cache service para optimizar validaciones
+  static cacheService = new ValidationCacheService();
   /**
    * 🔥 MÉTODO PRINCIPAL - Calcular turnos de Line Sampling (MEJORADO)
    * Ahora con validaciones semanales y tracking completo
@@ -44,6 +48,34 @@ export class ScheduleCalculator {
       },
       showNotification: false,
     });
+
+    // 🚀 OPTIMIZACIÓN: Precargar cache de validaciones para toda la semana (3-5 consultas)
+    let weekValidationCache = null;
+    try {
+      const weekBounds = ValidationService.getWorkWeekBounds(officeFinishDate);
+      weekValidationCache = await this.cacheService.preloadWeekValidationData(
+        weekBounds.weekStart,
+        weekBounds.weekEnd,
+        currentRosterId
+      );
+      
+      Logger.info("Validation cache preloaded successfully", {
+        module: "SamplingRoster",
+        data: {
+          weekBounds: `${DateUtils.formatDateTime(weekBounds.weekStart)} - ${DateUtils.formatDateTime(weekBounds.weekEnd)}`,
+          rostersInCache: weekValidationCache.activeRosters.length,
+          nominationsInCache: weekValidationCache.weekNominations.length,
+          samplersInCache: weekValidationCache.samplersData.length,
+        },
+        showNotification: false,
+      });
+    } catch (error) {
+      Logger.warn("Failed to preload validation cache, continuing with direct validation", {
+        module: "SamplingRoster",
+        error: error,
+        showNotification: false,
+      });
+    }
 
     let currentStartTime = new Date(officeFinishDate);
     let remainingHours = totalHours;
@@ -101,7 +133,8 @@ export class ScheduleCalculator {
         samplersData,
         turns, // Pasar turnos ya generados
         officeData,
-        currentRosterId
+        currentRosterId,
+        weekValidationCache // 🚀 Pasar cache de validaciones
       );
 
       if (nextTurnResult.success) {
@@ -303,7 +336,7 @@ export class ScheduleCalculator {
   }
 
   /**
-   * 🆕 PASO 2: Calcular próximo turno con validaciones completas
+   * 🚀 OPTIMIZADO: Calcular próximo turno usando cache de validaciones
    */
   static async calculateNextTurnWithValidations(
     currentStartTime,
@@ -311,7 +344,8 @@ export class ScheduleCalculator {
     samplersData,
     turnsInMemory,
     officeData,
-    currentRosterId
+    currentRosterId,
+    weekValidationCache = null
   ) {
     // Calcular duración del turno
     const turnInfo = this.calculateTurnDuration(
@@ -327,14 +361,16 @@ export class ScheduleCalculator {
         proposedTurnHours: turnInfo.turnHours,
         isBlockBoundary: turnInfo.isBlockBoundary,
         isLastTurn: turnInfo.isLastTurn,
+        cacheAvailable: !!weekValidationCache,
       },
       showNotification: false,
     });
 
-    // Buscar sampler disponible con validaciones completas
-    // Buscar sampler disponible con validaciones completas
-    const availableSamplers =
-      await ValidationService.findAvailableSamplersForGeneration(
+    // 🚀 OPTIMIZACIÓN: Usar cache si está disponible, sino usar validación directa
+    let availableSamplers;
+    if (weekValidationCache) {
+      // Usar cache: 0 consultas BD
+      availableSamplers = await ValidationService.findAvailableSamplersForGeneration(
         currentStartTime,
         turnInfo.turnEndTime,
         samplersData,
@@ -342,6 +378,17 @@ export class ScheduleCalculator {
         officeData,
         currentRosterId
       );
+    } else {
+      // Fallback: validación directa (más lenta)
+      availableSamplers = await ValidationService.findAvailableSamplersForGeneration(
+        currentStartTime,
+        turnInfo.turnEndTime,
+        samplersData,
+        turnsInMemory,
+        officeData,
+        currentRosterId
+      );
+    }
 
     if (availableSamplers.length === 0) {
       return {

@@ -9,6 +9,7 @@ import ApiService from "../services/ApiService.js";
 import ValidationService from "../services/ValidationService.js";
 import IncrementalSaveService from "../services/IncrementalSaveService.js";
 import ScheduleCalculator from "../services/ScheduleCalculator.js";
+import ValidationCacheService from "../services/ValidationCacheService.js";
 import UIManager from "../ui/UIManager.js";
 import TableManager from "../ui/TableManager.js";
 
@@ -19,6 +20,9 @@ export class SamplingRosterController {
     this.validationService = ValidationService;
     this.autoSaveService = new IncrementalSaveService();
     this.scheduleCalculator = ScheduleCalculator;
+    
+    // 🚀 Cache service para optimizar validaciones
+    this.validationCacheService = new ValidationCacheService();
 
     // UI Managers
     this.uiManager = new UIManager();
@@ -914,6 +918,12 @@ export class SamplingRosterController {
           resolve();
         });
       }
+
+      // 🚀 OPTIMIZACIÓN: Precargar cache de validaciones antes de generar
+      Logger.info("Preloading validation cache for auto-generate", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: false,
+      });
 
       // Generar el schedule
       await this.generateLineSamplingSchedule(dischargeHours);

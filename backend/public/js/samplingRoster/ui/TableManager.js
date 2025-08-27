@@ -2070,8 +2070,8 @@ export class TableManager {
         controller.autoSaveService.trigger('officeSamplingUpdate', {
           officeSampling: {
             sampler: { id: controller.selectedShipNomination?.sampler?.id || null, name: officeData.samplerName },
-            startTime: controller.parseDateTime(officeData.startTime) || dateTime,
-            finishTime: controller.parseDateTime(officeData.finishTime) || dateTime,
+            startTime: this.parseDateTime(officeData.startTime) || dateTime,
+            finishTime: this.parseDateTime(officeData.finishTime) || dateTime,
             hours: officeData.hours || 6
           }
         }, { immediate: true });
