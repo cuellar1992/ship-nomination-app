@@ -76,6 +76,26 @@ export class ApiService {
       };
     }
   }
+
+  /**
+   * Crear roster draft inicial
+   */
+  static async createDraftRoster(payload) {
+    try {
+      const response = await fetch(SAMPLING_ROSTER_CONSTANTS.API_ENDPOINTS.SAMPLING_ROSTERS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (result.success && result.data) {
+        return { success: true, data: result.data };
+      }
+      throw new Error(result.message || 'Failed to create draft roster');
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export default ApiService;

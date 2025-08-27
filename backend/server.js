@@ -51,18 +51,33 @@ async function startServer() {
             : `http://localhost:${PORT}`;
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-            console.log(`📁 Aplicación disponible en: ${baseUrl}`);
+            console.log(`\n🚀 ========================================`);
+            console.log(`🚢 SHIP NOMINATION SYSTEM v2.4 - Auto-save Incremental`);
+            console.log(`🚀 ========================================`);
+            console.log(`📡 Servidor corriendo en puerto ${PORT}`);
+            console.log(`🌐 Aplicación disponible en: ${baseUrl}`);
             console.log(`📊 Estado de MongoDB: ${databaseManager.getConnectionStatus()}`);
-            console.log(`📡 Páginas disponibles:`);
+            console.log(`\n📁 Páginas disponibles:`);
             console.log(`   • ${baseUrl}/ (index.html)`);
             console.log(`   • ${baseUrl}/sampling-roster.html`);
             console.log(`   • ${baseUrl}/ship-nominations.html`);
-            console.log(`📡 API endpoints:`);
-            console.log(`   • ${baseUrl}/api/health`);
-            console.log(`   • ${baseUrl}/api/test`);
-            console.log(`   • ${baseUrl}/api/ships`);
-            console.log(`   • ${baseUrl}/api/roster`);
+            console.log(`\n📡 API endpoints principales:`);
+            console.log(`   • ${baseUrl}/api/health - Estado del servidor`);
+            console.log(`   • ${baseUrl}/api/info - Información del sistema`);
+            console.log(`   • ${baseUrl}/api/test - Ruta de prueba`);
+            console.log(`\n📡 API endpoints de negocio:`);
+            console.log(`   • ${baseUrl}/api/shipnominations - Gestión de nominaciones`);
+            console.log(`   • ${baseUrl}/api/sampling-rosters - Cronogramas de muestreo`);
+            console.log(`   • ${baseUrl}/api/samplers - Gestión de muestreadores`);
+            console.log(`   • ${baseUrl}/api/surveyors - Gestión de inspectores`);
+            console.log(`   • ${baseUrl}/api/chemists - Gestión de químicos`);
+            console.log(`   • ${baseUrl}/api/clients - Gestión de clientes`);
+            console.log(`   • ${baseUrl}/api/agents - Gestión de agentes`);
+            console.log(`   • ${baseUrl}/api/terminals - Gestión de terminales`);
+            console.log(`   • ${baseUrl}/api/berths - Gestión de muelles`);
+            console.log(`   • ${baseUrl}/api/producttypes - Tipos de productos`);
+            console.log(`\n📊 Total: 25+ endpoints RESTful implementados`);
+            console.log(`🚀 ========================================\n`);
         });
         
     } catch (error) {

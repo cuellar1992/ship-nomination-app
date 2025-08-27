@@ -84,7 +84,10 @@ router.post('/', async (req, res) => {
     }
 
     // Validar samplers
-    await validateSamplers(rosterData);
+    // Para draft inicial permitimos lineSampling vacío y solo validamos sampler de office si viene
+    if (rosterData.officeSampling && rosterData.officeSampling.sampler && rosterData.officeSampling.sampler.id) {
+      await validateSamplers(rosterData);
+    }
 
     // Crear nuevo roster
     const newRoster = new SamplingRoster({
@@ -211,30 +214,47 @@ router.put('/auto-save/:id', async (req, res) => {
       });
     }
 
-    // Aplicar cambios específicos según tipo
+    // Aplicar cambios específicos según tipo (simplificado y explícito)
     switch (changeType) {
-      case 'samplerEdit':
-        updateSamplerInRoster(existingRoster, updateData);
-        break;
-      case 'timeCalculation':
+      case 'timeUpdate': { // startDischarge, etcTime, dischargeTimeHours, flags
         updateTimesInRoster(existingRoster, updateData);
+        if (typeof updateData.hasCustomStartDischarge === 'boolean') {
+          existingRoster.hasCustomStartDischarge = updateData.hasCustomStartDischarge;
+        }
+        if (typeof updateData.hasCustomETC === 'boolean') {
+          existingRoster.hasCustomETC = updateData.hasCustomETC;
+        }
         break;
-      case 'autoGenerate':
+      }
+      case 'officeSamplingUpdate': {
+        if (updateData.officeSampling) {
+          existingRoster.officeSampling = updateData.officeSampling;
+        }
+        break;
+      }
+      case 'lineTurnUpdate': {
+        const { rowId, turn } = updateData;
+        if (rowId && turn) {
+          const turnIndex = parseInt(String(rowId).replace('line-sampler-row-', ''));
+          if (!isNaN(turnIndex) && existingRoster.lineSampling[turnIndex]) {
+            existingRoster.lineSampling[turnIndex] = turn;
+          }
+        }
+        break;
+      }
+      case 'autoGenerate': {
         updateCompleteSchedule(existingRoster, updateData);
         break;
-      case 'rosterExpansion':
-        expandRosterSchedule(existingRoster, updateData);
-        break;
-      case 'rosterReduction':
-        reduceRosterSchedule(existingRoster, updateData);
-        break;
-      default:
-        // Update general
+      }
+      case 'generalUpdate':
+      default: {
         Object.keys(updateData).forEach(key => {
           if (key !== '_id' && key !== 'createdAt' && key !== '__v') {
             existingRoster[key] = updateData[key];
           }
         });
+        break;
+      }
     }
 
     existingRoster.lastModifiedBy = 'user';

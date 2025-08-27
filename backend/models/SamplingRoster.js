@@ -37,6 +37,16 @@ const SamplingRosterSchema = new mongoose.Schema({
     required: true
   },
 
+  // 🆕 Flags de control para evitar sobreescrituras automáticas
+  hasCustomStartDischarge: {
+    type: Boolean,
+    default: false
+  },
+  hasCustomETC: {
+    type: Boolean,
+    default: false
+  },
+
   dischargeTimeHours: {
     type: Number,
     required: true,
@@ -130,7 +140,7 @@ const SamplingRosterSchema = new mongoose.Schema({
   totalTurns: {
     type: Number,
     required: true,
-    min: 1
+    min: 0
   },
 
   // Auditoría

@@ -7,7 +7,7 @@ import { SAMPLING_ROSTER_CONSTANTS } from "../utils/Constants.js";
 import DateUtils from "../utils/DateUtils.js";
 import ApiService from "../services/ApiService.js";
 import ValidationService from "../services/ValidationService.js";
-import AutoSaveService from "../services/AutoSaveService.js";
+import IncrementalSaveService from "../services/IncrementalSaveService.js";
 import ScheduleCalculator from "../services/ScheduleCalculator.js";
 import UIManager from "../ui/UIManager.js";
 import TableManager from "../ui/TableManager.js";
@@ -17,7 +17,7 @@ export class SamplingRosterController {
     // Servicios
     this.apiService = ApiService;
     this.validationService = ValidationService;
-    this.autoSaveService = new AutoSaveService();
+    this.autoSaveService = new IncrementalSaveService();
     this.scheduleCalculator = ScheduleCalculator;
 
     // UI Managers
@@ -29,6 +29,7 @@ export class SamplingRosterController {
     this.selectedShipNomination = null;
     this.isInitialized = false;
     this.baseURL = this.getBaseURL();
+    this.samplersCache = [];
 
     Logger.info("SamplingRosterController initialized (modular version)", {
       module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -185,7 +186,7 @@ export class SamplingRosterController {
 
     if (result.success && result.exists) {
       // Cargar roster existente
-      this.autoSaveService.setCurrentRosterId(result.data._id);
+              this.autoSaveService.setRosterId(result.data._id);
       await this.loadExistingRoster(result.data);
 
       Logger.success("Existing roster loaded", {
@@ -194,15 +195,62 @@ export class SamplingRosterController {
         notificationMessage: "Loaded existing sampling roster",
       });
     } else {
-      // Preparar para nuevo roster
+      // Preparar para nuevo roster: crear DRAFT inmediatamente
       this.autoSaveService.clearState();
       this.tableManager.clearLineSamplingTable();
 
-      Logger.info("Ready for new roster", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: "Ready to create new sampling roster",
-      });
+      // Construir payload mínimo
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      const baseForStart = this.selectedShipNomination?.etb || new Date();
+      const startDischarge = new Date(baseForStart);
+      startDischarge.setHours(startDischarge.getHours() + SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET);
+      const defaultHours = 12; // seguro para draft
+      const dischargeTimeHours = this.getDischargeTimeHours() || defaultHours;
+      const etcTime = new Date(startDischarge.getTime() + dischargeTimeHours * 3600 * 1000);
+
+      const draftPayload = {
+        shipNomination: this.selectedShipNomination._id,
+        vesselName: this.selectedShipNomination.vesselName,
+        amspecRef: this.selectedShipNomination.amspecRef,
+        startDischarge: startDischarge,
+        etcTime: etcTime,
+        dischargeTimeHours: dischargeTimeHours,
+        officeSampling: {
+          sampler: {
+            id: this.selectedShipNomination?.sampler?.id,
+            name: this.selectedShipNomination?.sampler?.name || 'No Sampler Assigned'
+          },
+          startTime: this.selectedShipNomination?.pilotOnBoard || startDischarge,
+          finishTime: this.selectedShipNomination?.pilotOnBoard 
+            ? new Date(new Date(this.selectedShipNomination.pilotOnBoard).getTime() + 6 * 3600 * 1000)
+            : new Date(startDischarge.getTime() + 6 * 3600 * 1000),
+          hours: 6
+        },
+        lineSampling: [],
+        status: 'draft',
+        hasCustomStartDischarge: false,
+        hasCustomETC: false,
+        totalSamplers: 1,
+        totalTurns: 0
+      };
+
+      const createResult = await this.apiService.createDraftRoster(draftPayload);
+      if (createResult.success) {
+        this.autoSaveService.setRosterId(createResult.data._id);
+        await this.loadExistingRoster(createResult.data);
+        Logger.success('Draft roster created', {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: 'Draft roster created successfully'
+        });
+      } else {
+        Logger.error('Failed to create draft roster', {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          error: createResult.error,
+          showNotification: true,
+          notificationMessage: 'Unable to create draft roster'
+        });
+      }
     }
   }
 
@@ -396,7 +444,7 @@ export class SamplingRosterController {
       Logger.success("Existing roster loaded successfully", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
-          rosterId: this.autoSaveService.getCurrentRosterId(),
+          rosterId: this.autoSaveService.getRosterId(),
           vesselName: rosterData.vesselName,
           hasOfficeSampling: !!rosterData.officeSampling,
           lineSamplingTurns: rosterData.lineSampling?.length || 0,
@@ -473,8 +521,10 @@ export class SamplingRosterController {
       });
     }, 100);
 
-    // Auto-poblar Office Sampling
-    this.tableManager.autoPopulateOfficeSampling(nomination);
+    // Auto-poblar Office Sampling SOLO si no hay roster existente (nuevo)
+    if (!this.autoSaveService.getRosterId()) {
+      this.tableManager.autoPopulateOfficeSampling(nomination);
+    }
     this.setupTableEventListeners();
   }
 
@@ -485,7 +535,7 @@ export class SamplingRosterController {
   setupInitialDateTimes(nomination) {
     try {
       const dateTimeInstances = this.uiManager.getDateTimeInstances();
-      const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      const currentRosterId = this.autoSaveService.getRosterId();
 
       // ✅ SOLO CONFIGURAR SI NO HAY ROSTER EXISTENTE (evitar sobrescribir valores personalizados)
       if (currentRosterId) {
@@ -501,9 +551,10 @@ export class SamplingRosterController {
       }
 
       // ✅ CONFIGURACIÓN SOLO PARA ROSTERES NUEVOS
-      if (nomination.etb) {
+      const baseForStart = nomination.etb;
+      if (baseForStart) {
         // Start Discharge = ETB + 3 horas (solo para rosteres nuevos)
-        const startDischargeTime = new Date(nomination.etb);
+        const startDischargeTime = new Date(baseForStart);
         startDischargeTime.setHours(
           startDischargeTime.getHours() +
             SAMPLING_ROSTER_CONSTANTS.DEFAULT_DISCHARGE_START_OFFSET
@@ -608,14 +659,36 @@ export class SamplingRosterController {
       );
     }
 
-    // 3️⃣ CAMPO DISCHARGE TIME HOURS (EXISTENTE)
+    // 3️⃣ CAMPO DISCHARGE TIME HOURS - TRIGGER CON DEBOUNCE CUANDO VALIDE (>=7)
     const dischargeTimeField = document.getElementById("dischargeTimeHours");
     if (dischargeTimeField) {
       dischargeTimeField.addEventListener("input", () => {
         this.calculateAndUpdateETC();
-        this.autoSaveService.triggerAutoSave("dischargeTimeChange", () =>
-          this.collectCurrentRosterData()
-        );
+        const hoursVal = parseFloat(dischargeTimeField.value);
+        if (!isNaN(hoursVal) && hoursVal >= 7) {
+          // Guardado incremental con debounce
+          this.autoSaveService.trigger('timeUpdate', {
+            startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+            etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+            dischargeTimeHours: hoursVal,
+            hasCustomStartDischarge: false,
+            hasCustomETC: false
+          }); // sin immediate => debounce
+        }
+      });
+
+      // Guardado al perder foco si el valor es válido
+      dischargeTimeField.addEventListener("blur", () => {
+        const hoursVal = parseFloat(dischargeTimeField.value);
+        if (!isNaN(hoursVal) && hoursVal >= 7) {
+          this.autoSaveService.trigger('timeUpdate', {
+            startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+            etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+            dischargeTimeHours: hoursVal,
+            hasCustomStartDischarge: false,
+            hasCustomETC: false
+          }, { immediate: true });
+        }
       });
     }
 
@@ -732,9 +805,16 @@ export class SamplingRosterController {
     if (etcTime) {
       dateTimeInstances.etcTime.setDateTime(etcTime);
       this.validateDateTimeSequence();
-      this.autoSaveService.triggerAutoSave("timeCalculation", () =>
-        this.collectCurrentRosterData()
-      );
+      // No enviar PUT mientras el usuario teclea un primer dígito (p. ej. queda en 6)
+      if (typeof dischargeHours === 'number' && dischargeHours >= 7) {
+        this.autoSaveService.trigger('timeUpdate', {
+          startDischarge: startDischarge,
+          etcTime: etcTime,
+          dischargeTimeHours: dischargeHours,
+          hasCustomStartDischarge: false,
+          hasCustomETC: false
+        }); // sin immediate => debounce
+      }
     }
   }
 
@@ -759,7 +839,7 @@ export class SamplingRosterController {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
           vesselName: this.selectedShipNomination?.vesselName,
-          hasRosterId: !!this.autoSaveService.getCurrentRosterId()
+          hasRosterId: !!this.autoSaveService.getRosterId()
         },
         showNotification: false,
       });
@@ -826,10 +906,12 @@ export class SamplingRosterController {
         
         // Forzar guardado inmediato de cambios pendientes
         await new Promise((resolve) => {
-          this.autoSaveService.triggerAutoSaveImmediate("preAutoGenerate", () => {
-            this.collectCurrentRosterData();
-            resolve();
-          });
+          this.autoSaveService.trigger('generalUpdate', {
+            startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+            etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+            dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0
+          }, { immediate: true });
+          resolve();
         });
       }
 
@@ -837,9 +919,11 @@ export class SamplingRosterController {
       await this.generateLineSamplingSchedule(dischargeHours);
       
       // 🔧 MEJORADO: Guardar el roster completo después de generar
-      this.autoSaveService.triggerAutoSaveImmediate("autoGenerate", () =>
-        this.collectCurrentRosterData()
-      );
+      const mappedLineTurns = await this.buildLineSamplingPayloadFromTable();
+      this.autoSaveService.trigger('autoGenerate', {
+        lineSampling: mappedLineTurns,
+        dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0
+      }, { immediate: true });
 
       Logger.success("Line Sampling Schedule generated successfully", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -875,7 +959,7 @@ export class SamplingRosterController {
       officeData,
       totalDischargeHours,
       samplersResult.data,
-      this.autoSaveService.getCurrentRosterId() // Agregar currentRosterId
+      this.autoSaveService.getRosterId() // Agregar currentRosterId
     );
 
     this.tableManager.populateLineSamplingTable(lineTurns);
@@ -883,9 +967,34 @@ export class SamplingRosterController {
   }
 
   /**
-   * Recopilar datos actuales del roster
+   * 🆕 Obtener datos del roster actual para triggers incrementales
    */
+  getCurrentRosterData() {
+    try {
+      const officeData = this.tableManager.getOfficeSamplingData();
+      const lineData = this.tableManager.getCurrentLineTurns();
+      const dateTimeInstances = this.uiManager.getDateTimeInstances();
+      
+      return {
+        officeSampling: officeData,
+        lineSampling: lineData,
+        startDischarge: dateTimeInstances.startDischarge?.getDateTime(),
+        etcTime: dateTimeInstances.etcTime?.getDateTime(),
+        dischargeTimeHours: this.getDischargeTimeHours()
+      };
+    } catch (error) {
+      Logger.error("Error getting current roster data", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+      return null;
+    }
+  }
 
+  /**
+   * Recopilar datos actuales del roster (DEPRECATED - usar getCurrentRosterData)
+   */
   collectCurrentRosterData() {
     try {
       const officeData = this.tableManager.getOfficeSamplingData();
@@ -1309,11 +1418,17 @@ export class SamplingRosterController {
           notificationMessage: `Office Sampling updated: ${newSamplerName} (${dateTimeResult.data.hours}h)`,
         });
 
-        // Auto-save con datos completos
-        this.autoSaveService.triggerAutoSaveImmediate(
-          "officeSamplingEdit",
-          () => this.collectCurrentRosterData()
-        );
+        // Trigger inmediato para cambios de Office Sampling
+        const startDate = dateTimeResult.data.startDate || this.tableManager.parseDateTime?.(dateTimeResult.data.startTime) || this.parseLocalDateTime?.(dateTimeResult.data.startTime);
+        const finishDate = dateTimeResult.data.finishDate || this.tableManager.parseDateTime?.(dateTimeResult.data.finishTime) || this.parseLocalDateTime?.(dateTimeResult.data.finishTime);
+        this.autoSaveService.trigger('officeSamplingUpdate', {
+          officeSampling: {
+            sampler: { id: this.selectedShipNomination?.sampler?.id || null, name: newSamplerName },
+            startTime: startDate,
+            finishTime: finishDate,
+            hours: parseFloat(dateTimeResult.data.hours) || 6
+          }
+        }, { immediate: true });
       } else {
         Logger.info("No changes made to Office Sampling", {
           module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -1576,9 +1691,50 @@ export class SamplingRosterController {
         });
 
         // Auto-save con datos completos
-        this.autoSaveService.triggerAutoSaveImmediate("lineSamplerEdit", () =>
-          this.collectCurrentRosterData()
-        );
+        // Trigger inmediato para cambios de Line Sampling
+        await this.ensureSamplersCache();
+        const samplerEntity = this.findSamplerByName(newSamplerName);
+        const turnOrder = parseInt(rowId.replace('line-sampler-row-', ''));
+        const currentTurnData = this.tableManager.getLineTurnByIndex?.(turnOrder) || null;
+
+        if (rowId === 'line-sampler-row-0' && dateTimeResult.data) {
+          // Primera línea con cambio de tiempos: persistir schedule completo para evitar overlaps
+          // Actualizar sampler en la fila actual antes de mapear
+          if (currentTurnData) {
+            currentTurnData.samplerName = newSamplerName;
+          }
+          const mappedLineTurns = await this.buildLineSamplingPayloadFromTable();
+          const dischargeField = document.getElementById('dischargeTimeHours');
+          const dischargeTimeHours = dischargeField ? parseFloat(dischargeField.value) || 0 : 0;
+          this.autoSaveService.trigger('autoGenerate', {
+            lineSampling: mappedLineTurns,
+            dischargeTimeHours: dischargeTimeHours
+          }, { immediate: true });
+        } else {
+          // Otras líneas o sin cambio de tiempos: solo update de la línea
+          const startTime = this.uiManager.getDateTimeInstances()[`lineStart_${rowId}`]?.getDateTime()
+            || this.parseToDate(dateTimeResult.data?.startTime)
+            || this.parseToDate(currentTurnData?.startTime);
+          const finishTime = this.uiManager.getDateTimeInstances()[`lineFinish_${rowId}`]?.getDateTime()
+            || this.parseToDate(dateTimeResult.data?.finishTime)
+            || this.parseToDate(currentTurnData?.finishTime);
+          const hours = (typeof dateTimeResult.data?.hours === 'number' ? dateTimeResult.data.hours : null)
+            || (currentTurnData ? currentTurnData.hours : 0)
+            || (startTime && finishTime ? DateUtils.getHoursBetween(startTime, finishTime) : 0);
+          const blockType = this.mapHourToBlockType(startTime);
+
+          this.autoSaveService.trigger('lineTurnUpdate', {
+            rowId: rowId,
+            turn: {
+              sampler: { id: samplerEntity?._id || samplerEntity?.id || null, name: newSamplerName },
+              startTime: startTime,
+              finishTime: finishTime,
+              hours: hours,
+              blockType: blockType,
+              turnOrder: turnOrder
+            }
+          }, { immediate: true });
+        }
       } else {
         Logger.info("No changes made to line sampler", {
           module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
@@ -1835,7 +1991,7 @@ export class SamplingRosterController {
       // Obtener datos actuales del roster
       const officeData = this.tableManager.getOfficeSamplingData();
       const lineData = this.tableManager.getCurrentLineTurns();
-      const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      const currentRosterId = this.autoSaveService.getRosterId();
 
       // Encontrar el turno que se está editando
       const editingTurn = this.findTurnBeingEdited(excludeRowId, lineData);
@@ -2805,15 +2961,33 @@ setupDateTimePickersWithAutoSave() {
             showNotification: false,
           });
 
-          this.autoSaveService.triggerAutoSaveImmediate(
-            isETCChange ? "etcManualChange" : "startDischargeChange", 
-            () => this.collectCurrentRosterData()
-          );
+          // Trigger inmediato para cambios críticos de tiempo
+          if (isETCChange) {
+            this.autoSaveService.trigger('timeUpdate', {
+              startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+              etcTime: dateTime,
+              dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0,
+              hasCustomStartDischarge: false,
+              hasCustomETC: true
+            }, { immediate: true });
+          } else {
+            this.autoSaveService.trigger('timeUpdate', {
+              startDischarge: dateTime,
+              etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+              dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0,
+              hasCustomStartDischarge: true,
+              hasCustomETC: false
+            }, { immediate: true });
+          }
         } else {
           // 🔄 AUTO-SAVE NORMAL PARA OTROS CAMBIOS (con delay reducido)
-          this.autoSaveService.triggerAutoSave("dateTimeChange", () =>
-            this.collectCurrentRosterData()
-          );
+          this.autoSaveService.trigger('timeUpdate', {
+            startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+            etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+            dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0,
+            hasCustomStartDischarge: false,
+            hasCustomETC: false
+          }); // Sin immediate = con debounce
         }
         
       } catch (error) {
@@ -2906,7 +3080,7 @@ handleExportRoster() {
    */
   debugPersistenceStatus() {
     try {
-      const currentRosterId = this.autoSaveService.getCurrentRosterId();
+      const currentRosterId = this.autoSaveService.getRosterId();
       const dateTimeInstances = this.uiManager.getDateTimeInstances();
       
       // Obtener datos actuales de los DateTimePickers
@@ -2993,9 +3167,13 @@ handleExportRoster() {
       });
 
       // Forzar guardado inmediato
-      this.autoSaveService.triggerAutoSaveImmediate("manualSave", () =>
-        this.collectCurrentRosterData()
-      );
+      this.autoSaveService.trigger('generalUpdate', {
+        startDischarge: this.uiManager.getDateTimeInstances().startDischarge?.getDateTime(),
+        etcTime: this.uiManager.getDateTimeInstances().etcTime?.getDateTime(),
+        dischargeTimeHours: parseInt(document.getElementById("dischargeTimeHours")?.value) || 0,
+        officeSampling: this.tableManager.getOfficeSamplingData(),
+        lineSampling: this.tableManager.getCurrentLineTurns()
+      }, { immediate: true });
 
     this.showNotification("Roster saved successfully", "success");
 
@@ -3416,6 +3594,61 @@ debugOfficeSamplingState(rowId) {
   /**
    * 🆕 Debug: Verificar estado de Office Sampling (versión anterior)
    */
+  async ensureSamplersCache() {
+    if (!this.samplersCache || this.samplersCache.length === 0) {
+      const res = await this.apiService.loadSamplers();
+      if (res.success) {
+        this.samplersCache = res.data;
+      } else {
+        this.samplersCache = [];
+      }
+    }
+    return this.samplersCache;
+  }
+
+  findSamplerByName(name) {
+    if (!name) return null;
+    const norm = String(name).trim().toLowerCase();
+    return (this.samplersCache || []).find(s => String(s.name).trim().toLowerCase() === norm) || null;
+  }
+
+  mapHourToBlockType(dateObj) {
+    try {
+      if (!(dateObj instanceof Date)) return 'day';
+      const h = dateObj.getHours();
+      return h >= SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START && h < SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START ? 'day' : 'night';
+    } catch (_) {
+      return 'day';
+    }
+  }
+
+  parseToDate(maybeString) {
+    if (!maybeString) return null;
+    if (maybeString instanceof Date) return maybeString;
+    // Intentar parsear mediante utilidades existentes
+    const parsedFromTable = this.tableManager?.parseDateTime?.(maybeString);
+    if (parsedFromTable instanceof Date && !isNaN(parsedFromTable.getTime())) return parsedFromTable;
+    const parsed = new Date(maybeString);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  async buildLineSamplingPayloadFromTable() {
+    await this.ensureSamplersCache();
+    const rows = this.tableManager.getCurrentLineTurns();
+    const payload = [];
+    rows.forEach((row, index) => {
+      const start = this.parseToDate(row.startTime);
+      const finish = this.parseToDate(row.finishTime);
+      const hours = typeof row.hours === 'number' ? row.hours : parseFloat(row.hours) || 0;
+      const samplerEntity = this.findSamplerByName(row.samplerName);
+      const sampler = samplerEntity
+        ? { id: samplerEntity._id || samplerEntity.id, name: samplerEntity.name }
+        : { id: null, name: row.samplerName || 'No Sampler Assigned' };
+      const blockType = this.mapHourToBlockType(start);
+      payload.push({ sampler, startTime: start, finishTime: finish, hours, blockType, turnOrder: index });
+    });
+    return payload;
+  }
 }
 
 export default SamplingRosterController;

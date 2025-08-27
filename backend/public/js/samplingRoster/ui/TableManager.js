@@ -122,7 +122,7 @@ export class TableManager {
       // 🔧 CORREGIDO: Intentar obtener valores de DateTimePickers activos primero
       let startTime = null;
       let finishTime = null;
-      let hours = parseInt(cells[3].textContent.trim()) || 6;
+      let hours = parseFloat(cells[3].textContent.trim()) || 6;
 
       // ✅ PRIORIDAD 1: Buscar DateTimePickers activos para Office Sampling
       if (window.officeTimeInstances && Object.keys(window.officeTimeInstances).length > 0) {
@@ -258,7 +258,7 @@ export class TableManager {
           samplerName: samplerName,
           startTime: cells[1].textContent.trim(),
           finishTime: cells[2].textContent.trim(),
-          hours: parseInt(cells[3].textContent.trim()) || 0,
+          hours: parseFloat(cells[3].textContent.trim()) || 0,
           rowIndex: index,
         });
       }
@@ -298,7 +298,7 @@ export class TableManager {
       samplerName: samplerName,
       startTime: cells[1].textContent.trim(),
       finishTime: cells[2].textContent.trim(),
-      hours: parseInt(cells[3].textContent.trim()) || 0,
+      hours: parseFloat(cells[3].textContent.trim()) || 0,
       rowIndex: index,
     };
   }
@@ -2041,7 +2041,7 @@ export class TableManager {
         samplerName,
         startTime,
         finishTime,
-        hours: parseInt(hours) || 6
+        hours: parseFloat(hours) || 6
       };
     } catch (error) {
       console.error("Error getting original data:", error);
@@ -2061,15 +2061,20 @@ export class TableManager {
         timestamp: new Date().toISOString()
       });
 
-      // Verificar si el controlador principal está disponible
       if (window.samplingRosterController && 
           window.samplingRosterController.autoSaveService) {
-        
-        // Trigger auto-save inmediato
-        window.samplingRosterController.autoSaveService.triggerAutoSaveImmediate(
-          "officeSamplingChange",
-          () => window.samplingRosterController.collectCurrentRosterData()
-        );
+        const controller = window.samplingRosterController;
+        const officeData = this.getOfficeSamplingData();
+        if (!officeData) return;
+
+        controller.autoSaveService.trigger('officeSamplingUpdate', {
+          officeSampling: {
+            sampler: { id: controller.selectedShipNomination?.sampler?.id || null, name: officeData.samplerName },
+            startTime: controller.parseDateTime(officeData.startTime) || dateTime,
+            finishTime: controller.parseDateTime(officeData.finishTime) || dateTime,
+            hours: officeData.hours || 6
+          }
+        }, { immediate: true });
         
         console.log('✅ Office Sampling auto-save sent to controller');
       } else {
@@ -2085,7 +2090,7 @@ export class TableManager {
    * 🔧 NUEVO: Trigger auto-save inmediato para Line Sampling
    * Se ejecuta automáticamente cuando cambian las fechas/horas de la primera línea
    */
-  triggerLineSamplingAutoSave(rowId, dateTime) {
+  async triggerLineSamplingAutoSave(rowId, dateTime) {
     try {
       console.log('🔧 Line Sampling auto-save triggered', {
         rowId: rowId,
@@ -2093,15 +2098,32 @@ export class TableManager {
         timestamp: new Date().toISOString()
       });
 
+      // Si es la primera línea, no persistir en onDateTimeChange (solo preview). Guardar en el botón Save.
+      if (rowId === 'line-sampler-row-0') {
+        console.log('ℹ️ Skipping autosave for first line on change (preview only)');
+        return;
+      }
+
       // Verificar si el controlador principal está disponible
       if (window.samplingRosterController && 
           window.samplingRosterController.autoSaveService) {
-        
-        // Trigger auto-save inmediato
-        window.samplingRosterController.autoSaveService.triggerAutoSaveImmediate(
-          "lineSamplingChange",
-          () => window.samplingRosterController.collectCurrentRosterData()
-        );
+        const controller = window.samplingRosterController;
+        const turnIndex = parseInt(rowId.replace('line-sampler-row-', ''));
+        const currentTurn = this.getLineTurnByIndex(turnIndex);
+        if (!currentTurn) return;
+
+        // Otras líneas: actualizar solo la línea editada
+        controller.autoSaveService.trigger('lineTurnUpdate', {
+          rowId: rowId,
+          turn: {
+            sampler: { id: null, name: currentTurn.samplerName },
+            startTime: controller.parseToDate(currentTurn.startTime) || dateTime,
+            finishTime: controller.parseToDate(currentTurn.finishTime) || dateTime,
+            hours: currentTurn.hours || 0,
+            blockType: 'day',
+            turnOrder: turnIndex
+          }
+        }, { immediate: true });
         
         console.log('✅ Line Sampling auto-save sent to controller');
       } else {
