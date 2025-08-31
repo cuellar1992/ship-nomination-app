@@ -262,6 +262,28 @@ router.put('/auto-save/:id', async (req, res) => {
 
     console.log(`💾 Auto-save completed: ${savedRoster._id} (${changeType})`);
 
+    // 🔄 WEBHOOK: Llamar automáticamente al actualizador de status
+    try {
+      const webhookResponse = await fetch(`${req.protocol}://${req.get('host')}/api/roster-status/webhook-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rosterId: savedRoster._id,
+          rosterData: savedRoster.toObject()
+        })
+      });
+      
+      if (webhookResponse.ok) {
+        const webhookResult = await webhookResponse.json();
+        console.log(`✅ Webhook status update successful: ${webhookResult.data?.newStatus || 'no change'}`);
+      } else {
+        console.warn(`⚠️ Webhook status update failed: ${webhookResponse.status}`);
+      }
+    } catch (webhookError) {
+      console.warn('⚠️ Webhook status update error:', webhookError.message);
+      // No fallar el auto-save si el webhook falla
+    }
+
     res.json({
       success: true,
       data: savedRoster,

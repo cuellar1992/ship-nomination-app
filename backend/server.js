@@ -6,6 +6,7 @@ const path = require('path');
 // Importar módulos
 const databaseManager = require('./config/database');
 const apiRoutes = require('./routes/api');
+const rosterStatusRoutes = require('./routes/rosterStatus');
 
 // Crear la aplicación Express
 const app = express();
@@ -22,6 +23,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Usar las rutas API organizadas
 app.use('/api', apiRoutes);
+
+// Usar las rutas de gestión de estados de rosters
+app.use('/api/roster-status', rosterStatusRoutes);
 
 // Ruta raíz que redirige al index.html
 app.get('/', (req, res) => {
@@ -76,7 +80,8 @@ async function startServer() {
             console.log(`   • ${baseUrl}/api/terminals - Gestión de terminales`);
             console.log(`   • ${baseUrl}/api/berths - Gestión de muelles`);
             console.log(`   • ${baseUrl}/api/producttypes - Tipos de productos`);
-            console.log(`\n📊 Total: 25+ endpoints RESTful implementados`);
+                         console.log(`   • ${baseUrl}/api/roster-status - Gestión automática de estados`);
+             console.log(`\n📊 Total: 35+ endpoints RESTful implementados`);
             console.log(`🚀 ========================================\n`);
         });
         

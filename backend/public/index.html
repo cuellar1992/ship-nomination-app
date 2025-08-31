@@ -25,44 +25,293 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
   </head>
   <body>
     <!-- Navigation será insertada aquí por navigation.js -->
 
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="container">
-        <div class="row align-items-center">
-          <div class="col-lg-8">
-            <div class="hero-content">
-              <h1 class="hero-title">Premium System Dashboard</h1>
-              <p class="hero-subtitle">
-                Experience next-generation system management with our premium
-                interface. Built for efficiency, designed for excellence.
-              </p>
-              <div class="hero-cta">
-                <button class="btn btn-primary-premium">
-                  <i class="fas fa-rocket me-2"></i>Get Started
-                </button>
-                <button class="btn btn-secondary-premium">
-                  <i class="fas fa-play-circle me-2"></i>Learn More
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- Dashboard Container -->
+    <div class="dashboard-container">
 
- <!-- Bootstrap JS -->
+
+        <!-- KPI Section -->
+        <section class="kpi-section">
+            <div class="container">
+                <div class="kpi-grid">
+                    <!-- KPI 1: Total Nominations - Flip Card -->
+                    <div class="flip-card">
+                        <div class="flip-card-inner">
+                            <!-- Front: KPI Info -->
+                            <div class="flip-card-front kpi-card">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-ship"></i>
+                                </div>
+                                <div class="kpi-value" id="totalNominations">-</div>
+                                <div class="kpi-label">Total Nominations</div>
+                                <div class="kpi-change positive" id="nominationsChange">
+                                    <i class="fas fa-arrow-up me-1"></i>+12% this month
+                                </div>
+                            </div>
+                            <!-- Back: Nominations List -->
+                            <div class="flip-card-back">
+                                <div class="flip-card-header">
+                                    <i class="fas fa-ship"></i>
+                                    <h4>Nominations This Month</h4>
+                                </div>
+                                <div class="nominations-list" id="monthlyNominationsList">
+                                    <div class="loading-spinner">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 2: Active Rosters - Flip Card -->
+                    <div class="flip-card">
+                        <div class="flip-card-inner">
+                            <!-- Front: KPI Info -->
+                            <div class="flip-card-front kpi-card">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-calendar-check"></i>
+                                </div>
+                                <div class="kpi-value" id="activeRosters">-</div>
+                                <div class="kpi-label">Active Rosters</div>
+                                <div class="kpi-change positive" id="rostersChange">
+                                    <i class="fas fa-arrow-up me-1"></i>+8% this week
+                                </div>
+                            </div>
+                            <!-- Back: Active Rosters List -->
+                            <div class="flip-card-back">
+                                <div class="flip-card-header">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <h4>Active Rosters</h4>
+                                </div>
+                                <div class="rosters-list" id="activeRostersList">
+                                    <div class="loading-spinner">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3: Available Samplers - Flip Card -->
+                    <div class="flip-card">
+                        <div class="flip-card-inner">
+                            <!-- Front: KPI Info -->
+                            <div class="flip-card-front kpi-card">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="kpi-value" id="availableSamplers">-</div>
+                                <div class="kpi-label">Available Samplers</div>
+                                <div class="kpi-change" id="samplersChange">
+                                    <i class="fas fa-minus me-1"></i>Stable
+                                </div>
+                            </div>
+                            <!-- Back: Samplers List -->
+                            <div class="flip-card-back">
+                                <div class="flip-card-header">
+                                    <i class="fas fa-users"></i>
+                                    <h4>Available Samplers</h4>
+                                </div>
+                                <div class="samplers-list" id="availableSamplersList">
+                                    <div class="loading-spinner">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI 4: Operational Terminals - Flip Card -->
+                    <div class="flip-card">
+                        <div class="flip-card-inner">
+                            <!-- Front: KPI Info -->
+                            <div class="flip-card-front kpi-card">
+                                <div class="kpi-icon">
+                                    <i class="fas fa-industry"></i>
+                                </div>
+                                <div class="kpi-value" id="operationalTerminals">-</div>
+                                <div class="kpi-label">Operational Terminals</div>
+                                <div class="kpi-change positive" id="terminalsChange">
+                                    <i class="fas fa-arrow-up me-1"></i>100% operational
+                                </div>
+                            </div>
+                            <!-- Back: Terminals List -->
+                            <div class="flip-card-back">
+                                <div class="flip-card-header">
+                                    <i class="fas fa-industry"></i>
+                                    <h4>Operational Terminals</h4>
+                                </div>
+                                <div class="terminals-list" id="operationalTerminalsList">
+                                    <div class="loading-spinner">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="charts-section">
+            <div class="container">
+                <div class="charts-grid">
+                    <!-- Chart 1: Monthly Trends -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-line"></i>
+                                Monthly Trends
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="trendsChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Terminal Distribution -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-bar"></i>
+                                Terminal Distribution
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="terminalDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 3: General Workload -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-pie"></i>
+                                General Workload
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="workloadChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 4: Weekly Availability -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-calendar-week"></i>
+                                Weekly Availability
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <div id="weeklyAvailabilityChart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Chart 5: Nominations Status -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-funnel-dollar"></i>
+                                Nominations Status
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <div id="nominationsStatusChart"></div>
+                        </div>
+                    </div>
+
+                    <!-- Chart 6: Weekly Hours per Sampler -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-clock"></i>
+                                Weekly Hours per Sampler
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="chart-action-btn" onclick="dashboardManager.refreshCharts()">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <div id="weeklyHoursChart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading State -->
+        <div class="dashboard-loading" id="dashboardLoading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading dashboard...</div>
+        </div>
+
+        <!-- Error State -->
+        <div class="dashboard-error" id="dashboardError" style="display: none;">
+            <i class="fas fa-exclamation-triangle"></i>
+            <div class="error-message">Error loading dashboard</div>
+            <button class="retry-btn" onclick="location.reload()">
+                <i class="fas fa-redo me-2"></i>Retry
+            </button>
+        </div>
+    </div>
+
+         <!-- Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Chart.js DataLabels Plugin -->
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+<!-- Bootstrap JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 
 <!-- 🌐 COMPONENTES COMPARTIDOS BÁSICOS -->
 <script src="/js/shared/NotificationService.js"></script>
 <script src="/js/shared/ApiService.js"></script>
-<script src="/js/shared/DemoService.js"></script>
 <script src="/js/shared/NavigationManager.js"></script>
 <script src="/js/shared/SettingsManager.js"></script>
+
+<!-- 🚢 DASHBOARD PREMIUM -->
+<script src="/js/dashboard/DashboardManager.js"></script>
+<script src="/js/dashboard/index.js"></script>
+
+<!-- 🔄 ROSTER STATUS UPDATER -->
+<script src="/js/samplingRoster/services/RosterStatusUpdater.js"></script>
 
   </body>
 </html>
