@@ -234,47 +234,11 @@
                 </tbody>
               </table>
             </div>
-            <!-- ⚡ Action Buttons integrados dentro del Vessel Information container -->
-            <div class="vessel-info-actions">
-              <button
-                type="button"
-                class="btn btn-outline-danger ship-form-btn"
-                id="clearRosterBtn"
-              >
-                <i class="fas fa-trash"></i>
-                CLEAR
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary-premium ship-form-btn"
-                id="autoGenerateBtn"
-              >
-                <i class="fas fa-magic"></i>
-                AUTO GENERATE
-              </button>
-              <button
-                type="button"
-                class="btn btn-secondary-premium ship-form-btn"
-                id="exportRosterBtn"
-              >
-                <i class="fas fa-file-excel"></i>
-                EXPORT
-              </button>
-              <button
-                type="button"
-                class="btn btn-primary-premium ship-form-btn"
-                id="saveRosterBtn"
-                style="display: none"
-              >
-                <i class="fas fa-save"></i>
-                SAVE
-              </button>
-            </div>
           </div>
 
           <!-- Bloque 2: Office Sampling -->
           <div class="ship-form-container section-secondary">
-            <div class="ship-form-header">
+            <div class="ship-form-header d-flex justify-content-between align-items-center">
               <div class="ship-form-title-container">
                 <div class="ship-form-icon">
                   <i class="fas fa-building"></i>
@@ -286,30 +250,66 @@
                   </div>
                 </div>
               </div>
-            </div>
-            <div class="ship-form-body">
-              <table class="sampling-table">
-                <thead>
-                  <tr>
-                    <th>WHO</th>
-                    <th>START OFFICE</th>
-                    <th>FINISH SAMPLING</th>
-                    <th>HOURS</th>
-                    <th>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody id="officeSamplingTableBody">
-                  <!-- Dynamic rows will be added here -->
-                  <tr>
-                    <td colspan="5" class="empty-state">
-                      <i class="fas fa-clipboard-list"></i>
-                      Office sampling schedule will appear here after selecting
-                      a ship nomination
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                           </div>
+             <div class="ship-form-body">
+               <table class="sampling-table">
+                 <thead>
+                   <tr>
+                     <th>WHO</th>
+                     <th>START OFFICE</th>
+                     <th>FINISH SAMPLING</th>
+                     <th>HOURS</th>
+                     <th>ACTIONS</th>
+                   </tr>
+                 </thead>
+                 <tbody id="officeSamplingTableBody">
+                   <!-- Dynamic rows will be added here -->
+                   <tr>
+                     <td colspan="5" class="empty-state">
+                       <i class="fas fa-clipboard-list"></i>
+                       Office sampling schedule will appear here after selecting
+                       a ship nomination
+                     </td>
+                   </tr>
+                 </tbody>
+               </table>
+                                               <!-- ⚡ Action Buttons ubicados debajo de la tabla de Office Sampling -->
+                 <div class="office-sampling-actions mt-3 d-flex justify-content-end gap-2">
+                   <button
+                     type="button"
+                     class="btn btn-outline-danger ship-form-btn"
+                     id="clearRosterBtn"
+                   >
+                     <i class="fas fa-trash"></i>
+                     CLEAR
+                   </button>
+                   <button
+                     type="button"
+                     class="btn btn-secondary-premium ship-form-btn"
+                     id="autoGenerateBtn"
+                   >
+                     <i class="fas fa-magic"></i>
+                     AUTO GENERATE
+                   </button>
+                   <button
+                     type="button"
+                     class="btn btn-secondary-premium ship-form-btn"
+                     id="exportRosterBtn"
+                   >
+                     <i class="fas fa-file-excel"></i>
+                     EXPORT
+                   </button>
+                   <button
+                     type="button"
+                     class="btn btn-primary-premium ship-form-btn"
+                     id="saveRosterBtn"
+                     style="display: none"
+                   >
+                     <i class="fas fa-save"></i>
+                     SAVE
+                   </button>
+                 </div>
+             </div>
           </div>
 
           <!-- Bloque 3: Line Sampling -->
