@@ -2056,7 +2056,7 @@ class DashboardManager {
             <div class="weekly-hours-header">
                 <div class="week-info">
                     <i class="fas fa-calendar-week"></i>
-                    Week from ${weekStart.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' })} to ${weekEnd.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' })}
+                    ${weekStart.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} - ${weekEnd.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </div>
                 <div class="total-samplers">${data.length} samplers</div>
             </div>
