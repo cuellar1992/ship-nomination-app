@@ -2110,7 +2110,7 @@ export class SamplingRosterController {
         editingTurn: this.findTurnBeingEdited(excludeRowId, lineData),
       });
 
-      // ✅ VALIDACIÓN 1: DESCANSO MÍNIMO (ESTRICTA - sin excepciones)
+      // ✅ VALIDACIÓN 1: DESCANSO MÍNIMO (ESTRICTA para auto-generate, FLEXIBLE para edición manual)
       const restValidation =
         await ValidationService.validateMinimumRestWithMemory(
           samplerName,
@@ -2122,14 +2122,39 @@ export class SamplingRosterController {
         );
 
       if (!restValidation.isValid) {
-        return {
-          isValid: false,
-          message: `❌ ${restValidation.message}`,
-          details: {
-            rest: restValidation,
-            type: "STRICT_VIOLATION",
-          },
-        };
+        // 🔧 NUEVO: Detectar si es edición manual para mostrar modal de emergencia
+        const isManualEdit = this.isManualSamplerEdit(excludeRowId);
+        
+        if (isManualEdit) {
+          // Mostrar modal de emergencia para edición manual
+          const emergencyConfirmed = await this.showEmergencyRestWarningModal(
+            samplerName, 
+            restValidation
+          );
+          
+          if (!emergencyConfirmed) {
+            return {
+              isValid: false,
+              message: `❌ ${restValidation.message}`,
+              details: {
+                rest: restValidation,
+                type: "USER_CANCELLED",
+              },
+            };
+          }
+          
+          // Usuario confirmó emergencia, continuar con validación
+        } else {
+          // Auto-generate: mantener validación estricta
+          return {
+            isValid: false,
+            message: `❌ ${restValidation.message}`,
+            details: {
+              rest: restValidation,
+              type: "STRICT_VIOLATION",
+            },
+          };
+        }
       }
 
       // ✅ VALIDACIÓN 2: DISPONIBILIDAD CRUZADA (ESTRICTA)
@@ -2614,6 +2639,33 @@ export class SamplingRosterController {
   }
 
   /**
+   * 🔧 DETECTAR SI ES EDICIÓN MANUAL DE SAMPLER
+   * Verifica si el usuario está editando manualmente un sampler
+   */
+  isManualSamplerEdit(rowId) {
+    try {
+      // Verificar si hay un botón de "save" activo (indicando edición manual)
+      const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+      if (!row) return false;
+      
+      const saveButton = row.querySelector('button[data-action="save"]');
+      const dropdownContainer = row.querySelector('div[id^="lineSamplerDropdown_"], div[id^="samplerDropdown_"]');
+      
+      // Es edición manual si hay botón save activo y dropdown visible
+      return !!(saveButton && dropdownContainer);
+      
+    } catch (error) {
+      Logger.error("Error detecting manual sampler edit", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        data: { rowId: rowId },
+        showNotification: false
+      });
+      return false;
+    }
+  }
+
+  /**
    * 🔧 ACTUALIZAR UI DESPUÉS DE SAVE EXITOSO
    * Actualiza la fila de line sampling después de un save exitoso
    */
@@ -2814,6 +2866,159 @@ export class SamplingRosterController {
         }
       });
     });
+  }
+
+  /**
+   * 🚨 Modal de advertencia de emergencia para turnos consecutivos
+   */
+  showEmergencyRestWarningModal(samplerName, restValidationData) {
+    return new Promise((resolve) => {
+      const { violatingShifts, message } = restValidationData;
+      const previousTurn = violatingShifts?.previous;
+      const newTurn = violatingShifts?.current;
+      
+      // Calcular tiempo de descanso
+      const restHours = previousTurn && newTurn ? 
+        (new Date(newTurn.start) - new Date(previousTurn.end)) / (1000 * 60 * 60) : 0;
+
+      // Crear modal HTML usando el estilo del sistema
+      const modalHtml = `
+        <div class="modal fade" id="emergencyRestWarningModal" tabindex="-1" data-bs-backdrop="static">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-light border-danger">
+              <div class="modal-header border-danger">
+                <h5 class="modal-title">
+                  <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                  Emergency Assignment Warning
+                </h5>
+              </div>
+              <div class="modal-body">
+                <div class="text-center mb-3">
+                  <i class="fas fa-user-clock text-danger" style="font-size: 3rem;"></i>
+                </div>
+                <p class="text-center mb-3">
+                  <strong>${samplerName}</strong> will be assigned to consecutive shifts
+                </p>
+                
+                <!-- Detalles de turnos -->
+                <div class="alert alert-danger">
+                  <div class="row text-center mb-3">
+                    <div class="col-6">
+                      <strong>Previous Shift:</strong><br>
+                      <small class="text-muted">Ends at</small><br>
+                      <span class="fs-6">${previousTurn ? this.formatDateTimeForDisplay(previousTurn.end) : 'N/A'}</span>
+                    </div>
+                    <div class="col-6">
+                      <strong>New Shift:</strong><br>
+                      <small class="text-muted">Starts at</small><br>
+                      <span class="fs-6">${newTurn ? this.formatDateTimeForDisplay(newTurn.start) : 'N/A'}</span>
+                    </div>
+                  </div>
+                  <hr class="my-2">
+                  <div class="text-center">
+                    <strong>Rest Time:</strong><br>
+                    <span class="fs-4 text-danger">${restHours.toFixed(1)}h</span>
+                    <small class="text-muted d-block">(Minimum recommended: 10h)</small>
+                  </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                  <i class="fas fa-info-circle me-2"></i>
+                  <strong>Emergency Override:</strong> This assignment violates minimum rest time requirements. 
+                  Proceed only in emergency situations.
+                </div>
+              </div>
+              <div class="modal-footer border-danger">
+                <button type="button" class="btn btn-secondary" id="cancelEmergencyRestBtn">
+                  <i class="fas fa-times me-1"></i>Cancel
+                </button>
+                <button type="button" class="btn btn-danger" id="confirmEmergencyRestBtn">
+                  <i class="fas fa-exclamation-triangle me-1"></i>Emergency Override
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Remover modal anterior si existe
+      const existingModal = document.getElementById("emergencyRestWarningModal");
+      if (existingModal) {
+        existingModal.remove();
+      }
+
+      // Agregar modal al DOM
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      // Obtener elementos
+      const modal = document.getElementById("emergencyRestWarningModal");
+      const cancelBtn = document.getElementById("cancelEmergencyRestBtn");
+      const confirmBtn = document.getElementById("confirmEmergencyRestBtn");
+
+      // Event listeners
+      cancelBtn.addEventListener("click", () => {
+        closeModal(false);
+      });
+
+      confirmBtn.addEventListener("click", () => {
+        closeModal(true);
+      });
+
+      // Función para cerrar modal
+      function closeModal(confirmed) {
+        const bootstrapModal = bootstrap.Modal.getInstance(modal);
+        if (bootstrapModal) {
+          bootstrapModal.hide();
+        }
+
+        // Remover modal del DOM después de cerrar
+        setTimeout(() => {
+          modal.remove();
+          resolve(confirmed);
+        }, 300);
+      }
+
+      // Mostrar modal
+      const bootstrapModal = new bootstrap.Modal(modal);
+      bootstrapModal.show();
+
+      // Cerrar con Escape
+      modal.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          closeModal(false);
+        }
+      });
+    });
+  }
+
+  /**
+   * 🔧 FORMATEAR FECHA PARA MOSTRAR EN MODAL
+   * Formatea una fecha para mostrar en el modal de emergencia
+   */
+  formatDateTimeForDisplay(dateTime) {
+    try {
+      if (!dateTime) return 'N/A';
+      
+      const date = new Date(dateTime);
+      if (isNaN(date.getTime())) return 'N/A';
+      
+      // Formato: DD/MM/YYYY HH:MM
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch (error) {
+      Logger.error("Error formatting date for display", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        data: { dateTime: dateTime },
+        showNotification: false
+      });
+      return 'N/A';
+    }
   }
 
   /**
