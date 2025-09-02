@@ -8,6 +8,7 @@ Este directorio contiene toda la documentación técnica del proyecto Ship Nomin
 
 - [**Ship Nominations**](./ship-nominations.md) - Sistema de nominaciones de barcos
 - [**Sampling Roster**](./sampling-roster.md) - Sistema de roster de muestreo
+- [**Molekulis Loading**](./molekulis-loading.md) - Sistema de carga de camiones (Truck Loading)
 - [**Roster Status**](./roster-status-implementation.md) - Implementación del estado del roster
 
 ### 🔧 Componentes Técnicos

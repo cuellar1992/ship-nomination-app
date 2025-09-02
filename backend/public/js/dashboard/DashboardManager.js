@@ -10,14 +10,26 @@ class DashboardManager {
         this.data = {};
         this.isInitialized = false;
         this.chartColors = [
-            '#1fb5d4', // Accent primary
-            '#0ea5e9', // Accent secondary
-            '#0284c7', // Accent hover
-            '#22c55e', // Success
-            '#fbbf24', // Warning
-            '#ef4444', // Error
+            '#1fb5d4', // Accent primary (cyan)
+            '#0ea5e9', // Accent secondary (blue)
+            '#22c55e', // Success (green)
+            '#fbbf24', // Warning (amber)
+            '#ef4444', // Error (red)
             '#8b5cf6', // Purple
-            '#06b6d4'  // Cyan
+            '#06b6d4', // Cyan
+            '#f97316', // Orange
+            '#ec4899', // Pink
+            '#84cc16', // Lime
+            '#06b6d4', // Sky
+            '#8b5cf6', // Violet
+            '#f59e0b', // Yellow
+            '#10b981', // Emerald
+            '#6366f1', // Indigo
+            '#d946ef', // Fuchsia
+            '#14b8a6', // Teal
+            '#f43f5e', // Rose
+            '#a855f7', // Purple variant
+            '#059669'  // Green variant
         ];
         
         this.init();
@@ -105,11 +117,12 @@ class DashboardManager {
             console.log('📊 Cargando datos del dashboard...');
             
             // Cargar datos en paralelo para mejor performance
-            const [nominations, rosters, samplers, terminals] = await Promise.all([
+            const [nominations, rosters, samplers, terminals, truckWorkDays] = await Promise.all([
                 this.fetchShipNominations(),
                 this.fetchSamplingRosters(),
                 this.fetchSamplers(),
-                this.fetchTerminals()
+                this.fetchTerminals(),
+                this.fetchTruckWorkDays()
             ]);
 
             this.data = {
@@ -117,6 +130,7 @@ class DashboardManager {
                 rosters,
                 samplers,
                 terminals,
+                truckWorkDays,
                 lastUpdated: new Date()
             };
 
@@ -127,7 +141,8 @@ class DashboardManager {
                 nominationsCount: this.data.nominations?.length || 0,
                 rostersCount: this.data.rosters?.length || 0,
                 samplersCount: this.data.samplers?.length || 0,
-                terminalsCount: this.data.terminals?.length || 0
+                terminalsCount: this.data.terminals?.length || 0,
+                truckWorkDaysCount: this.data.truckWorkDays?.length || 0
             });
             
             // Actualizar KPIs con los nuevos datos
@@ -217,6 +232,22 @@ class DashboardManager {
             return data.data || [];
         } catch (error) {
             console.error('Error fetching terminals:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Obtener datos de truck work days (Molekulis Loading)
+     */
+    async fetchTruckWorkDays() {
+        try {
+            const response = await fetch('/api/truckworkdays');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            console.log('🚛 Truck Work Days cargados:', data.data || []);
+            return data.data || [];
+        } catch (error) {
+            console.error('Error fetching truck work days:', error);
             return [];
         }
     }
@@ -719,26 +750,57 @@ class DashboardManager {
         const currentMonth = new Date().getMonth();
         const currentYear = new Date().getFullYear();
         
+        // Calcular inicio y fin del mes actual
+        const monthStart = new Date(currentYear, currentMonth, 1);
+        monthStart.setHours(0, 0, 0, 0);
+        
+        const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
+        
+        console.log('📅 Calculando carga mensual para:', {
+            monthStart: monthStart.toISOString(),
+            monthEnd: monthEnd.toISOString(),
+            totalRosters: (this.data?.rosters || []).length,
+            totalTruckWorkDays: (this.data?.truckWorkDays || []).length
+        });
+        
         const monthlyHours = {};
         
-        // Procesar rosters del mes actual (si existen)
+        // Procesar todos los rosters y calcular solapamiento con el mes actual
         (this.data?.rosters || []).forEach(roster => {
-            const rosterDate = new Date(roster.date || roster.createdAt);
-            if (rosterDate.getMonth() === currentMonth && rosterDate.getFullYear() === currentYear) {
-                // Horas de office sampling
-                if (roster.officeSampling && roster.officeSampling.sampler && roster.officeSampling.hours) {
-                    const samplerName = roster.officeSampling.sampler.name;
-                    monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + roster.officeSampling.hours;
+            // Office Sampling: calcular solapamiento con el mes
+            if (roster.officeSampling && roster.officeSampling.sampler && roster.officeSampling.startTime && roster.officeSampling.finishTime) {
+                const samplerName = roster.officeSampling.sampler.name;
+                const overlap = this.getOverlapHours(roster.officeSampling.startTime, roster.officeSampling.finishTime, monthStart, monthEnd);
+                if (overlap > 0) {
+                    monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + overlap;
+                    console.log(`📊 Monthly - ${samplerName}: +${overlap}h (Office overlap - ${roster.vesselName})`);
                 }
-                
-                // Horas de line sampling
-                if (roster.lineSampling) {
-                    roster.lineSampling.forEach(line => {
-                        if (line.sampler && line.hours) {
-                            const samplerName = line.sampler.name;
-                            monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + line.hours;
+            }
+            
+            // Line Sampling: calcular solapamiento por cada turno
+            if (roster.lineSampling) {
+                roster.lineSampling.forEach(line => {
+                    if (line.sampler && line.startTime && line.finishTime) {
+                        const samplerName = line.sampler.name;
+                        const overlap = this.getOverlapHours(line.startTime, line.finishTime, monthStart, monthEnd);
+                        if (overlap > 0) {
+                            monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + overlap;
+                            console.log(`📊 Monthly - ${samplerName}: +${overlap}h (Line overlap - ${roster.vesselName})`);
                         }
-                    });
+                    }
+                });
+            }
+        });
+
+        // 🚛 Procesar truck work days (Molekulis Loading) y calcular solapamiento con el mes actual
+        (this.data?.truckWorkDays || []).forEach(truckDay => {
+            if (truckDay.shift && truckDay.shift.startTime && truckDay.shift.endTime && truckDay.samplerName) {
+                const samplerName = truckDay.samplerName;
+                const overlap = this.getOverlapHours(truckDay.shift.startTime, truckDay.shift.endTime, monthStart, monthEnd);
+                if (overlap > 0) {
+                    monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + overlap;
+                    console.log(`📊 Monthly - ${samplerName}: +${overlap}h (Truck overlap - ${truckDay.terminal})`);
                 }
             }
         });
@@ -751,6 +813,8 @@ class DashboardManager {
             labels = samplerNames;
             values = labels.map(() => 0);
         }
+
+        console.log('📊 Horas mensuales calculadas:', { labels, values, monthlyHours });
 
         return {
             labels,
@@ -782,7 +846,8 @@ class DashboardManager {
         console.log('📅 Calculando carga semanal para:', {
             weekStart: weekStart.toISOString(),
             weekEnd: weekEnd.toISOString(),
-            totalRosters: (this.data?.rosters || []).length
+            totalRosters: (this.data?.rosters || []).length,
+            totalTruckWorkDays: (this.data?.truckWorkDays || []).length
         });
         
         const weeklyHours = {};
@@ -794,7 +859,7 @@ class DashboardManager {
 
             // Office Sampling: prorratear por traslape con la semana
             if (roster.officeSampling && roster.officeSampling.sampler) {
-                const samplerName = roster.officeSampling.sampler.name;
+                    const samplerName = roster.officeSampling.sampler.name;
                 const overlap = this.getOverlapHours(roster.officeSampling.startTime, roster.officeSampling.finishTime, weekStart, weekEnd);
                 if (overlap > 0) {
                     weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
@@ -805,19 +870,31 @@ class DashboardManager {
             }
 
             // Line Sampling: prorratear cada turno por traslape
-            if (roster.lineSampling) {
-                roster.lineSampling.forEach(line => {
+                if (roster.lineSampling) {
+                    roster.lineSampling.forEach(line => {
                     if (line.sampler) {
-                        const samplerName = line.sampler.name;
+                            const samplerName = line.sampler.name;
                         const overlap = this.getOverlapHours(line.startTime, line.finishTime, weekStart, weekEnd);
                         if (overlap > 0) {
                             weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
                         }
                         if (involvesCesar) {
                             console.log('🔍 Line overlap', { samplerName, overlap, start: line.startTime, end: line.finishTime });
-                        }
+                }
                     }
                 });
+            }
+        });
+
+        // 🚛 Procesar truck work days (Molekulis Loading) y calcular solapamiento con la semana actual
+        (this.data?.truckWorkDays || []).forEach(truckDay => {
+            if (truckDay.shift && truckDay.shift.startTime && truckDay.shift.endTime && truckDay.samplerName) {
+                const samplerName = truckDay.samplerName;
+                const overlap = this.getOverlapHours(truckDay.shift.startTime, truckDay.shift.endTime, weekStart, weekEnd);
+                if (overlap > 0) {
+                    weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
+                    console.log(`📊 Weekly - ${samplerName}: +${overlap}h (Truck overlap - ${truckDay.terminal})`);
+                }
             }
         });
 
@@ -833,21 +910,21 @@ class DashboardManager {
             normalHours = labels.map(() => 0);
             excessHours = labels.map(() => 0);
         } else {
-            labels.forEach(samplerName => {
-                const totalHours = weeklyHours[samplerName];
-                const sampler = this.data.samplers.find(s => s.name === samplerName);
-                const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
-                
-                if (totalHours <= weeklyLimit) {
-                    // Dentro del límite: solo horas normales
-                    normalHours.push(totalHours);
-                    excessHours.push(0);
-                } else {
-                    // Excede el límite: separar en normales y exceso
-                    normalHours.push(weeklyLimit);
-                    excessHours.push(totalHours - weeklyLimit);
-                }
-            });
+        labels.forEach(samplerName => {
+            const totalHours = weeklyHours[samplerName];
+            const sampler = this.data.samplers.find(s => s.name === samplerName);
+            const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
+            
+            if (totalHours <= weeklyLimit) {
+                // Dentro del límite: solo horas normales
+                normalHours.push(totalHours);
+                excessHours.push(0);
+            } else {
+                // Excede el límite: separar en normales y exceso
+                normalHours.push(weeklyLimit);
+                excessHours.push(totalHours - weeklyLimit);
+            }
+        });
         }
 
         return {
@@ -937,8 +1014,10 @@ class DashboardManager {
 
     /**
      * Opciones para gráfico semanal (bar)
+     * ✅ VERSIÓN ACTUALIZADA - Labels con mejor separación
      */
     getWeeklyWorkloadOptions() {
+        console.log('🔧 Cargando configuración semanal con labels separados');
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -948,11 +1027,20 @@ class DashboardManager {
                     position: 'top',
                     labels: {
                         usePointStyle: true,
-                        padding: 20,
+                        padding: 15,          // Espaciado compacto entre elementos de leyenda
                         color: '#9ca3af',
                         font: {
                             size: 12,
                             weight: '600'
+                        }
+                    },
+                    // Separar la leyenda del gráfico
+                    align: 'center',
+                    fullSize: true,
+                    maxHeight: 40,           // Altura compacta para la leyenda
+                    plugins: {
+                        padding: {
+                            bottom: 8        // Espacio mínimo entre leyenda y gráfico
                         }
                     }
                 },
@@ -1004,14 +1092,25 @@ class DashboardManager {
                         size: 11,
                         weight: 'bold'
                     },
-                    anchor: 'end',
-                    align: 'top',
-                    offset: 4,
+                    anchor: 'center',     // Centrar en la barra
+                    align: 'center',      // Alinear al centro
+                    offset: 0,            // Sin offset, perfectamente centrado
                     formatter: function(value, context) {
                         if (value > 0) {
                             return `${value}h`;
                         }
                         return ''; // No mostrar labels con valor 0
+                    },
+                    // Agregar fondo semi-transparente para mejor legibilidad
+                    backgroundColor: function(context) {
+                        return 'rgba(0, 0, 0, 0.4)';
+                    },
+                    borderRadius: 4,
+                    padding: {
+                        top: 2,
+                        bottom: 2,
+                        left: 6,
+                        right: 6
                     }
                 }
             },
@@ -1044,8 +1143,17 @@ class DashboardManager {
             },
             layout: {
                 padding: {
-                    top: 20,
-                    bottom: 20
+                    top: 15,   // Menos espacio ya que labels están dentro de barras
+                    bottom: 15,
+                    left: 8,
+                    right: 8
+                }
+            },
+            // Mejorar separación entre barras para evitar que se monten los números
+            datasets: {
+                bar: {
+                    barPercentage: 0.7,      // Ancho de cada barra (70% del espacio disponible)
+                    categoryPercentage: 0.8   // Separación entre grupos de barras (80% del espacio)
                 }
             }
         };
@@ -1898,21 +2006,34 @@ class DashboardManager {
                 }
                 
                 // Line Sampling: sumar traslape por cada turno
-                if (roster.lineSampling) {
-                    roster.lineSampling.forEach(line => {
-                        if (line.sampler && line.sampler.name === sampler.name) {
+                    if (roster.lineSampling) {
+                        roster.lineSampling.forEach(line => {
+                            if (line.sampler && line.sampler.name === sampler.name) {
                             const overlap = this.getOverlapHours(line.startTime, line.finishTime, weekStart, weekEnd);
                             if (overlap > 0) {
                                 totalHours += overlap;
                                 hasContribution = true;
                                 console.log(`📊 ${sampler.name}: +${overlap}h (Line overlap - ${roster.vesselName})`);
                             }
-                        }
-                    });
-                }
+                            }
+                        });
+                    }
                 
                 if (hasContribution) {
                     rosterCount++;
+                }
+            });
+
+            // 🚛 Truck Work Days: sumar traslape por cada día de trabajo
+            let truckWorkCount = 0;
+            (this.data.truckWorkDays || []).forEach(truckDay => {
+                if (truckDay.shift && truckDay.shift.startTime && truckDay.shift.endTime && truckDay.samplerName === sampler.name) {
+                    const overlap = this.getOverlapHours(truckDay.shift.startTime, truckDay.shift.endTime, weekStart, weekEnd);
+                    if (overlap > 0) {
+                        totalHours += overlap;
+                        truckWorkCount++;
+                        console.log(`📊 ${sampler.name}: +${overlap}h (Truck overlap - ${truckDay.terminal})`);
+                    }
                 }
             });
 
@@ -1923,10 +2044,11 @@ class DashboardManager {
                 hours: totalHours,
                 limit: weeklyLimit,
                 percentage: (totalHours / weeklyLimit) * 100,
-                rosterCount: rosterCount
+                rosterCount: rosterCount,
+                truckWorkCount: truckWorkCount
             };
             
-            console.log(`📊 ${sampler.name}: ${totalHours}h/${weeklyLimit}h (${result.percentage.toFixed(1)}%) - ${rosterCount} rosters`);
+            console.log(`📊 ${sampler.name}: ${totalHours}h/${weeklyLimit}h (${result.percentage.toFixed(1)}%) - ${rosterCount} rosters + ${truckWorkCount} truck work days`);
             
             return result;
         });

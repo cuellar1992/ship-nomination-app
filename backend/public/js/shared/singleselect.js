@@ -290,6 +290,7 @@ class SingleSelect {
   createHTML() {
     this.container.innerHTML = `
             <div style="position: relative;">
+                ${this.config.showLabel === false ? '' : `
                 <label class="singleselect-label" style="
                     color: var(--text-primary); 
                     font-weight: 600; 
@@ -300,7 +301,7 @@ class SingleSelect {
                     display: block;
                 ">
                     <i class="${this.config.icon} me-2" style="color: var(--accent-primary);"></i>${this.config.label}
-                </label>
+                </label>`}
                 
                 <!-- Custom Single-Select Container -->
                 <div class="singleselect-container" id="${this.containerId}_container" style="

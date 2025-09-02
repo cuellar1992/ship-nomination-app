@@ -395,6 +395,113 @@ input[type="datetime-local"]#pilotOnBoard:invalid {
     border-bottom: 1px solid var(--border-dark) !important;
 }
 
+/* Consistent action buttons styling (match ship nominations) */
+.ship-table .btn.btn-sm.btn-outline-primary {
+    border-color: var(--accent-primary) !important;
+    color: var(--accent-primary) !important;
+}
+.ship-table .btn.btn-sm.btn-outline-primary:hover {
+    background: var(--accent-primary) !important;
+    color: #111827 !important;
+}
+
+.ship-table .btn.btn-sm.btn-outline-secondary {
+    border-color: var(--border-secondary) !important;
+    color: var(--text-secondary) !important;
+}
+.ship-table .btn.btn-sm.btn-outline-secondary:hover {
+    background: var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Warning (yellow) outline to match ship nominations edit action */
+.ship-table .btn.btn-sm.btn-outline-warning {
+    border-color: #fbbf24 !important; /* Tailwind amber-400 tone */
+    color: #fbbf24 !important;
+}
+.ship-table .btn.btn-sm.btn-outline-warning:hover {
+    background: #fbbf24 !important;
+    color: #111827 !important; /* near black for contrast */
+}
+
+/* Compact modal footer buttons */
+.settings-footer .btn.btn-secondary-premium,
+.settings-footer .btn.btn-primary-premium {
+    padding: 0.5rem 1rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 8px !important;
+}
+
+.ship-table .btn.btn-sm.btn-outline-danger {
+    border-color: #dc3545 !important;
+    color: #dc3545 !important;
+}
+.ship-table .btn.btn-sm.btn-outline-danger:hover {
+    background: #dc3545 !important;
+    color: #fff !important;
+}
+
+/* Who/Shift row spacing and elegance */
+.sampling-table--who td {
+    padding: 0.5rem 0.75rem !important;
+    vertical-align: middle !important;
+}
+
+.sampling-table--who td > .singleselect-container,
+.sampling-table--who td > .datetime-picker-container,
+.sampling-table--who td > .ship-form-input {
+    margin-right: 0.75rem;
+    border-radius: 12px;
+    border: 0 !important; /* Avoid double borders on nested components */
+}
+
+/* Hide component headers inside WHO row to align controls */
+.sampling-table--who .singleselect-label { display: none !important; }
+.sampling-table--who .datetime-picker-container label { display: none !important; }
+.sampling-table--who .datetime-picker-container .datetime-label { display: none !important; }
+.sampling-table--who .datetime-picker-container { margin-top: 0 !important; }
+
+/* Match control heights for consistent alignment */
+.sampling-table--who td > .ship-form-input {
+    height: 50px !important;
+    line-height: 50px !important;
+}
+
+.sampling-table--who td:last-child > * {
+    margin-right: 0 !important;
+}
+
+.sampling-table--who thead th {
+    padding-bottom: 0.25rem !important;
+}
+
+/* Reduce top spacing between headers and controls */
+.sampling-table--who tbody td {
+    padding-top: 0.35rem !important;
+}
+
+/* Tighten top spacing of embedded components */
+.sampling-table--who .singleselect-container,
+.sampling-table--who .datetime-picker-container {
+    margin-top: 0 !important;
+}
+
+/* Empty state centered across full table width */
+.ship-table .empty-state {
+    display: table-cell !important;
+    width: 100% !important;
+    text-align: center !important;
+    padding: 2rem 0 !important;
+    vertical-align: middle !important;
+}
+
+.ship-table .empty-state i {
+    display: block;
+    font-size: 1.1rem;
+    opacity: 0.6;
+    margin-bottom: 0.5rem;
+}
+
 /* ==================== COMPONENT CONTAINERS ==================== */
 /* Estilos para contenedores de componentes personalizados */
 .multiselect-container,
@@ -577,4 +684,85 @@ input[type="datetime-local"]#pilotOnBoard:invalid {
 
 .ship-pulse {
     animation: shipPulse 1.5s ease-in-out infinite;
+}
+
+/* ==================== TRUCK FILTERS COMPACT ==================== */
+.filters-compact .datepicker-label,
+.filters-compact .singleselect-label,
+.filters-compact .datetime-picker-label {
+    display: none !important;
+}
+
+.filters-compact .datepicker-container,
+.filters-compact .singleselect-container {
+    min-height: 50px !important;
+    border-radius: 12px !important;
+    border: 1px solid var(--border-secondary) !important;
+    background: var(--bg-primary) !important;
+}
+
+.filters-compact .ship-form-input {
+    min-height: 50px !important;
+    border-radius: 12px !important;
+    border: 1px solid var(--border-secondary) !important;
+    background: var(--bg-primary) !important;
+}
+
+.filters-compact .ship-form-grid {
+    align-items: end !important;
+}
+
+.filters-compact .ship-form-field {
+    margin-bottom: 0 !important;
+}
+
+/* Force inner paddings and background to match SingleSelect display */
+.filters-compact .datepicker-container .selected-date-display {
+    min-height: 50px !important;
+    padding: 0.875rem 2.5rem 0.875rem 1rem !important;
+}
+
+/* Ensure SingleSelect inner display has no border/background to avoid double outline */
+.filters-compact .singleselect-container .selected-item-display {
+    border: 0 !important;
+    background: transparent !important;
+    min-height: 50px !important;
+    padding: 0.875rem 2.5rem 0.875rem 1rem !important;
+}
+
+/* Precision fix: Surveyor filter in Molekulis advanced panel */
+.filters-compact #filterSurveyor .singleselect-container,
+.filters-compact #filterSurveyor_container {
+    border: 1px solid var(--border-secondary) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+}
+.filters-compact #filterSurveyor .singleselect-container .selected-item-display,
+.filters-compact #filterSurveyor_container .selected-item-display {
+    border: 0 !important;
+    background: transparent !important;
+}
+
+.filters-compact .datepicker-container .placeholder-text,
+.filters-compact .datepicker-container .selected-text {
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+}
+
+.filters-compact .datepicker-container .date-icon {
+    right: 0.6rem !important;
+    color: var(--accent-primary) !important;
+}
+
+.filters-compact .datepicker-container .clear-date-btn { right: 2.1rem !important; }
+
+.filters-compact .datepicker-container:focus {
+    outline: none !important;
+}
+
+.filters-compact .datepicker-container:hover { border-color: var(--accent-primary) !important; }
+
+/* Remove outer panel border in Molekulis Advanced to prevent double lines */
+.filters-compact #truckAdvancedPanel {
+    border: 0 !important;
 }

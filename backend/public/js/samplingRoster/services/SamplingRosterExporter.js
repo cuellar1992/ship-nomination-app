@@ -1,870 +1,276 @@
-/**
- * Sampling Roster Exporter - ExcelJS Implementation
- * Exporta datos de Sampling Roster con formato "Line Sampling Roster"
- */
+// TruckWorkDaysExporter - Versión que ataca los problemas específicos identificados
+class TruckWorkDaysExporter {
+  constructor(getFilters) {
+    this.getFilters = typeof getFilters === 'function' ? getFilters : () => ({})
+    this.isExporting = false
+  }
 
-import { SAMPLING_ROSTER_CONSTANTS } from '../utils/Constants.js';
-import DateUtils from '../utils/DateUtils.js';
-
-export class SamplingRosterExporter {
-  constructor(controller) {
-    this.controller = controller;
-    this.isExporting = false;
-    
-    // Verificar que ExcelJS esté disponible
+  async export() {
+    if (this.isExporting) return
     if (typeof ExcelJS === 'undefined') {
-      Logger.error("ExcelJS library not available", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: "Excel export functionality not available. Please contact support."
-      });
-      return;
-    }
-    
-    this.initializeExportButton();
-    
-    Logger.info("SamplingRosterExporter initialized", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      showNotification: false
-    });
-  }
-
-  /**
-   * 🔧 Inicializar botón de export
-   */
-  initializeExportButton() {
-    const exportBtn = document.getElementById('exportRosterBtn');
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => this.handleExportClick());
-      
-      // Validar visibilidad inicial
-      this.updateButtonVisibility();
-      
-      Logger.debug("Export button initialized", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: false
-      });
-    } else {
-      Logger.warn("Export button not found", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: false
-      });
-    }
-  }
-
-  /**
-   * 👁️ Actualizar visibilidad del botón basado en datos disponibles
-   */
-  updateButtonVisibility() {
-    const exportBtn = document.getElementById('exportRosterBtn');
-    if (!exportBtn) return;
-
-    const hasValidData = this.hasValidRosterData();
-    
-    if (hasValidData) {
-      exportBtn.style.display = 'inline-flex';
-      exportBtn.disabled = false;
-    } else {
-      exportBtn.style.display = 'none';
-    }
-
-    Logger.debug("Export button visibility updated", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: { hasValidData, visible: hasValidData },
-      showNotification: false
-    });
-  }
-
-  /**
-   * 🔍 Verificar si hay datos válidos para exportar
-   */
-  hasValidRosterData() {
-    // Verificar que hay ship nomination seleccionado
-    const selectedNomination = this.controller.getSelectedShipNomination();
-    if (!selectedNomination) return false;
-
-    // Verificar que hay datos de Office Sampling o Line Sampling
-    const officeData = this.controller.tableManager.getOfficeSamplingData();
-    const lineData = this.controller.tableManager.getCurrentLineTurns();
-    
-    return officeData || (lineData && lineData.length > 0);
-  }
-
-  /**
-   * 🖱️ Manejar click del botón export
-   */
-  async handleExportClick() {
-    if (this.isExporting) {
-      Logger.warn("Export already in progress", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        showNotification: true,
-        notificationMessage: "Export is already in progress. Please wait."
-      });
-      return;
+      window.Logger?.error?.('ExcelJS not available', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'Excel export not available' })
+      return
     }
 
     try {
-      this.isExporting = true;
-      this.showExportLoading(true);
-
-      // Validar datos antes de exportar
-      const validationResult = this.validateDataForExport();
-      if (!validationResult.isValid) {
-        Logger.warn(validationResult.message, {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          showNotification: true,
-          notificationMessage: validationResult.message
-        });
-        return;
+      this.isExporting = true
+      this._setLoading(true)
+      
+      const rows = await this._fetchData()
+      if (!rows || rows.length === 0) {
+        window.Logger?.warn?.('No data to export', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'No data available to export' })
+        return
       }
 
-      // Recopilar datos actuales
-      const rosterData = this.controller.collectCurrentRosterData();
+      // Crear workbook con configuración mínima
+      const workbook = new ExcelJS.Workbook()
+      const ws = workbook.addWorksheet('Molekulis Loading')
+
+      // PROBLEMA 1: Evitar merge de celdas que causa conflictos
+      // En lugar de merge, usar header en primera celda con alineación
+      const today = new Date().toLocaleDateString('en-GB')
+      const headerText = `MOLEKULIS LOADING REPORT - ${today} | Records: ${rows.length}`
       
-      Logger.info("Starting Excel export", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: {
-          vessel: rosterData.vesselName,
-          hasOffice: !!rosterData.officeSampling,
-          lineCount: rosterData.lineSampling?.length || 0
-        },
-        showNotification: true,
-        notificationMessage: "Preparing Line Sampling Roster export..."
-      });
+      // Fila 1: Header sin merge
+      const headerRow = ws.addRow([headerText])
+      const headerCell = headerRow.getCell(1)
+      headerCell.font = { size: 14, bold: true }
+      
+      // Fila 2: Vacía
+      ws.addRow([])
+      
+      // Fila 3: Headers de datos
+      const headers = ['Date', 'Terminal', 'Surveyor', 'Shift Start', 'Shift End', 'Hours', 'Loads', 'Status']
+      const dataHeaderRow = ws.addRow(headers)
+      
+      // Aplicar formato a headers de datos de forma segura
+      headers.forEach((header, index) => {
+        const cell = dataHeaderRow.getCell(index + 1)
+        cell.font = { bold: true }
+        cell.value = String(header) // FORZAR A STRING
+      })
 
-      // Generar archivo Excel CON DETECCIÓN DE DESCARGA
-      await this.generateLineSamplingRosterExcelWithDetection(rosterData);
+      // PROBLEMA 2 & 3: Procesar datos con máxima seguridad
+      rows.forEach((doc, rowIndex) => {
+        const row = [
+          this.bulletproofString(this.formatDate(doc.operationDate)),
+          this.bulletproofString(doc.terminal),
+          this.bulletproofString(doc.samplerName),
+          this.bulletproofString(this.formatTime(doc?.shift?.startTime)),
+          this.bulletproofString(this.formatTime(doc?.shift?.endTime)),
+          this.bulletproofString(doc?.shift?.hours),
+          this.bulletproofString(this.formatLoads(doc.loads)),
+          this.bulletproofString(doc.status)
+        ]
 
-    } catch (error) {
-      Logger.error("Error during export", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        error: error,
-        showNotification: true,
-        notificationMessage: "Failed to export Line Sampling Roster. Please try again."
-      });
+        const excelRow = ws.addRow([])
+        
+        // PROBLEMA 4: Asignar valores celda por celda para evitar objetos complejos
+        row.forEach((value, colIndex) => {
+          const cell = excelRow.getCell(colIndex + 1)
+          // FORZAR TODO A STRING PLANO - nunca objetos
+          const plainValue = this.forceToPlainString(value)
+          cell.value = plainValue
+        })
+      })
+
+      // Configurar anchos SIN autofit problemático
+      const fixedWidths = [12, 20, 15, 15, 15, 8, 40, 12]
+      ws.columns = fixedWidths.map(width => ({ width }))
+
+      // Buffer y descarga
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const fileName = this._fileName()
+      this.downloadBlob(blob, fileName)
+
+      window.Logger?.success?.('Excel generated', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: `Excel file generated: ${fileName}` })
+
+    } catch (e) {
+      console.error('Export error:', e)
+      window.Logger?.error?.('Export failed', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'Failed to export: ' + e.message })
     } finally {
-      this.isExporting = false;
-      this.showExportLoading(false);
+      this._setLoading(false)
+      this.isExporting = false
     }
   }
 
-  /**
-   * ✅ Validar datos antes de exportar
-   */
-  validateDataForExport() {
-    const selectedNomination = this.controller.getSelectedShipNomination();
-    if (!selectedNomination) {
-      return {
-        isValid: false,
-        message: "Please select a ship nomination first"
-      };
+  async _fetchData() {
+    const { from, to, surveyor } = this.getFilters() || {}
+    const params = new URLSearchParams()
+    if (from) params.set('from', new Date(from).toISOString())
+    if (to) {
+      const dt = new Date(to)
+      dt.setHours(23,59,59,999)
+      params.set('to', dt.toISOString())
     }
+    if (surveyor) params.set('surveyor', surveyor)
+    const url = params.toString() ? `/api/truckworkdays?${params.toString()}` : '/api/truckworkdays'
+    const resp = await fetch(url)
+    const json = await resp.json()
+    if (!resp.ok || !json.success) throw new Error(json.error || 'Fetch failed')
+    return Array.isArray(json.data) ? json.data : []
+  }
 
-    const officeData = this.controller.tableManager.getOfficeSamplingData();
-    const lineData = this.controller.tableManager.getCurrentLineTurns();
+  // SOLUCIÓN PROBLEMA 1: Función ultra segura para strings
+  bulletproofString(value) {
+    // Manejar todos los casos edge
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+    if (typeof value === 'number') return isNaN(value) ? '' : String(value)
     
-    if (!officeData && (!lineData || lineData.length === 0)) {
-      return {
-        isValid: false,
-        message: "No sampling data available to export"
-      };
+    let str = String(value)
+    
+    // Eliminar caracteres XML inválidos de forma más agresiva
+    str = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
+    
+    // Eliminar caracteres Unicode problemáticos
+    str = str.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    
+    // Normalizar espacios y saltos de línea
+    str = str.replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim()
+    
+    // Escapar caracteres XML especiales
+    str = str
+      .replace(/&/g, 'and')
+      .replace(/</g, '')
+      .replace(/>/g, '')
+      .replace(/"/g, "'")
+      .replace(/'/g, "'")
+    
+    // Limitar longitud para evitar problemas de memoria
+    if (str.length > 200) {
+      str = str.substring(0, 197) + '...'
     }
-
-    return { isValid: true };
+    
+    return str
   }
 
-  /**
-   * 📊 Generar archivo Excel con formato Line Sampling Roster CON DETECCIÓN DE DESCARGA
-   */
-  async generateLineSamplingRosterExcelWithDetection(rosterData) {
-    try {
-      // Crear workbook
-      const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Line Sampling Roster System';
-      workbook.lastModifiedBy = 'Export System';
-      workbook.created = new Date();
-      workbook.modified = new Date();
+  // SOLUCIÓN PROBLEMA 2: Forzar a string plano (no objetos)
+  forceToPlainString(value) {
+    const cleaned = this.bulletproofString(value)
+    
+    // Verificar que no sea un objeto
+    if (typeof cleaned === 'object') {
+      console.warn('Object detected, converting to string:', cleaned)
+      if (cleaned && cleaned.text) return String(cleaned.text)
+      return String(cleaned)
+    }
+    
+    return cleaned
+  }
 
-      // Crear worksheet
-      const worksheet = workbook.addWorksheet('Line Sampling Roster', {
-        pageSetup: {
-          paperSize: 9, // A4
-          orientation: 'portrait',
-          margins: {
-            left: 0.7, right: 0.7,
-            top: 0.75, bottom: 0.75,
-            header: 0.3, footer: 0.3
+  formatDate(value) {
+    if (!value) return ''
+    
+    try {
+      const date = new Date(value)
+      if (isNaN(date.getTime())) return ''
+      
+      const day = String(date.getDate()).padStart(2, '0')
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const year = date.getFullYear()
+      
+      return `${day}/${month}/${year}`
+    } catch (e) {
+      console.warn('Date format error:', e)
+      return ''
+    }
+  }
+
+  formatTime(value) {
+    if (!value) return ''
+    
+    try {
+      const date = new Date(value)
+      if (isNaN(date.getTime())) return ''
+      
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      
+      return `${hours}:${minutes}`
+    } catch (e) {
+      console.warn('Time format error:', e)
+      return ''
+    }
+  }
+
+  // SOLUCIÓN PROBLEMA 1: Formatear loads de forma ultra segura
+  formatLoads(loads) {
+    if (!loads) return ''
+    
+    try {
+      if (!Array.isArray(loads)) return ''
+      
+      const processed = loads
+        .filter(load => {
+          // Verificar que load sea un objeto válido
+          return load && typeof load === 'object' && !Array.isArray(load)
+        })
+        .slice(0, 2) // Máximo 2 loads para evitar strings largas
+        .map(load => {
+          const parts = []
+          
+          // Procesar cada campo de forma segura
+          if (load.loadNo && load.loadNo !== null && load.loadNo !== undefined) {
+            parts.push(`L${String(load.loadNo)}`)
           }
-        },
-        views: [{
-          showGridLines: false
-        }]
-      });
-
-      // Construir el Excel paso a paso
-      await this.buildLineSamplingRosterLayout(worksheet, rosterData);
-
-      // Generar buffer
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      });
-
-      const fileName = this.generateFileName(rosterData.vesselName);
-
-      // ✅ MENSAJE ÚNICO Y VERAZ - El Excel se generó correctamente
-      Logger.success("Excel file generated successfully", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: {
-          vessel: rosterData.vesselName,
-          fileName: fileName
-        },
-        showNotification: true,
-        notificationMessage: `Excel file generated: ${fileName}`
-      });
-
-      // Ejecutar descarga
-      this.downloadBlob(blob, fileName);
-
-    } catch (error) {
-      Logger.error("Error generating Excel file", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        error: error,
-        showNotification: false
-      });
-      throw error;
-    }
-  }
-
-  /**
-   * 🏗️ Construir layout completo del Line Sampling Roster
-   */
-  async buildLineSamplingRosterLayout(worksheet, rosterData) {
-    let currentRow = 1;
-
-    // 1. TÍTULO PRINCIPAL
-    currentRow = this.addMainTitle(worksheet, currentRow);
-    currentRow++; // Espacio
-
-    // 2. INFORMACIÓN DEL BARCO
-    currentRow = this.addShipInformation(worksheet, currentRow, rosterData);
-    currentRow++; // Espacio
-
-    // 3. OFFICE SAMPLING SECTION
-    if (rosterData.officeSampling) {
-      currentRow = this.addOfficeSamplingSection(worksheet, currentRow, rosterData.officeSampling);
-      currentRow++; // Espacio
-    }
-
-    // 4. LINE SAMPLING SECTION
-    if (rosterData.lineSampling && rosterData.lineSampling.length > 0) {
-      currentRow = this.addLineSamplingSection(worksheet, currentRow, rosterData.lineSampling);
-      currentRow += 2; // Más espacio antes de contactos
-    }
-
-    // 5. CONTACTOS HARDCODEADOS EN LAYOUT DE 2 COLUMNAS
-    
-    // === HEADERS: OPERATION CONTACT (izq) + TERMINAL CONTACT (der) ===
-    const headersRow = worksheet.getRow(currentRow);
-    
-    // Operation Contact Header (columnas A:B)
-    headersRow.getCell(1).value = 'Operation Contact';
-    worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-    const opHeaderCell = headersRow.getCell(1);
-    opHeaderCell.font = {
-      name: 'Calibri',
-      size: 12,
-      bold: true,
-      color: { argb: 'FFFFFFFF' }
-    };
-    opHeaderCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1B365D' }
-    };
-    opHeaderCell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    };
-    opHeaderCell.border = {
-      top: { style: 'medium', color: { argb: 'FF1B365D' } },
-      left: { style: 'medium', color: { argb: 'FF1B365D' } },
-      bottom: { style: 'medium', color: { argb: 'FF1B365D' } },
-      right: { style: 'medium', color: { argb: 'FF1B365D' } }
-    };
-
-    // Terminal Contact Header (columnas C:D)
-    headersRow.getCell(3).value = 'Terminal Contact';
-    worksheet.mergeCells(`C${currentRow}:D${currentRow}`);
-    const terminalHeaderCell = headersRow.getCell(3);
-    terminalHeaderCell.font = {
-      name: 'Calibri',
-      size: 12,
-      bold: true,
-      color: { argb: 'FFFFFFFF' }
-    };
-    terminalHeaderCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1B365D' } // ✅ AZUL MARINO IGUAL QUE EL RESTO
-    };
-    terminalHeaderCell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    };
-    terminalHeaderCell.border = {
-      top: { style: 'medium', color: { argb: 'FF1B365D' } },
-      left: { style: 'medium', color: { argb: 'FF1B365D' } },
-      bottom: { style: 'medium', color: { argb: 'FF1B365D' } },
-      right: { style: 'medium', color: { argb: 'FF1B365D' } }
-    };
-
-    headersRow.height = 30;
-    currentRow++;
-
-    // === DATOS: OPERATION CONTACT (izq) + TERMINAL INFO (der) ===
-    const operationContacts = [
-      ['Baskaran', '0408 516 912'],
-      ['Asyrani Lin (Ash)', '0483 183 035'],
-      ['Jay-Cen', '0467 889 559']
-    ];
-
-    const terminalInfo = [
-      'Vopak Control Room : 02 83361952',
-      'BLB-1 UHF CH: 11',
-      'BLB-2 UHF CH: 12',
-      'Vopak Control Room UHF CH: 2'
-    ];
-
-    // Procesar filas de Operation Contact + Terminal (máximo 4 filas)
-    const maxRows = Math.max(operationContacts.length, terminalInfo.length);
-    
-    for (let i = 0; i < maxRows; i++) {
-      const dataRow = worksheet.getRow(currentRow);
-      const isEvenRow = i % 2 === 0;
-      const backgroundColor = isEvenRow ? 'FFF8F9FA' : 'FFFFFFFF';
-
-      // === OPERATION CONTACT (columnas A:B) ===
-      if (i < operationContacts.length) {
-        const [name, phone] = operationContacts[i];
-        
-        // Nombre (columna A)
-        const nameCell = dataRow.getCell(1);
-        nameCell.value = name;
-        nameCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2F5597' } };
-        nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: backgroundColor } };
-        nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
-        nameCell.border = {
-          top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-        };
-
-        // Teléfono (columna B)
-        const phoneCell = dataRow.getCell(2);
-        phoneCell.value = phone;
-        phoneCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF2F5597' } };
-        phoneCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: backgroundColor } };
-        phoneCell.alignment = { horizontal: 'left', vertical: 'middle' };
-        phoneCell.border = {
-          top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-        };
-      }
-
-      // === TERMINAL CONTACT (columnas C:D mergeadas) ===
-      if (i < terminalInfo.length) {
-        const info = terminalInfo[i];
-        const terminalCell = dataRow.getCell(3);
-        terminalCell.value = info;
-        
-        // ✅ FORMATO UNIFICADO: Todas las filas con mismo estilo
-        terminalCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF2F5597' } };
-        terminalCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: backgroundColor } };
-        terminalCell.alignment = { horizontal: 'center', vertical: 'middle' };
-        terminalCell.border = {
-          top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-        };
-
-        worksheet.mergeCells(`C${currentRow}:D${currentRow}`);
-      }
-
-      dataRow.height = 25;
-      currentRow++;
-    }
-
-    currentRow++; // Espacio
-
-    // === LAB CONTACT HEADER (solo izquierda A:B) ===
-    const labHeaderRow = worksheet.getRow(currentRow);
-    labHeaderRow.getCell(1).value = 'Lab Contact';
-    worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-    
-    const labHeaderCell = labHeaderRow.getCell(1);
-    labHeaderCell.font = {
-      name: 'Calibri',
-      size: 12,
-      bold: true,
-      color: { argb: 'FFFFFFFF' }
-    };
-    labHeaderCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1B365D' }
-    };
-    labHeaderCell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    };
-    labHeaderCell.border = {
-      top: { style: 'medium', color: { argb: 'FF1B365D' } },
-      left: { style: 'medium', color: { argb: 'FF1B365D' } },
-      bottom: { style: 'medium', color: { argb: 'FF1B365D' } },
-      right: { style: 'medium', color: { argb: 'FF1B365D' } }
-    };
-    labHeaderRow.height = 30;
-    currentRow++;
-
-    // === DATOS LAB CONTACT (solo columnas A:B) ===
-    const labContacts = [
-      ['Tomas', '0475 941 910'],
-      ['Aram', '0461 463 421'],
-      ['Farshid', '0420 626 864'],
-      ['Anh', '0437 581 288']
-    ];
-
-    labContacts.forEach(([name, phone], index) => {
-      const dataRow = worksheet.getRow(currentRow);
-      const isEvenRow = index % 2 === 0;
-      const backgroundColor = isEvenRow ? 'FFF8F9FA' : 'FFFFFFFF';
-
-      // Nombre (columna A)
-      const nameCell = dataRow.getCell(1);
-      nameCell.value = name;
-      nameCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF2F5597' } };
-      nameCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: backgroundColor } };
-      nameCell.alignment = { horizontal: 'left', vertical: 'middle' };
-      nameCell.border = {
-        top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-      };
-
-      // Teléfono (columna B)
-      const phoneCell = dataRow.getCell(2);
-      phoneCell.value = phone;
-      phoneCell.font = { name: 'Calibri', size: 10, color: { argb: 'FF2F5597' } };
-      phoneCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: backgroundColor } };
-      phoneCell.alignment = { horizontal: 'left', vertical: 'middle' };
-      phoneCell.border = {
-        top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-      };
-
-      dataRow.height = 25;
-      currentRow++;
-    });
-
-    // 6. CONFIGURAR ANCHOS DE COLUMNA
-    this.configureColumnWidths(worksheet);
-
-    Logger.debug("Line Sampling Roster layout completed", {
-      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-      data: { totalRows: currentRow },
-      showNotification: false
-    });
-  }
-
-  /**
-   * 📋 Agregar título principal "Line Sampling Roster"
-   */
-  addMainTitle(worksheet, startRow) {
-    const titleRow = worksheet.getRow(startRow);
-    titleRow.getCell(1).value = "Line Sampling Roster";
-    
-    // Mergear desde A hasta D
-    worksheet.mergeCells(`A${startRow}:D${startRow}`);
-    
-    // Estilo del título
-    const titleCell = titleRow.getCell(1);
-    titleCell.font = {
-      name: 'Calibri',
-      size: 16,
-      bold: true,
-      color: { argb: 'FFFFFFFF' } // Texto blanco
-    };
-    titleCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF1B365D' } // Fondo azul marino
-    };
-    titleCell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    };
-    titleCell.border = {
-      top: { style: 'medium', color: { argb: 'FF1B365D' } },
-      left: { style: 'medium', color: { argb: 'FF1B365D' } },
-      bottom: { style: 'medium', color: { argb: 'FF1B365D' } },
-      right: { style: 'medium', color: { argb: 'FF1B365D' } }
-    };
-    
-    titleRow.height = 35;
-    
-    return startRow;
-  }
-
-  /**
-   * 🚢 Agregar información del barco
-   */
-  addShipInformation(worksheet, startRow, rosterData) {
-    const shipInfo = [
-      ['Vessel:', rosterData.vesselName || ''],
-      ['Berth:', this.controller.selectedShipNomination.berth?.name || ''],
-      ['Amspec Ref:', rosterData.amspecRef || ''],
-      ['POB:', this.formatDateTime(this.controller.selectedShipNomination.pilotOnBoard)],
-      ['ETB:', this.formatDateTime(this.controller.selectedShipNomination.etb)],
-      ['Start Discharge:', this.formatDateTime(rosterData.startDischarge)],
-      ['ETC:', this.formatDateTime(rosterData.etcTime)],
-      ['Discharge Time (Hrs):', rosterData.dischargeTimeHours || ''],
-      ['Cargo:', this.formatProductTypes(this.controller.selectedShipNomination.productTypes)],
-      ['Surveyor:', this.controller.selectedShipNomination.surveyor?.name || ''],
-      ['Pre Discharge Testing:', this.controller.selectedShipNomination.chemist?.name || ''],
-      ['Post Discharge Testing:', this.controller.selectedShipNomination.chemist?.name || '']
-    ];
-
-    let currentRow = startRow;
-    
-    shipInfo.forEach(([label, value]) => {
-      const row = worksheet.getRow(currentRow);
+          
+          if (load.startTime) {
+            const time = this.formatTime(load.startTime)
+            if (time) parts.push(time)
+          }
+          
+          if (load.product && load.product !== null && load.product !== undefined) {
+            const product = String(load.product).trim()
+            if (product && product.length > 0) {
+              parts.push(product.substring(0, 15))
+            }
+          }
+          
+          return parts.join(' ').trim()
+        })
+        .filter(item => item && item.length > 0)
+        .join(' | ')
       
-      // Celda del label (columna A)
-      const labelCell = row.getCell(1);
-      labelCell.value = label;
-      labelCell.font = {
-        name: 'Calibri',
-        size: 11,
-        bold: true,
-        color: { argb: 'FFFFFFFF' }
-      };
-      labelCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF4A5568' } // Gris azulado
-      };
-      labelCell.alignment = {
-        horizontal: 'left',
-        vertical: 'middle'
-      };
-      labelCell.border = {
-        top: { style: 'thin', color: { argb: 'FF1B365D' } },
-        left: { style: 'thin', color: { argb: 'FF1B365D' } },
-        bottom: { style: 'thin', color: { argb: 'FF1B365D' } },
-        right: { style: 'thin', color: { argb: 'FF1B365D' } }
-      };
-
-      // Celda del valor (columna B)
-      const valueCell = row.getCell(2);
-      valueCell.value = value;
-      valueCell.font = {
-        name: 'Calibri',
-        size: 11,
-        color: { argb: 'FF2F5597' }
-      };
-      valueCell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFAF8B8' } // Amarillo muy claro
-      };
-      valueCell.alignment = {
-        horizontal: 'left',
-        vertical: 'middle'
-      };
-      valueCell.border = {
-        top: { style: 'thin', color: { argb: 'FF1B365D' } },
-        left: { style: 'thin', color: { argb: 'FF1B365D' } },
-        bottom: { style: 'thin', color: { argb: 'FF1B365D' } },
-        right: { style: 'thin', color: { argb: 'FF1B365D' } }
-      };
-
-      row.height = 25;
-      currentRow++;
-    });
-
-    return currentRow - 1;
-  }
-
-  /**
-   * 🏢 Agregar sección Office Sampling
-   */
-  addOfficeSamplingSection(worksheet, startRow, officeSampling) {
-    let currentRow = startRow;
-
-    // Headers
-    const headerRow = worksheet.getRow(currentRow);
-    const headers = ['Who', 'Start Office', 'Finish Sampling', 'Hours'];
-    
-    headers.forEach((header, index) => {
-      const cell = headerRow.getCell(index + 1);
-      cell.value = header;
-      cell.font = {
-        name: 'Calibri',
-        size: 11,
-        bold: true,
-        color: { argb: 'FFFFFFFF' }
-      };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1B365D' }
-      };
-      cell.alignment = {
-        horizontal: 'center',
-        vertical: 'middle'
-      };
-      cell.border = {
-        top: { style: 'medium', color: { argb: 'FF1B365D' } },
-        left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
-      };
-    });
-    
-    headerRow.height = 30;
-    currentRow++;
-
-    // Datos
-    const dataRow = worksheet.getRow(currentRow);
-    const officeData = [
-      officeSampling.sampler?.name || '',
-      this.formatDateTime(officeSampling.startTime),
-      this.formatDateTime(officeSampling.finishTime),
-      officeSampling.hours || ''
-    ];
-
-    officeData.forEach((data, index) => {
-      const cell = dataRow.getCell(index + 1);
-      cell.value = data;
-      cell.font = {
-        name: 'Calibri',
-        size: 10,
-        color: { argb: 'FF2F5597' }
-      };
-      cell.alignment = {
-        horizontal: 'center',
-        vertical: 'middle'
-      };
-      cell.border = {
-        top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-        right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-      };
-    });
-    
-    dataRow.height = 25;
-    
-    return currentRow;
-  }
-
-  /**
-   * 📈 Agregar sección Line Sampling
-   */
-  addLineSamplingSection(worksheet, startRow, lineSampling) {
-    let currentRow = startRow;
-
-    // Headers
-    const headerRow = worksheet.getRow(currentRow);
-    const headers = ['Who', 'Start Line Sampling', 'Finish Line Sampling', 'Hours'];
-    
-    headers.forEach((header, index) => {
-      const cell = headerRow.getCell(index + 1);
-      cell.value = header;
-      cell.font = {
-        name: 'Calibri',
-        size: 11,
-        bold: true,
-        color: { argb: 'FFFFFFFF' }
-      };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF1B365D' }
-      };
-      cell.alignment = {
-        horizontal: 'center',
-        vertical: 'middle'
-      };
-      cell.border = {
-        top: { style: 'medium', color: { argb: 'FF1B365D' } },
-        left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
-        right: { style: 'thin', color: { argb: 'FFFFFFFF' } }
-      };
-    });
-    
-    headerRow.height = 30;
-    currentRow++;
-
-    // Datos con filas alternadas (patrón unificado)
-    lineSampling.forEach((turn, index) => {
-      const dataRow = worksheet.getRow(currentRow);
-      const lineData = [
-        turn.sampler?.name || '',
-        this.formatDateTime(turn.startTime),
-        this.formatDateTime(turn.finishTime),
-        turn.hours || ''
-      ];
-
-      // ✅ PATRÓN UNIFICADO: Filas alternadas gris claro/blanco
-      const isEvenRow = index % 2 === 0;
-      const backgroundColor = isEvenRow ? 'FFF8F9FA' : 'FFFFFFFF'; // Gris claro / Blanco
-
-      lineData.forEach((data, cellIndex) => {
-        const cell = dataRow.getCell(cellIndex + 1);
-        cell.value = data;
-        cell.font = {
-          name: 'Calibri',
-          size: 10,
-          color: { argb: 'FF2F5597' }
-        };
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: backgroundColor }
-        };
-        cell.alignment = {
-          horizontal: 'center',
-          vertical: 'middle'
-        };
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          left: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          bottom: { style: 'thin', color: { argb: 'FFE1E5E9' } },
-          right: { style: 'thin', color: { argb: 'FFE1E5E9' } }
-        };
-      });
+      return processed.substring(0, 100) // Limitar longitud total
       
-      dataRow.height = 25;
-      currentRow++;
-    });
-
-    return currentRow - 1;
-  }
-
-  /**
-   * 📏 Configurar anchos de columna
-   */
-  configureColumnWidths(worksheet) {
-    const columnWidths = [
-      { width: 20 }, // Who / Name
-      { width: 25 }, // Start / Phone  
-      { width: 25 }, // Finish
-      { width: 12 }  // Hours
-    ];
-
-    worksheet.columns = columnWidths;
-  }
-
-  /**
-   * 🕒 Formatear fecha y hora para display
-   */
-  formatDateTime(dateValue) {
-    if (!dateValue) return '';
-    
-    try {
-      const date = new Date(dateValue);
-      if (isNaN(date.getTime())) return '';
-      
-      return DateUtils.formatDateTime(date);
-    } catch (error) {
-      Logger.warn("Error formatting datetime", {
-        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-        data: { dateValue },
-        showNotification: false
-      });
-      return '';
+    } catch (e) {
+      console.warn('Error formatting loads:', e)
+      return ''
     }
   }
 
-  /**
-   * 🏭 Formatear tipos de productos
-   */
-  formatProductTypes(productTypes) {
-    if (!productTypes || !Array.isArray(productTypes)) return '';
-    
-    return productTypes
-      .map(product => product?.name || product || '')
-      .filter(name => name)
-      .join(', ');
-  }
-
-  /**
-   * 📂 Generar nombre de archivo
-   */
-  generateFileName(vesselName) {
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0'); 
-    const year = now.getFullYear();
-    const dateStr = `${day}-${month}-${year}`;
-    
-    const cleanVesselName = (vesselName || 'vessel')
-      .replace(/[^a-zA-Z0-9]/g, '_')
-      .toLowerCase();
-    
-    return `line_sampling_roster_${cleanVesselName}_${dateStr}.xlsx`;
-  }
-
-  /**
-   * 💾 Descargar blob como archivo
-   */
   downloadBlob(blob, fileName) {
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
   }
 
-  /**
-   * ⏳ Mostrar/ocultar loading en botón
-   */
-  showExportLoading(show) {
-    const exportBtn = document.getElementById('exportRosterBtn');
-    if (!exportBtn) return;
+  _fileName() {
+    const now = new Date()
+    const day = String(now.getDate()).padStart(2, '0')
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const year = now.getFullYear()
+    return `molekulis_loading_${day}-${month}-${year}.xlsx`
+  }
 
+  _setLoading(show) {
+    const btn = document.getElementById('truckExportBtn')
+    if (!btn) return
     if (show) {
-      exportBtn.disabled = true;
-      exportBtn.innerHTML = `
-        <i class="fas fa-spinner fa-spin"></i>
-        EXPORTING...
-      `;
+      btn.disabled = true
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...'
     } else {
-      exportBtn.disabled = false;
-      exportBtn.innerHTML = `
-        <i class="fas fa-file-excel"></i>
-        EXPORT
-      `;
+      btn.disabled = false
+      btn.innerHTML = '<i class="fas fa-file-export"></i>Export Excel'
     }
-  }
-
-  /**
-   * 📊 Método público para actualizar visibilidad (llamado desde controller)
-   */
-  updateVisibility() {
-    this.updateButtonVisibility();
   }
 }
+
+window.TruckWorkDaysExporter = TruckWorkDaysExporter

@@ -19,6 +19,8 @@ class NavigationManager {
             return 'ship-nominations';
         } else if (filename === 'sampling-roster.html') {
             return 'sampling-roster';
+        } else if (filename === 'truck-loading.html') {
+            return 'truck-loading';
         }
         return 'home';
     }
@@ -47,6 +49,9 @@ class NavigationManager {
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="sampling-roster.html" data-page="sampling-roster">Sampling Roster</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="truck-loading.html" data-page="truck-loading">Molekulis Loading</a>
                             </li>
                         </ul>
                         

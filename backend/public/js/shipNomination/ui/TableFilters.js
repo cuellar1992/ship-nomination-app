@@ -36,8 +36,8 @@ class TableFilters {
   setupDatePickers() {
     // DatePicker para "ETB From"
     this.datePickerInstances.etbFrom = new DatePicker("etbFromDatePicker", {
-      label: "From Date",
-      placeholder: "Select start date...",
+      label: "",
+      placeholder: "From",
       icon: "fas fa-calendar-alt",
       modalTitle: "Select ETB Start Date",
       format: "DD-MM-YYYY",
@@ -56,8 +56,8 @@ class TableFilters {
 
     // DatePicker para "ETB To"
     this.datePickerInstances.etbTo = new DatePicker("etbToDatePicker", {
-      label: "To Date",
-      placeholder: "Select end date...",
+      label: "",
+      placeholder: "To",
       icon: "fas fa-calendar-alt",
       modalTitle: "Select ETB End Date",
       format: "DD-MM-YYYY",

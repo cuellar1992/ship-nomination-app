@@ -65,6 +65,7 @@ async function startServer() {
             console.log(`   • ${baseUrl}/ (index.html)`);
             console.log(`   • ${baseUrl}/sampling-roster.html`);
             console.log(`   • ${baseUrl}/ship-nominations.html`);
+            console.log(`   • ${baseUrl}/truck-loading.html`);
             console.log(`\n📡 API endpoints principales:`);
             console.log(`   • ${baseUrl}/api/health - Estado del servidor`);
             console.log(`   • ${baseUrl}/api/info - Información del sistema`);
