@@ -1581,20 +1581,68 @@ export class SamplingRosterController {
 
     try {
       let dateTimeResult = { success: true, data: null };
+      let hasDateTimeChanges = false;
 
       // 🆕 STEP 1: GUARDAR Y VALIDAR DATETIMEPICKERS (SOLO PRIMERA LÍNEA)
       if (rowId === "line-sampler-row-0") {
-        dateTimeResult =
-          this.tableManager.disableLineSamplingDateTimeEdit(rowId);
-        if (!dateTimeResult.success) {
-          Logger.warn("DateTimePicker validation failed for first line", {
+        // Verificar si hay DateTimePickers activos antes de deshabilitarlos
+        const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+        const hasActiveDateTimePickers = row && (
+          row.querySelector('div[id^="lineStartDateTime_"]') || 
+          row.querySelector('div[id^="lineFinishDateTime_"]')
+        );
+        
+        if (hasActiveDateTimePickers) {
+          // Obtener valores originales para comparar
+          const originalStartTime = row.querySelector("td:nth-child(2)")?.getAttribute("data-original-value");
+          const originalFinishTime = row.querySelector("td:nth-child(3)")?.getAttribute("data-original-value");
+          
+          Logger.info("Original values retrieved for comparison", {
             module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-            showNotification: true,
-            notificationMessage:
-              dateTimeResult.message ||
-              "Invalid date/time sequence for first line",
+            data: {
+              originalStartTime: originalStartTime,
+              originalFinishTime: originalFinishTime
+            },
+            showNotification: false
           });
-          return; // No continuar si las fechas son inválidas
+          
+          dateTimeResult = this.tableManager.disableLineSamplingDateTimeEdit(rowId);
+          
+          if (!dateTimeResult.success) {
+            Logger.warn("DateTimePicker validation failed for first line", {
+              module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+              showNotification: true,
+              notificationMessage:
+                dateTimeResult.message ||
+                "Invalid date/time sequence for first line",
+            });
+            return; // No continuar si las fechas son inválidas
+          }
+          
+          // Verificar si realmente hubo cambios en las fechas
+          if (dateTimeResult.success && dateTimeResult.data) {
+            const newStartTime = dateTimeResult.data.startTime;
+            const newFinishTime = dateTimeResult.data.finishTime;
+            
+            hasDateTimeChanges = (
+              newStartTime !== originalStartTime || 
+              newFinishTime !== originalFinishTime
+            );
+            
+            Logger.info("DateTime change detection for row 0", {
+              module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+              data: {
+                originalStartTime: originalStartTime,
+                originalFinishTime: originalFinishTime,
+                newStartTime: newStartTime,
+                newFinishTime: newFinishTime,
+                hasDateTimeChanges: hasDateTimeChanges,
+                startTimeChanged: newStartTime !== originalStartTime,
+                finishTimeChanged: newFinishTime !== originalFinishTime
+              },
+              showNotification: false
+            });
+          }
         }
       }
 
@@ -1707,8 +1755,21 @@ export class SamplingRosterController {
         const turnOrder = parseInt(rowId.replace('line-sampler-row-', ''));
         const currentTurnData = this.tableManager.getLineTurnByIndex?.(turnOrder) || null;
 
-        if (rowId === 'line-sampler-row-0' && dateTimeResult.data) {
-          // Primera línea con cambio de tiempos: persistir schedule completo para evitar overlaps
+        // 🔧 DEBUG: Log de la lógica de decisión
+        Logger.info("Line sampler save logic decision", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            hasDateTimeChanges: hasDateTimeChanges,
+            samplerChanged: newSamplerName !== originalValue,
+            willUseAutoGenerate: rowId === 'line-sampler-row-0' && hasDateTimeChanges,
+            willUseLineTurnUpdate: !(rowId === 'line-sampler-row-0' && hasDateTimeChanges)
+          },
+          showNotification: false
+        });
+
+        if (rowId === 'line-sampler-row-0' && hasDateTimeChanges) {
+          // ESCENARIO 3: Primera línea con cambio de tiempos (y posiblemente sampler): persistir schedule completo
           // Actualizar sampler en la fila actual antes de mapear
           if (currentTurnData) {
             currentTurnData.samplerName = newSamplerName;
@@ -1722,18 +1783,34 @@ export class SamplingRosterController {
           }, { immediate: true });
         } else {
           // Otras líneas o sin cambio de tiempos: solo update de la línea
-          const startTime = this.uiManager.getDateTimeInstances()[`lineStart_${rowId}`]?.getDateTime()
-            || this.parseToDate(dateTimeResult.data?.startTime)
-            || this.parseToDate(currentTurnData?.startTime);
-          const finishTime = this.uiManager.getDateTimeInstances()[`lineFinish_${rowId}`]?.getDateTime()
-            || this.parseToDate(dateTimeResult.data?.finishTime)
-            || this.parseToDate(currentTurnData?.finishTime);
-          const hours = (typeof dateTimeResult.data?.hours === 'number' ? dateTimeResult.data.hours : null)
-            || (currentTurnData ? currentTurnData.hours : 0)
-            || (startTime && finishTime ? DateUtils.getHoursBetween(startTime, finishTime) : 0);
-          const blockType = this.mapHourToBlockType(startTime);
+          let startTime, finishTime, hours, blockType;
+          
+          if (rowId === 'line-sampler-row-0') {
+            // ESCENARIO 1: Fila 0 solo con cambio de sampler (sin cambios de fecha)
+            // Obtener datos actuales de la tabla
+            const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+            if (row) {
+              const cells = row.querySelectorAll("td");
+              startTime = this.parseToDate(cells[1]?.textContent?.trim());
+              finishTime = this.parseToDate(cells[2]?.textContent?.trim());
+              hours = parseFloat(cells[3]?.textContent?.trim()) || 0;
+            }
+            blockType = this.mapHourToBlockType(startTime);
+          } else {
+            // Para otras filas, usar la lógica original
+            startTime = this.uiManager.getDateTimeInstances()[`lineStart_${rowId}`]?.getDateTime()
+              || this.parseToDate(dateTimeResult.data?.startTime)
+              || this.parseToDate(currentTurnData?.startTime);
+            finishTime = this.uiManager.getDateTimeInstances()[`lineFinish_${rowId}`]?.getDateTime()
+              || this.parseToDate(dateTimeResult.data?.finishTime)
+              || this.parseToDate(currentTurnData?.finishTime);
+            hours = (typeof dateTimeResult.data?.hours === 'number' ? dateTimeResult.data.hours : null)
+              || (currentTurnData ? currentTurnData.hours : 0)
+              || (startTime && finishTime ? DateUtils.getHoursBetween(startTime, finishTime) : 0);
+            blockType = this.mapHourToBlockType(startTime);
+          }
 
-          this.autoSaveService.trigger('lineTurnUpdate', {
+          const saveResult = await this.autoSaveService.trigger('lineTurnUpdate', {
             rowId: rowId,
             turn: {
               sampler: { id: samplerEntity?._id || samplerEntity?.id || null, name: newSamplerName },
@@ -1744,6 +1821,11 @@ export class SamplingRosterController {
               turnOrder: turnOrder
             }
           }, { immediate: true });
+          
+          // 🔧 ACTUALIZAR UI DESPUÉS DE SAVE EXITOSO
+          if (saveResult && saveResult.success) {
+            this.updateLineSamplingRowAfterSave(rowId, newSamplerName, startTime, finishTime, hours);
+          }
         }
       } else {
         Logger.info("No changes made to line sampler", {
@@ -2528,6 +2610,53 @@ export class SamplingRosterController {
         });
         this.tableManager.emergencyRestoreOfficeSampling(rowId, originalData);
       }
+    }
+  }
+
+  /**
+   * 🔧 ACTUALIZAR UI DESPUÉS DE SAVE EXITOSO
+   * Actualiza la fila de line sampling después de un save exitoso
+   */
+  updateLineSamplingRowAfterSave(rowId, samplerName, startTime, finishTime, hours) {
+    try {
+      const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
+      if (!row) return;
+
+      const cells = row.querySelectorAll("td");
+      if (cells.length < 4) return;
+
+      // Actualizar celda del sampler
+      const samplerCell = cells[0];
+      samplerCell.innerHTML = `<span class="fw-medium">${samplerName}</span>`;
+
+      // Actualizar celdas de tiempo si se proporcionaron
+      if (startTime && finishTime) {
+        const startTimeFormatted = this.tableManager.formatDateTime(startTime);
+        const finishTimeFormatted = this.tableManager.formatDateTime(finishTime);
+        
+        cells[1].textContent = startTimeFormatted;
+        cells[2].textContent = finishTimeFormatted;
+        cells[3].textContent = hours.toString();
+      }
+
+      Logger.info("Line sampling row updated after save", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          rowId: rowId,
+          samplerName: samplerName,
+          startTime: startTime,
+          finishTime: finishTime,
+          hours: hours
+        },
+        showNotification: false
+      });
+
+    } catch (error) {
+      Logger.error("Error updating line sampling row after save", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false
+      });
     }
   }
 

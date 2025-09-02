@@ -205,6 +205,7 @@ router.put('/auto-save/:id', async (req, res) => {
     const { changeType, data: updateData } = req.body;
 
     console.log(`💾 Auto-saving roster: ${id} (${changeType})`);
+    console.log(`📊 Update data:`, JSON.stringify(updateData, null, 2));
 
     const existingRoster = await SamplingRoster.findById(id);
     if (!existingRoster) {
@@ -236,8 +237,32 @@ router.put('/auto-save/:id', async (req, res) => {
         const { rowId, turn } = updateData;
         if (rowId && turn) {
           const turnIndex = parseInt(String(rowId).replace('line-sampler-row-', ''));
-          if (!isNaN(turnIndex) && existingRoster.lineSampling[turnIndex]) {
+          if (!isNaN(turnIndex)) {
+            // Asegurar que el array lineSampling tenga suficientes elementos
+            if (!existingRoster.lineSampling) {
+              existingRoster.lineSampling = [];
+            }
+            
+            // Expandir el array si es necesario
+            while (existingRoster.lineSampling.length <= turnIndex) {
+              existingRoster.lineSampling.push({
+                sampler: { id: null, name: 'No Sampler Assigned' },
+                startTime: new Date(),
+                finishTime: new Date(),
+                hours: 6,
+                blockType: 'day',
+                turnOrder: existingRoster.lineSampling.length
+              });
+            }
+            
+            // Actualizar el turno específico
             existingRoster.lineSampling[turnIndex] = turn;
+            console.log(`✅ Line turn updated at index ${turnIndex}:`, {
+              sampler: turn.sampler?.name,
+              startTime: turn.startTime,
+              finishTime: turn.finishTime,
+              hours: turn.hours
+            });
           }
         }
         break;

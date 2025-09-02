@@ -88,6 +88,21 @@ class RosterStatusUpdater {
     async updateStatusInDatabase(rosterId, newStatus) {
         try {
             // Usar la API existente para actualizar el status
+            // En Node.js, usar require para importar fetch si está disponible
+            let fetch;
+            if (typeof globalThis !== 'undefined' && globalThis.fetch) {
+                fetch = globalThis.fetch;
+            } else if (typeof require !== 'undefined') {
+                try {
+                    fetch = require('node-fetch');
+                } catch (e) {
+                    // Si node-fetch no está disponible, usar http nativo
+                    return await this.updateStatusWithHttp(rosterId, newStatus);
+                }
+            } else {
+                throw new Error('fetch no está disponible en este entorno');
+            }
+            
             const response = await fetch(`/api/rosterStatus/${rosterId}`, {
                 method: 'PUT',
                 headers: {
@@ -203,10 +218,64 @@ class RosterStatusUpdater {
             };
         }
     }
+
+    /**
+     * Actualizar status usando http nativo de Node.js
+     * @param {string} rosterId - ID del roster
+     * @param {string} newStatus - Nuevo status
+     * @returns {Object} - Resultado de la actualización
+     */
+    async updateStatusWithHttp(rosterId, newStatus) {
+        return new Promise((resolve, reject) => {
+            const http = require('http');
+            const data = JSON.stringify({ status: newStatus });
+            
+            const options = {
+                hostname: 'localhost',
+                port: process.env.PORT || 3000,
+                path: `/api/rosterStatus/${rosterId}`,
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data)
+                }
+            };
+            
+            const req = http.request(options, (res) => {
+                let responseData = '';
+                
+                res.on('data', (chunk) => {
+                    responseData += chunk;
+                });
+                
+                res.on('end', () => {
+                    try {
+                        const result = JSON.parse(responseData);
+                        if (res.statusCode >= 200 && res.statusCode < 300) {
+                            resolve(result);
+                        } else {
+                            reject(new Error(`HTTP error! status: ${res.statusCode}`));
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            });
+            
+            req.on('error', (error) => {
+                reject(error);
+            });
+            
+            req.write(data);
+            req.end();
+        });
+    }
 }
 
-// Exportar para uso global
-window.RosterStatusUpdater = RosterStatusUpdater;
+// Exportar para uso global solo en el navegador
+if (typeof window !== 'undefined') {
+    window.RosterStatusUpdater = RosterStatusUpdater;
+}
 
 // Exportar como módulo ES6 si es necesario
 if (typeof module !== 'undefined' && module.exports) {
