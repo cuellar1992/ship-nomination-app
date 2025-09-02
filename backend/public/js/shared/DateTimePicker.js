@@ -472,7 +472,7 @@ class DateTimePicker {
     });
 
     const prevMonthBtn = document.getElementById(
-      `${this.containerId}_nextMonth`
+      `${this.containerId}_prevMonth`
     );
     const nextMonthBtn = document.getElementById(
       `${this.containerId}_nextMonth`
