@@ -629,13 +629,30 @@ class DashboardManager {
         const ctx = document.getElementById('workloadChart');
         if (!ctx) return;
 
-        const workloadData = this.calculateMonthlyWorkload();
+        let workloadData = this.calculateMonthlyWorkload();
         console.log('📊 Datos de carga de trabajo mensual:', workloadData);
+
+        // Detectar estado vacío (todos los valores en 0 o sin labels)
+        const values = (workloadData?.datasets?.[0]?.data) || [];
+        const isEmpty = workloadData.labels.length === 0 || values.every(v => v === 0);
+
+        // Si está vacío, renderizar donut gris de "sin datos"
+        if (isEmpty) {
+            workloadData = {
+                labels: ['No data'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['#4b5563'],
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 2
+                }]
+            };
+        }
         
         this.charts.workload = new Chart(ctx, {
             type: 'doughnut',
             data: workloadData,
-            options: this.getMonthlyWorkloadOptions()
+            options: this.getMonthlyWorkloadOptions(isEmpty)
         });
         
         console.log('✅ Gráfico de carga de trabajo mensual creado');
@@ -655,7 +672,20 @@ class DashboardManager {
         if (this.currentWorkloadView === 'monthly') {
             workloadData = this.calculateMonthlyWorkload();
             chartType = 'doughnut';
-            chartOptions = this.getMonthlyWorkloadOptions();
+            const values = (workloadData?.datasets?.[0]?.data) || [];
+            const isEmpty = workloadData.labels.length === 0 || values.every(v => v === 0);
+            if (isEmpty) {
+                workloadData = {
+                    labels: ['No data'],
+                    datasets: [{
+                        data: [1],
+                        backgroundColor: ['#4b5563'],
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 2
+                    }]
+                };
+            }
+            chartOptions = this.getMonthlyWorkloadOptions(isEmpty);
         } else {
             workloadData = this.calculateWeeklyWorkload();
             chartType = 'bar';
@@ -679,7 +709,10 @@ class DashboardManager {
      * Calcular carga de trabajo mensual (datos reales)
      */
     calculateMonthlyWorkload() {
-        if (!this.data.samplers || !this.data.rosters) {
+        const samplerNames = (this.data?.samplers || []).map(s => s.name);
+
+        // Si no hay lista de samplers aún, devolver dataset vacío (evita errores)
+        if (!this.data?.samplers) {
             return { labels: [], datasets: [{ data: [] }] };
         }
 
@@ -688,11 +721,10 @@ class DashboardManager {
         
         const monthlyHours = {};
         
-        // Procesar rosters del mes actual
-        this.data.rosters.forEach(roster => {
+        // Procesar rosters del mes actual (si existen)
+        (this.data?.rosters || []).forEach(roster => {
             const rosterDate = new Date(roster.date || roster.createdAt);
             if (rosterDate.getMonth() === currentMonth && rosterDate.getFullYear() === currentYear) {
-                
                 // Horas de office sampling
                 if (roster.officeSampling && roster.officeSampling.sampler && roster.officeSampling.hours) {
                     const samplerName = roster.officeSampling.sampler.name;
@@ -711,8 +743,14 @@ class DashboardManager {
             }
         });
 
-        const labels = Object.keys(monthlyHours);
-        const values = Object.values(monthlyHours);
+        let labels = Object.keys(monthlyHours);
+        let values = Object.values(monthlyHours);
+
+        // Fallback: si no hay horas registradas en el mes, mostrar todos los samplers con 0
+        if (labels.length === 0) {
+            labels = samplerNames;
+            values = labels.map(() => 0);
+        }
 
         return {
             labels,
@@ -731,7 +769,10 @@ class DashboardManager {
      * Ahora incluye separación entre horas normales y exceso para samplers con restricción
      */
     calculateWeeklyWorkload() {
-        if (!this.data.samplers || !this.data.rosters) {
+        const samplerNames = (this.data?.samplers || []).map(s => s.name);
+
+        // Si no hay lista de samplers aún, devolver datasets vacíos
+        if (!this.data?.samplers) {
             return { labels: [], datasets: [] };
         }
 
@@ -741,71 +782,73 @@ class DashboardManager {
         console.log('📅 Calculando carga semanal para:', {
             weekStart: weekStart.toISOString(),
             weekEnd: weekEnd.toISOString(),
-            totalRosters: this.data.rosters.length
+            totalRosters: (this.data?.rosters || []).length
         });
         
         const weeklyHours = {};
         
-        // Procesar rosters de la semana actual
-        this.data.rosters.forEach(roster => {
-            // Usar startDischarge como fecha principal para el filtro semanal
-            const rosterDate = new Date(roster.startDischarge);
-            
-            // Debug: mostrar fechas para verificar el filtro
-            if (roster.officeSampling?.sampler?.name === 'Cesar' || 
-                roster.lineSampling?.some(line => line.sampler?.name === 'Cesar')) {
-                console.log('🔍 Roster de Cesar:', {
-                    startDischarge: roster.startDischarge,
-                    rosterDate: rosterDate.toISOString(),
-                    weekStart: weekStart.toISOString(),
-                    weekEnd: weekEnd.toISOString(),
-                    inRange: rosterDate >= weekStart && rosterDate <= weekEnd,
-                    officeHours: roster.officeSampling?.hours || 0,
-                    lineHours: roster.lineSampling?.reduce((sum, line) => sum + (line.hours || 0), 0) || 0
-                });
+        // Procesar rosters de la semana actual (si existen)
+        (this.data?.rosters || []).forEach(roster => {
+            // Debug selectivo
+            const involvesCesar = roster.officeSampling?.sampler?.name === 'Cesar' || roster.lineSampling?.some(line => line.sampler?.name === 'Cesar');
+
+            // Office Sampling: prorratear por traslape con la semana
+            if (roster.officeSampling && roster.officeSampling.sampler) {
+                const samplerName = roster.officeSampling.sampler.name;
+                const overlap = this.getOverlapHours(roster.officeSampling.startTime, roster.officeSampling.finishTime, weekStart, weekEnd);
+                if (overlap > 0) {
+                    weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
+                }
+                if (involvesCesar) {
+                    console.log('🔍 Office overlap', { samplerName, overlap, start: roster.officeSampling.startTime, end: roster.officeSampling.finishTime });
+                }
             }
-            
-            if (rosterDate >= weekStart && rosterDate <= weekEnd) {
-                
-                // Horas de office sampling
-                if (roster.officeSampling && roster.officeSampling.sampler && roster.officeSampling.hours) {
-                    const samplerName = roster.officeSampling.sampler.name;
-                    weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + roster.officeSampling.hours;
-                }
-                
-                // Horas de line sampling
-                if (roster.lineSampling) {
-                    roster.lineSampling.forEach(line => {
-                        if (line.sampler && line.hours) {
-                            const samplerName = line.sampler.name;
-                            weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + line.hours;
+
+            // Line Sampling: prorratear cada turno por traslape
+            if (roster.lineSampling) {
+                roster.lineSampling.forEach(line => {
+                    if (line.sampler) {
+                        const samplerName = line.sampler.name;
+                        const overlap = this.getOverlapHours(line.startTime, line.finishTime, weekStart, weekEnd);
+                        if (overlap > 0) {
+                            weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
                         }
-                    });
-                }
+                        if (involvesCesar) {
+                            console.log('🔍 Line overlap', { samplerName, overlap, start: line.startTime, end: line.finishTime });
+                        }
+                    }
+                });
             }
         });
 
-        const labels = Object.keys(weeklyHours);
+        let labels = Object.keys(weeklyHours);
         
         // Crear dos datasets: uno para horas normales y otro para exceso
-        const normalHours = [];
-        const excessHours = [];
+        let normalHours = [];
+        let excessHours = [];
         
-        labels.forEach(samplerName => {
-            const totalHours = weeklyHours[samplerName];
-            const sampler = this.data.samplers.find(s => s.name === samplerName);
-            const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
-            
-            if (totalHours <= weeklyLimit) {
-                // Dentro del límite: solo horas normales
-                normalHours.push(totalHours);
-                excessHours.push(0);
-            } else {
-                // Excede el límite: separar en normales y exceso
-                normalHours.push(weeklyLimit);
-                excessHours.push(totalHours - weeklyLimit);
-            }
-        });
+        // Fallback: si no hay horas registradas en la semana, usar todos los samplers con 0
+        if (labels.length === 0) {
+            labels = samplerNames;
+            normalHours = labels.map(() => 0);
+            excessHours = labels.map(() => 0);
+        } else {
+            labels.forEach(samplerName => {
+                const totalHours = weeklyHours[samplerName];
+                const sampler = this.data.samplers.find(s => s.name === samplerName);
+                const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
+                
+                if (totalHours <= weeklyLimit) {
+                    // Dentro del límite: solo horas normales
+                    normalHours.push(totalHours);
+                    excessHours.push(0);
+                } else {
+                    // Excede el límite: separar en normales y exceso
+                    normalHours.push(weeklyLimit);
+                    excessHours.push(totalHours - weeklyLimit);
+                }
+            });
+        }
 
         return {
             labels,
@@ -813,7 +856,7 @@ class DashboardManager {
                 {
                     label: 'Normal Hours',
                     data: normalHours,
-                    backgroundColor: this.chartColors[2] + 'CC', // Azul claro para horas normales
+                    backgroundColor: this.chartColors[2] + 'CC',
                     borderColor: this.chartColors[2],
                     borderWidth: 2,
                     borderRadius: 8,
@@ -822,7 +865,7 @@ class DashboardManager {
                 {
                     label: 'Excess Hours',
                     data: excessHours,
-                    backgroundColor: this.chartColors[4] + 'CC', // Naranja para horas de exceso
+                    backgroundColor: this.chartColors[4] + 'CC',
                     borderColor: this.chartColors[4],
                     borderWidth: 2,
                     borderRadius: 8,
@@ -835,13 +878,14 @@ class DashboardManager {
     /**
      * Opciones para gráfico mensual (doughnut)
      */
-    getMonthlyWorkloadOptions() {
+    getMonthlyWorkloadOptions(isEmpty = false) {
         return {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
                     position: 'bottom',
+                    display: !isEmpty,
                     labels: {
                         usePointStyle: true,
                         padding: 20,
@@ -862,20 +906,21 @@ class DashboardManager {
                             const label = context.label || '';
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((value / total) * 100).toFixed(1);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                             return `${label}: ${value}h (${percentage}%)`;
                         }
                     }
                 },
                 datalabels: {
                     color: '#ffffff',
+                    display: !isEmpty,
                     font: {
                         size: 14,
                         weight: 'bold'
                     },
                     formatter: function(value, context) {
                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
                         return `${percentage}%`;
                     }
                 }
@@ -1840,28 +1885,34 @@ class DashboardManager {
             let rosterCount = 0;
             
             this.data.rosters.forEach(roster => {
-                // Solo considerar rosters de la semana actual
-                const rosterDate = new Date(roster.startDischarge || roster.createdAt || new Date());
+                let hasContribution = false;
                 
-                if (rosterDate >= weekStart && rosterDate <= weekEnd) {
-                    rosterCount++;
-                    
-                    // Office Sampling
-                    if (roster.officeSampling && roster.officeSampling.sampler && 
-                        roster.officeSampling.sampler.name === sampler.name) {
-                        totalHours += roster.officeSampling.hours || 0;
-                        console.log(`📊 ${sampler.name}: +${roster.officeSampling.hours}h (Office - ${roster.vesselName})`);
+                // Office Sampling: sumar solo el traslape dentro de la semana
+                if (roster.officeSampling && roster.officeSampling.sampler && roster.officeSampling.sampler.name === sampler.name) {
+                    const overlap = this.getOverlapHours(roster.officeSampling.startTime, roster.officeSampling.finishTime, weekStart, weekEnd);
+                    if (overlap > 0) {
+                        totalHours += overlap;
+                        hasContribution = true;
+                        console.log(`📊 ${sampler.name}: +${overlap}h (Office overlap - ${roster.vesselName})`);
                     }
-                    
-                    // Line Sampling
-                    if (roster.lineSampling) {
-                        roster.lineSampling.forEach(line => {
-                            if (line.sampler && line.sampler.name === sampler.name) {
-                                totalHours += line.hours || 0;
-                                console.log(`📊 ${sampler.name}: +${line.hours}h (Line - ${roster.vesselName})`);
+                }
+                
+                // Line Sampling: sumar traslape por cada turno
+                if (roster.lineSampling) {
+                    roster.lineSampling.forEach(line => {
+                        if (line.sampler && line.sampler.name === sampler.name) {
+                            const overlap = this.getOverlapHours(line.startTime, line.finishTime, weekStart, weekEnd);
+                            if (overlap > 0) {
+                                totalHours += overlap;
+                                hasContribution = true;
+                                console.log(`📊 ${sampler.name}: +${overlap}h (Line overlap - ${roster.vesselName})`);
                             }
-                        });
-                    }
+                        }
+                    });
+                }
+                
+                if (hasContribution) {
+                    rosterCount++;
                 }
             });
 
@@ -2171,6 +2222,20 @@ class DashboardManager {
         sunday.setDate(monday.getDate() + 6);
         sunday.setHours(23, 59, 59, 999);
         return sunday;
+    }
+
+    /**
+     * Calcular horas de traslape entre un intervalo [start, end] y un rango [rangeStart, rangeEnd]
+     */
+    getOverlapHours(start, end, rangeStart, rangeEnd) {
+        if (!start || !end) return 0;
+        const s = new Date(start);
+        const e = new Date(end);
+        if (isNaN(s) || isNaN(e)) return 0;
+        const effectiveStart = s < rangeStart ? rangeStart : s;
+        const effectiveEnd = e > rangeEnd ? rangeEnd : e;
+        const ms = effectiveEnd - effectiveStart;
+        return ms > 0 ? (ms / (1000 * 60 * 60)) : 0;
     }
 
     /**
