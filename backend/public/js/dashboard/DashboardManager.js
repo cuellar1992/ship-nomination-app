@@ -911,7 +911,8 @@ class DashboardManager {
             excessHours = labels.map(() => 0);
         } else {
         labels.forEach(samplerName => {
-            const totalHours = weeklyHours[samplerName];
+            // Round total to nearest hour to avoid 12.999999 artifacts
+            const totalHours = Math.round(weeklyHours[samplerName]);
             const sampler = this.data.samplers.find(s => s.name === samplerName);
             const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
             
@@ -2030,6 +2031,8 @@ class DashboardManager {
             });
 
             const weeklyLimit = sampler.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
+            // Normalize to avoid floating artifacts in UI; hours are whole-hour based in business rules
+            totalHours = Math.round(totalHours);
             
             const result = {
                 name: sampler.name,
@@ -2324,7 +2327,10 @@ class DashboardManager {
         const effectiveStart = s < rangeStart ? rangeStart : s;
         const effectiveEnd = e > rangeEnd ? rangeEnd : e;
         const ms = effectiveEnd - effectiveStart;
-        return ms > 0 ? (ms / (1000 * 60 * 60)) : 0;
+        if (ms <= 0) return 0;
+        const hours = ms / (1000 * 60 * 60);
+        // Round to 3 decimals to avoid floating precision artifacts (e.g., 12.9999997)
+        return Math.round((hours + 1e-9) * 1000) / 1000;
     }
 
     /**
