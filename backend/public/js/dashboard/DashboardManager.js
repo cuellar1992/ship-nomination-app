@@ -2594,7 +2594,9 @@ class DashboardManager {
         nominations.slice(0, 5).forEach(nomination => { // Mostrar máximo 5
             const status = nomination.status || 'draft';
             const vesselName = nomination.vesselName || nomination.vessel?.name || 'Unknown Vessel';
-            const date = new Date(nomination.createdAt || nomination.date || nomination.arrivalDate || new Date());
+            // Prefer ETB/ETC for nomination timing; fallback to createdAt/date/arrivalDate
+            const dateSource = nomination.etb || nomination.etc || nomination.createdAt || nomination.date || nomination.arrivalDate || new Date();
+            const date = new Date(dateSource);
             
             html += `
                 <div class="list-item">
@@ -2638,8 +2640,15 @@ class DashboardManager {
             return;
         }
         
+        // Ordenar por fecha ascendente: startDischarge (preferido) y fallback a createdAt
+        const sortedRosters = [...rosters].sort((a, b) => {
+            const da = new Date(a.startDischarge || a.createdAt || 0);
+            const db = new Date(b.startDischarge || b.createdAt || 0);
+            return da - db;
+        });
+
         let html = '';
-        rosters.slice(0, 5).forEach(roster => { // Mostrar máximo 5
+        sortedRosters.slice(0, 5).forEach(roster => { // Mostrar máximo 5
             const status = roster.status || 'draft';
             const vesselName = roster.vesselName || 'Unknown Vessel';
             const date = new Date(roster.startDischarge || roster.createdAt || new Date());
