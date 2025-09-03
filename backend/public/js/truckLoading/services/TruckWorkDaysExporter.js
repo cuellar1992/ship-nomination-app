@@ -234,7 +234,7 @@ class TruckWorkDaysExporter {
       { width: 14 }, // Shift Start
       { width: 14 }, // Shift End
       { width: 10 }, // Hours
-      { width: 50 }, // Loads - wide for multiple loads
+      { width: 60 }, // Loads - wide for multiple loads (supports up to 4)
       { width: 12 }  // Status
     ]
 
@@ -296,7 +296,7 @@ class TruckWorkDaysExporter {
           // Verificar que load sea un objeto válido
           return load && typeof load === 'object' && !Array.isArray(load)
         })
-        .slice(0, 3) // Máximo 3 loads para evitar strings largas
+        .slice(0, 4) // Máximo 4 loads
         .map(load => {
           const parts = []
           
@@ -322,7 +322,7 @@ class TruckWorkDaysExporter {
         .filter(item => item && item.length > 0)
         .join(' | ')
       
-      return processed.substring(0, 80) // Limitar longitud total
+      return processed.substring(0, 120) // Limitar longitud total (más espacio por 4 loads)
       
     } catch (e) {
       console.warn('Error formatting loads:', e)

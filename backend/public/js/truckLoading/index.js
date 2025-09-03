@@ -118,12 +118,14 @@
         if (document.getElementById('load1Start')) state.dateTimes.load1Start = new DateTimePicker('load1Start', { is24Hour: true, minuteStep: 15 });
         if (document.getElementById('load2Start')) state.dateTimes.load2Start = new DateTimePicker('load2Start', { is24Hour: true, minuteStep: 15 });
         if (document.getElementById('load3Start')) state.dateTimes.load3Start = new DateTimePicker('load3Start', { is24Hour: true, minuteStep: 15 });
+        if (document.getElementById('load4Start')) state.dateTimes.load4Start = new DateTimePicker('load4Start', { is24Hour: true, minuteStep: 15 });
 
         // Product elegant dropdowns per load
         const productSelects = [
             { id: 'load1Product' },
             { id: 'load2Product' },
             { id: 'load3Product' },
+            { id: 'load4Product' },
         ];
         productSelects.forEach(ps => {
             const elem = document.getElementById(ps.id);
@@ -148,9 +150,11 @@
         const load1Product = state.singleSelects.load1Product?.getSelectedItem?.() || null;
         const load2Product = state.singleSelects.load2Product?.getSelectedItem?.() || null;
         const load3Product = state.singleSelects.load3Product?.getSelectedItem?.() || null;
+        const load4Product = state.singleSelects.load4Product?.getSelectedItem?.() || null;
         const load1Start = state.dateTimes.load1Start?.getDateTime?.() || null;
         const load2Start = state.dateTimes.load2Start?.getDateTime?.() || null;
         const load3Start = state.dateTimes.load3Start?.getDateTime?.() || null;
+        const load4Start = state.dateTimes.load4Start?.getDateTime?.() || null;
         const shiftStart = state.dateTimes.shiftStart?.getDateTime?.() || null;
         const shiftEnd = state.dateTimes.shiftEnd?.getDateTime?.() || null;
         const hours = Number(document.getElementById('shiftHours')?.value || 0) || 0;
@@ -159,8 +163,9 @@
         if (load1Start || load1Product) loads.push({ loadNo: 1, startTime: load1Start, product: load1Product });
         if (load2Start || load2Product) loads.push({ loadNo: 2, startTime: load2Start, product: load2Product });
         if (load3Start || load3Product) loads.push({ loadNo: 3, startTime: load3Start, product: load3Product });
+        if (load4Start || load4Product) loads.push({ loadNo: 4, startTime: load4Start, product: load4Product });
 
-        const operationDate = (load1Start || load2Start || load3Start || shiftStart) || new Date();
+        const operationDate = (load1Start || load2Start || load3Start || load4Start || shiftStart) || new Date();
 
         return {
             operationDate,
@@ -188,6 +193,7 @@
         if (state.dateTimes.load1Start?.setDateTime) state.dateTimes.load1Start.setDateTime(null);
         if (state.dateTimes.load2Start?.setDateTime) state.dateTimes.load2Start.setDateTime(null);
         if (state.dateTimes.load3Start?.setDateTime) state.dateTimes.load3Start.setDateTime(null);
+        if (state.dateTimes.load4Start?.setDateTime) state.dateTimes.load4Start.setDateTime(null);
         const input = document.getElementById('shiftHours');
         if (input) input.value = '';
         state.editId = null;
@@ -452,9 +458,11 @@
         if (byNo[1]?.startTime) state.dateTimes.load1Start?.setDateTime?.(new Date(byNo[1].startTime));
         if (byNo[2]?.startTime) state.dateTimes.load2Start?.setDateTime?.(new Date(byNo[2].startTime));
         if (byNo[3]?.startTime) state.dateTimes.load3Start?.setDateTime?.(new Date(byNo[3].startTime));
+        if (byNo[4]?.startTime) state.dateTimes.load4Start?.setDateTime?.(new Date(byNo[4].startTime));
         state.singleSelects.load1Product?.setSelectedItem?.(byNo[1]?.product || '');
         state.singleSelects.load2Product?.setSelectedItem?.(byNo[2]?.product || '');
         state.singleSelects.load3Product?.setSelectedItem?.(byNo[3]?.product || '');
+        state.singleSelects.load4Product?.setSelectedItem?.(byNo[4]?.product || '');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
