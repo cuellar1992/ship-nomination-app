@@ -3371,9 +3371,9 @@ handleExportRoster() {
       showNotification: false,
     });
 
-    // TODO: Implementar lógica de exportación
-    // Por ahora solo log
-    this.showNotification("Export functionality coming soon", "info");
+    if (window.samplingRosterExporter && typeof window.samplingRosterExporter.export === 'function') {
+      window.samplingRosterExporter.export();
+    }
 
   } catch (error) {
     Logger.error("Error in manual export", {
