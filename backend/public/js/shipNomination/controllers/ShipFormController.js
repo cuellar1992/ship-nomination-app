@@ -62,6 +62,28 @@ class ShipFormController {
         this.initializeModules();
         this.loadInitialData();
 
+        // ETB sort toggle on header
+        const etbSortBtn = document.getElementById('etbSortToggle');
+        if (etbSortBtn) {
+          window.__etbSortDir = window.__etbSortDir || 'asc';
+          const icon = etbSortBtn.querySelector('i');
+          if (icon) {
+            icon.className = window.__etbSortDir === 'asc' ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+          }
+          etbSortBtn.addEventListener('click', () => {
+            window.__etbSortDir = window.__etbSortDir === 'asc' ? 'desc' : 'asc';
+            const icon = etbSortBtn.querySelector('i');
+            if (icon) {
+              icon.className = window.__etbSortDir === 'asc' ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+            }
+            if (this.tableManager && Array.isArray(this.tableManager.shipNominations)) {
+              this.tableManager.renderShipNominationsTable(this.tableManager.shipNominations);
+            } else {
+              this.refresh();
+            }
+          });
+        }
+
         Logger.success("Simple Ship Form initialized successfully", {
           module: "ShipForm",
           components: {

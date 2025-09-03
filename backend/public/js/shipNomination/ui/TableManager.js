@@ -96,8 +96,16 @@ class TableManager {
       return;
     }
 
+    // Orden por ETB si hay preferencia de orden
+    const sortDir = window.__etbSortDir || 'asc';
+    const sorted = [...shipNominations].sort((a,b) => {
+      const da = new Date(a.etb || a.createdAt || 0);
+      const db = new Date(b.etb || b.createdAt || 0);
+      return sortDir === 'asc' ? da - db : db - da;
+    });
+
     // Generar filas de la tabla
-    const tableRows = shipNominations
+    const tableRows = sorted
       .map((nomination) => {
         return this.createTableRow(nomination);
       })

@@ -262,6 +262,13 @@
     function renderList(rows) {
         const tbody = document.getElementById('truckWorkDaysTbody');
         if (!tbody) return;
+        // Apply sort if active
+        const sortDir = state.sortDirection || 'asc';
+        const sorted = [...rows].sort((a,b) => {
+            const da = new Date(a.operationDate || a.createdAt || 0);
+            const db = new Date(b.operationDate || b.createdAt || 0);
+            return sortDir === 'asc' ? da - db : db - da;
+        });
         if (!rows.length) {
             tbody.innerHTML = `
                 <tr>
@@ -272,7 +279,7 @@
                 </tr>`;
             return;
         }
-        const html = rows.map(r => {
+        const html = sorted.map(r => {
             const loadsText = (r.loads || [])
                 .filter(l => l && (l.startTime || l.product))
                 .map(l => `L${l.loadNo || ''}`)
@@ -553,6 +560,22 @@
             const term = (e.target.value || '').toLowerCase().trim();
             filterTableBySearch(term);
         });
+
+        // Date sort toggle
+        const sortBtn = document.getElementById('truckDateSortToggle');
+        if (sortBtn) {
+            state.sortDirection = 'asc';
+            sortBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+                // update icon
+                const icon = sortBtn.querySelector('i');
+                if (icon) {
+                    icon.className = state.sortDirection === 'asc' ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+                }
+                await loadAndRenderList();
+            });
+        }
     });
 
     function filterTableBySearch(term) {
