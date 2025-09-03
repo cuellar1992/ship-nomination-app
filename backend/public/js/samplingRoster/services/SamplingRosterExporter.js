@@ -1,5 +1,5 @@
-// TruckWorkDaysExporter - Versión que ataca los problemas específicos identificados
-class TruckWorkDaysExporter {
+// SamplingRosterExporter - Versión que ataca los problemas específicos identificados
+export class SamplingRosterExporter {
   constructor(getFilters) {
     this.getFilters = typeof getFilters === 'function' ? getFilters : () => ({})
     this.isExporting = false
@@ -8,7 +8,7 @@ class TruckWorkDaysExporter {
   async export() {
     if (this.isExporting) return
     if (typeof ExcelJS === 'undefined') {
-      window.Logger?.error?.('ExcelJS not available', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'Excel export not available' })
+      window.Logger?.error?.('ExcelJS not available', { module: 'SamplingRosterExporter', showNotification: true, notificationMessage: 'Excel export not available' })
       return
     }
 
@@ -18,13 +18,13 @@ class TruckWorkDaysExporter {
       
       const rows = await this._fetchData()
       if (!rows || rows.length === 0) {
-        window.Logger?.warn?.('No data to export', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'No data available to export' })
+        window.Logger?.warn?.('No data to export', { module: 'SamplingRosterExporter', showNotification: true, notificationMessage: 'No data available to export' })
         return
       }
 
       // Crear workbook con configuración mínima
       const workbook = new ExcelJS.Workbook()
-      const ws = workbook.addWorksheet('Molekulis Loading')
+      const ws = workbook.addWorksheet('Sampling Roster')
 
       // PROBLEMA 1: Evitar merge de celdas que causa conflictos
       // En lugar de merge, usar header en primera celda con alineación
@@ -84,11 +84,11 @@ class TruckWorkDaysExporter {
       const fileName = this._fileName()
       this.downloadBlob(blob, fileName)
 
-      window.Logger?.success?.('Excel generated', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: `Excel file generated: ${fileName}` })
+      window.Logger?.success?.('Excel generated', { module: 'SamplingRosterExporter', showNotification: true, notificationMessage: `Excel file generated: ${fileName}` })
 
     } catch (e) {
       console.error('Export error:', e)
-      window.Logger?.error?.('Export failed', { module: 'TruckWorkDaysExporter', showNotification: true, notificationMessage: 'Failed to export: ' + e.message })
+      window.Logger?.error?.('Export failed', { module: 'SamplingRosterExporter', showNotification: true, notificationMessage: 'Failed to export: ' + e.message })
     } finally {
       this._setLoading(false)
       this.isExporting = false
@@ -105,7 +105,8 @@ class TruckWorkDaysExporter {
       params.set('to', dt.toISOString())
     }
     if (surveyor) params.set('surveyor', surveyor)
-    const url = params.toString() ? `/api/truckworkdays?${params.toString()}` : '/api/truckworkdays'
+    // NOTE: This endpoint likely differs for Sampling Roster; adjust if needed
+    const url = params.toString() ? `/api/samplingroster?${params.toString()}` : '/api/samplingroster'
     const resp = await fetch(url)
     const json = await resp.json()
     if (!resp.ok || !json.success) throw new Error(json.error || 'Fetch failed')
@@ -261,7 +262,7 @@ class TruckWorkDaysExporter {
   }
 
   _setLoading(show) {
-    const btn = document.getElementById('truckExportBtn')
+    const btn = document.getElementById('samplingExportBtn')
     if (!btn) return
     if (show) {
       btn.disabled = true
@@ -273,4 +274,6 @@ class TruckWorkDaysExporter {
   }
 }
 
-window.TruckWorkDaysExporter = TruckWorkDaysExporter
+if (typeof window !== 'undefined') {
+  window.SamplingRosterExporter = SamplingRosterExporter
+}
