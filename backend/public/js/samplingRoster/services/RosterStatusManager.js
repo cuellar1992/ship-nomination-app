@@ -70,6 +70,14 @@ class RosterStatusManager {
             }
             
             // ✅ PASO 3: Aplicar flujo inteligente de estados
+            console.log(`🕐 Debug fechas - Roster ${roster.vesselName}:`);
+            console.log(`   - Ahora: ${now.toISOString()}`);
+            console.log(`   - Start Discharge: ${startDischarge.toISOString()}`);
+            console.log(`   - ETC: ${etcTime.toISOString()}`);
+            console.log(`   - now < startDischarge: ${now < startDischarge}`);
+            console.log(`   - now >= startDischarge && now <= etcTime: ${now >= startDischarge && now <= etcTime}`);
+            console.log(`   - now > etcTime: ${now > etcTime}`);
+            
             if (now < startDischarge) {
                 console.log(`✅ Roster ${roster.vesselName}: Estado automático = 'confirmed' (esperando inicio)`);
                 return 'confirmed';        // ✅ Confirmado: fechas válidas, esperando inicio

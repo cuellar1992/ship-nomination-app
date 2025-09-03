@@ -13,6 +13,21 @@ class RosterStatusUpdater {
         };
     }
 
+    // Resolver de baseURL para entorno Node (backend) o navegador
+    getBaseURL() {
+        try {
+            if (typeof window !== 'undefined' && window.location) {
+                const { protocol, hostname } = window.location;
+                const port = window.location.port || '3000';
+                return `${protocol}//${hostname}:${port}`;
+            }
+        } catch {}
+        const protocol = process.env.PROTOCOL || 'http';
+        const host = process.env.HOST || 'localhost';
+        const port = process.env.PORT || 3000;
+        return `${protocol}://${host}:${port}`;
+    }
+
     /**
      * Actualizar el status de un roster específico
      * @param {Object} roster - El roster a actualizar
@@ -22,25 +37,25 @@ class RosterStatusUpdater {
         try {
             console.log(`🔄 Actualizando status del roster: ${roster.vesselName}`);
             
+            // Usar la misma lógica que RosterStatusManager
             const currentTime = new Date();
-            let newStatus = this.statuses.CONFIRMED;
+            const startDischarge = new Date(roster.startDischarge);
+            const etcTime = new Date(roster.etcTime);
             
-            // Verificar si el roster ha comenzado
-            if (roster.lineSampling && roster.lineSampling.length > 0) {
-                const firstTurnStart = new Date(roster.lineSampling[0].startTime);
-                
-                if (currentTime >= firstTurnStart) {
-                    newStatus = this.statuses.IN_PROGRESS;
-                    
-                    // Verificar si el roster ha terminado
-                    if (roster.lineSampling.length > 0) {
-                        const lastTurnEnd = new Date(roster.lineSampling[roster.lineSampling.length - 1].finishTime);
-                        
-                        if (currentTime >= lastTurnEnd) {
-                            newStatus = this.statuses.COMPLETED;
-                        }
-                    }
-                }
+            console.log(`🕐 RosterStatusUpdater - Debug fechas para ${roster.vesselName}:`);
+            console.log(`   - Ahora: ${currentTime.toISOString()}`);
+            console.log(`   - Start Discharge: ${startDischarge.toISOString()}`);
+            console.log(`   - ETC: ${etcTime.toISOString()}`);
+            
+            let newStatus = this.statuses.DRAFT;
+            
+            // Aplicar la misma lógica que RosterStatusManager
+            if (currentTime < startDischarge) {
+                newStatus = this.statuses.CONFIRMED;        // Esperando inicio
+            } else if (currentTime >= startDischarge && currentTime <= etcTime) {
+                newStatus = this.statuses.IN_PROGRESS;      // Operación en curso
+            } else if (currentTime > etcTime) {
+                newStatus = this.statuses.COMPLETED;        // Operación terminada
             }
             
             // Solo actualizar si el status cambió
@@ -87,6 +102,32 @@ class RosterStatusUpdater {
      */
     async updateStatusInDatabase(rosterId, newStatus) {
         try {
+            // Prefer direct DB update when running in backend (avoids HTTP and route mismatches)
+            if (typeof module !== 'undefined' && module.exports) {
+                try {
+                    const SamplingRoster = require('../../../../models/SamplingRoster');
+                    const RosterStatusManager = require('./RosterStatusManager');
+                    const manager = new RosterStatusManager();
+                    const roster = await SamplingRoster.findById(rosterId);
+                    if (!roster) throw new Error('Roster not found');
+
+                    const currentStatus = roster.status || 'draft';
+                    if (!manager.canTransitionToStatus(currentStatus, newStatus)) {
+                        throw new Error(`Transition not allowed: ${currentStatus} → ${newStatus}`);
+                    }
+
+                    roster.status = newStatus;
+                    roster.lastStatusUpdate = new Date();
+                    roster.statusUpdateReason = 'auto_webhook';
+                    await roster.save();
+
+                    console.log(`✅ Status actualizado directamente en BD: ${rosterId} → ${newStatus}`);
+                    return { success: true, data: { rosterId, newStatus } };
+                } catch (directErr) {
+                    console.warn('⚠️ Direct DB update failed, falling back to HTTP:', directErr.message);
+                    // continue to HTTP fallback below
+                }
+            }
             // Usar la API existente para actualizar el status
             // En Node.js, usar require para importar fetch si está disponible
             let fetch;
@@ -103,20 +144,24 @@ class RosterStatusUpdater {
                 throw new Error('fetch no está disponible en este entorno');
             }
             
-            const response = await fetch(`/api/rosterStatus/${rosterId}`, {
-                method: 'PUT',
+            const baseURL = this.getBaseURL();
+            // Use transition endpoint defined in routes (POST /api/roster-status/transition/:rosterId)
+            const response = await fetch(`${baseURL}/api/roster-status/transition/${rosterId}`, {
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ status: newStatus })
+                body: JSON.stringify({ newStatus, reason: 'auto_webhook' })
             });
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const result = await response.json();
-            console.log(`✅ Status actualizado en BD: ${rosterId} → ${newStatus}`);
+            let resultText = await response.text();
+            let result;
+            try { result = JSON.parse(resultText); } catch { result = { raw: resultText }; }
+            console.log(`✅ Status actualizado via HTTP: ${rosterId} → ${newStatus}`);
             
             return result;
             
@@ -127,97 +172,11 @@ class RosterStatusUpdater {
     }
 
     /**
-     * Actualizar status de todos los rosters
-     * @returns {Object} - Resumen de actualizaciones
+     * (Removido) Actualizar status de todos los rosters
      */
-    async updateAllRosterStatuses() {
-        try {
-            console.log('🔄 Actualizando status de todos los rosters...');
-            
-            // Obtener todos los rosters
-            const response = await fetch('/api/samplingrosters');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            const rosters = result.data || [];
-            
-            let updatedCount = 0;
-            let errorCount = 0;
-            const results = [];
-            
-            // Actualizar cada roster
-            for (const roster of rosters) {
-                const updateResult = await this.updateRosterStatus(roster);
-                results.push(updateResult);
-                
-                if (updateResult.success && updateResult.updated) {
-                    updatedCount++;
-                } else if (!updateResult.success) {
-                    errorCount++;
-                }
-            }
-            
-            console.log(`✅ Actualización completada: ${updatedCount} actualizados, ${errorCount} errores`);
-            
-            return {
-                success: true,
-                totalRosters: rosters.length,
-                updatedCount: updatedCount,
-                errorCount: errorCount,
-                results: results
-            };
-            
-        } catch (error) {
-            console.error('❌ Error actualizando todos los rosters:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    }
+    // async updateAllRosterStatuses() { /* Use RosterStatusManager.updateRosterStatusesAutomatically() */ }
 
-    /**
-     * Obtener estadísticas de status actuales
-     * @returns {Object} - Estadísticas de status
-     */
-    async getStatusStatistics() {
-        try {
-            const response = await fetch('/api/samplingrosters');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            const rosters = result.data || [];
-            
-            const stats = {
-                confirmed: 0,
-                in_progress: 0,
-                completed: 0,
-                total: rosters.length
-            };
-            
-            rosters.forEach(roster => {
-                if (stats.hasOwnProperty(roster.status)) {
-                    stats[roster.status]++;
-                }
-            });
-            
-            return {
-                success: true,
-                data: stats
-            };
-            
-        } catch (error) {
-            console.error('❌ Error obteniendo estadísticas:', error);
-            return {
-                success: false,
-                error: error.message
-            };
-        }
-    }
+    // async getStatusStatistics() { /* Use RosterStatusManager.getRosterStatusStatistics() */ }
 
     /**
      * Actualizar status usando http nativo de Node.js

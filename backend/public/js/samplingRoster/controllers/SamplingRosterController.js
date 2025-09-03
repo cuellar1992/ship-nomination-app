@@ -711,6 +711,24 @@ export class SamplingRosterController {
     }
   }
 
+  // Detectar terminal Ampol Kurnell de forma segura (case-insensitive)
+  isAmpolKurnell(nomination) {
+    try {
+      // If berth is one of K-1, K-2, K-3, treat as Ampol Kurnell
+      const berthRaw = (nomination?.berth?.name || nomination?.berthName || nomination?.berth || '').toString().toLowerCase();
+      const normalized = berthRaw.replace(/\s+/g, '');
+      const isKurnellBerth = ['k-1','k-2','k-3','k1','k2','k3'].some(code => normalized === code);
+      if (isKurnellBerth) return true;
+
+      // Fallback tolerant check if full terminal text is ever present
+      const hasAmpol = berthRaw.includes('ampol') || berthRaw.includes('ampo');
+      const hasKurnell = berthRaw.includes('kurnell') || berthRaw.includes('kurnel') || berthRaw.includes('kurn');
+      return hasAmpol && hasKurnell;
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Setup event listeners para tablas
    */
@@ -873,16 +891,18 @@ export class SamplingRosterController {
         return;
       }
 
+      // For standard flow we validate discharge hours; Ampol Kurnell branch handled later
       const dischargeHours = this.getDischargeTimeHours();
-      const hoursValidation =
-        this.validationService.validateDischargeTimeHours(dischargeHours);
-      if (!hoursValidation.isValid) {
-        Logger.warn(hoursValidation.message, {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          showNotification: true,
-          notificationMessage: hoursValidation.message,
-        });
-        return;
+      if (!this.isAmpolKurnell(this.selectedShipNomination)) {
+        const hoursValidation = this.validationService.validateDischargeTimeHours(dischargeHours);
+        if (!hoursValidation.isValid) {
+          Logger.warn(hoursValidation.message, {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            showNotification: true,
+            notificationMessage: hoursValidation.message,
+          });
+          return;
+        }
       }
 
       // 🔧 MEJORADO: Verificar estado actual de los DateTimePickers antes de generar
@@ -900,6 +920,58 @@ export class SamplingRosterController {
         },
         showNotification: false,
       });
+
+      // Special case: Ampol Kurnell → only create first Line Sampling row (start=ETC, finish=ETC+4h)
+      if (this.selectedShipNomination && this.isAmpolKurnell(this.selectedShipNomination)) {
+        const nomination = this.selectedShipNomination;
+        const samplerName = nomination?.sampler?.name || 'No Sampler Assigned';
+
+        const etcFromPicker = this.uiManager.getDateTimeInstances()?.etcTime?.getDateTime?.();
+        const etcFromNomination = nomination?.etc ? new Date(nomination.etc) : null;
+        const startDate = etcFromPicker || etcFromNomination;
+
+        if (!startDate || isNaN(startDate.getTime())) {
+          Logger.warn('ETC not available. Please set ETC first.', {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            showNotification: true,
+            notificationMessage: 'Please set ETC time before Auto Generate'
+          });
+          return;
+        }
+
+        const finishDate = new Date(startDate);
+        finishDate.setHours(finishDate.getHours() + 4);
+
+        const startTime = this.tableManager.formatDateTime(startDate);
+        const finishTime = this.tableManager.formatDateTime(finishDate);
+
+        this.tableManager.clearLineSamplingTable();
+        this.tableManager.populateLineSamplingTable([
+          { samplerName, startTime, finishTime, hours: 4 }
+        ]);
+        this.setupTableEventListeners();
+
+        this.autoSaveService.trigger('autoGenerate', {
+          lineSampling: [
+            {
+              sampler: { id: nomination?.sampler?.id || null, name: samplerName },
+              startTime: startDate,
+              finishTime: finishDate,
+              hours: 4,
+              blockType: 'day',
+              turnOrder: 0
+            }
+          ],
+          dischargeTimeHours: parseInt(document.getElementById('dischargeTimeHours')?.value) || 0
+        }, { immediate: true });
+
+        Logger.success('Generated single Line Sampling row for Ampol Kurnell', {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: 'Line Sampling initialized: ETC → ETC + 4h'
+        });
+        return;
+      }
 
       // 🔧 MEJORADO: Guardar cambios pendientes antes de generar el roster
       if (this.autoSaveService.hasUnsaved()) {

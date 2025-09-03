@@ -126,7 +126,7 @@ const SamplingRosterSchema = new mongoose.Schema({
   // Estado del roster
   status: {
     type: String,
-    enum: ['draft', 'active', 'completed', 'cancelled'],
+    enum: ['draft', 'confirmed', 'in_progress', 'completed', 'cancelled'],
     default: 'draft'
   },
 

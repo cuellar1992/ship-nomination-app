@@ -1239,7 +1239,7 @@
 }
 
 .status-in-progress {
-    background: var(--accent-primary);
+    background: #f59e0b;
     color: white;
 }
 

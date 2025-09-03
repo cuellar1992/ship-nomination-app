@@ -271,7 +271,7 @@ class DashboardManager {
             // Gráfico 4: Disponibilidad Semanal
             this.initializeWeeklyAvailabilityChart();
             
-            // Gráfico 5: Estado de Nominaciones
+            // Gráfico 5: Estado de Rosters
             this.initializeNominationsStatusChart();
             
             // Gráfico 6: Horas Semanales por Sampler
@@ -1172,14 +1172,14 @@ class DashboardManager {
     }
 
     /**
-     * Gráfico 5: Estado de Nominaciones (Funnel)
+     * Gráfico 5: Estado de Rosters (Funnel)
      */
     initializeNominationsStatusChart() {
         const container = document.getElementById('nominationsStatusChart');
         if (!container) return;
 
         const statusData = this.calculateNominationsStatus();
-        console.log('📊 Inicializando gráfico de estado de nominaciones con datos reales:', statusData);
+        console.log('📊 Inicializando gráfico de estado de rosters con datos reales:', statusData);
         this.renderNominationsStatusFunnel(container, statusData);
     }
 
@@ -1358,12 +1358,12 @@ class DashboardManager {
     }
 
     /**
-     * Calcular estado de nominaciones REAL desde la base de datos
-     * Ahora incluye información más detallada y relación con rosters
+     * Calcular estado de rosters REAL desde la base de datos
+     * Ahora muestra solo datos de rosters, no nominaciones
      */
     calculateNominationsStatus() {
-        if (!this.data.nominations || this.data.nominations.length === 0) {
-            console.warn('⚠️ No hay nominaciones para calcular estados');
+        if (!this.data.rosters || this.data.rosters.length === 0) {
+            console.warn('⚠️ No hay rosters para calcular estados');
             return [];
         }
 
@@ -1420,27 +1420,19 @@ class DashboardManager {
 
         const totalNominations = this.data.nominations.length;
         
-        // ✅ Crear array de resultados combinando nominaciones y rosters
+        // ✅ Crear array de resultados SOLO para rosters (no nominaciones)
         const results = statuses.map(status => {
-            const nominationCount = statusCounts[status] || 0;
             const rosterCount = additionalInfo ? (additionalInfo.rosterStatusCounts[status] || 0) : 0;
-            const totalCount = nominationCount + rosterCount;
             
-            // ✅ Calcular porcentaje INDEPENDIENTE para cada tipo
+            // ✅ Calcular porcentaje basado en total de rosters
             let percentage = 0;
-            
-            if (nominationCount > 0) {
-                // Si hay nominaciones, calcular porcentaje basado en total de nominaciones
-                percentage = ((nominationCount / totalNominations) * 100).toFixed(1);
-            } else if (rosterCount > 0) {
-                // Si solo hay rosters, calcular porcentaje basado en total de rosters
+            if (rosterCount > 0 && additionalInfo && additionalInfo.totalRosters > 0) {
                 percentage = ((rosterCount / additionalInfo.totalRosters) * 100).toFixed(1);
             }
             
             return {
                 label: this.getStatusDisplayName(status), // ✅ Usar nombre legible
-                value: totalCount, // ✅ Combinar nominaciones + rosters
-                nominationValue: nominationCount, // ✅ Valor solo de nominaciones
+                value: rosterCount, // ✅ Solo rosters
                 rosterValue: rosterCount, // ✅ Valor solo de rosters
                 percentage: percentage,
                 color: this.getStatusColor(status),
@@ -1470,7 +1462,7 @@ class DashboardManager {
     getStatusColor(status) {
         const colorMap = {
             'confirmed': '#0ea5e9',    // Info - Azul
-            'in_progress': '#1fb5d4',  // Accent - Azul claro
+            'in_progress': '#f59e0b',  // Warning - Naranja elegante
             'completed': '#22c55e'     // Success - Verde
         };
         return colorMap[status] || '#9ca3af';
@@ -2109,8 +2101,8 @@ class DashboardManager {
                 <div class="nominations-status-empty">
                     <i class="fas fa-clipboard-list" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; color: var(--text-secondary);"></i>
                     <div style="color: var(--text-secondary); text-align: center;">
-                        <div>No hay nominaciones para mostrar</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los estados aparecerán cuando se creen nominaciones</div>
+                        <div>No hay rosters para mostrar</div>
+                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los estados aparecerán cuando se creen rosters</div>
                     </div>
                 </div>
             `;
@@ -2131,32 +2123,7 @@ class DashboardManager {
             </div>
         `;
         
-        // Agregar información de rosters si está disponible
-        if (data[0] && data[0].additionalInfo) {
-            const info = data[0].additionalInfo;
-            html += `
-                <div class="rosters-info" style="margin: 1rem 0; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; border-left: 4px solid var(--accent-color);">
-                    <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
-                        <i class="fas fa-calendar-check" style="color: var(--accent-color); margin-right: 0.5rem;"></i>
-                        <strong>Related Rosters: ${info.totalRosters}</strong>
-                    </div>
-                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; font-size: 0.875rem;">
-                        <div style="text-align: center;">
-                            <div style="color: var(--success-color); font-weight: bold;">${info.completedRosters}</div>
-                            <div>Completed</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="color: var(--accent-color); font-weight: bold;">${info.inProgressRosters}</div>
-                            <div>In Progress</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="color: var(--info-color); font-weight: bold;">${info.confirmedRosters}</div>
-                            <div>Confirmed</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
+
         
         // Renderizar cada estado en su propia fila
         data.forEach((item, index) => {
@@ -2677,7 +2644,7 @@ class DashboardManager {
                         <div class="list-item-name">${vesselName}</div>
                         <div class="list-item-details">${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                     </div>
-                    <div class="list-item-status status-${status}">${status}</div>
+                    <div class="list-item-status status-${status.replace('_', '-')}">${status}</div>
                 </div>
             `;
         });
@@ -2860,7 +2827,7 @@ class DashboardManager {
             const activeRostersElement = document.getElementById('activeRosters');
             if (activeRostersElement && data.rosters) {
                 const activeRosters = data.rosters.filter(roster => 
-                    roster.status === 'active' || roster.status === 'pending'
+                    roster.status === 'confirmed' || roster.status === 'in_progress'
                 );
                 activeRostersElement.textContent = activeRosters.length;
                 
