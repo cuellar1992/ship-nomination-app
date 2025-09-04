@@ -1176,17 +1176,35 @@ export class TableManager {
     if (!startCell || !finishCell) return;
 
     try {
-      // Obtener valores originales
-      const originalStart = startCell.getAttribute("data-original-value");
-      const originalFinish = finishCell.getAttribute("data-original-value");
+      // 🛡️ OBTENER VALORES ORIGINALES DESDE EL TR (no desde las celdas modificadas)
+      const originalStart = row.getAttribute("data-original-start");
+      const originalFinish = row.getAttribute("data-original-finish");
+      const originalHours = row.getAttribute("data-original-hours");
 
       console.log(
-        `🔄 Cancelling Line Sampling edit, restoring original values:`,
+        `🔄 Cancelling Line Sampling edit, restoring original values from TR:`,
         {
           originalStart,
           originalFinish,
+          originalHours,
         }
       );
+
+      // 🔍 DEBUG: Log complete cell state before restoration
+      console.log("🔍 DEBUG: Complete cell state before restoration:", {
+        startCell: {
+          innerHTML: startCell.innerHTML,
+          hasAttribute: startCell.hasAttribute("data-original-value"),
+          attributeValue: startCell.getAttribute("data-original-value"),
+          hasDateTimePicker: !!startCell.querySelector('div[id^="lineStartDateTime_"]')
+        },
+        finishCell: {
+          innerHTML: finishCell.innerHTML,
+          hasAttribute: finishCell.hasAttribute("data-original-value"),
+          attributeValue: finishCell.getAttribute("data-original-value"),
+          hasDateTimePicker: !!finishCell.querySelector('div[id^="lineFinishDateTime_"]')
+        }
+      });
 
       // Limpiar DateTimePicker instances
       const startContainer = startCell.querySelector(
@@ -1212,31 +1230,50 @@ export class TableManager {
         }
       }
 
-      // Restaurar contenido original de la primera línea
-      startCell.innerHTML = originalStart || "";
-      finishCell.innerHTML = originalFinish || "";
-
-      // 🆕 RESTAURAR HORAS ORIGINAL DE PRIMERA LÍNEA
+      // 🆕 RESTAURAR HORAS ORIGINAL DE PRIMERA LÍNEA  
       const hoursCell = row.querySelector("td:nth-child(4)");
-      if (hoursCell && originalStart && originalFinish) {
-        const originalStartDate = this.parseDateTime(originalStart);
-        const originalFinishDate = this.parseDateTime(originalFinish);
 
-        if (originalStartDate && originalFinishDate) {
-          const originalHours = this.calculateHoursFromDates(
-            originalStartDate,
-            originalFinishDate
-          );
+      // Verificar si tenemos valores originales válidos
+      if (originalStart && originalFinish) {
+        // Restaurar contenido original de la primera línea
+        startCell.innerHTML = originalStart;
+        finishCell.innerHTML = originalFinish;
+
+        // Restaurar horas originales si están disponibles
+        if (hoursCell && originalHours) {
           hoursCell.textContent = originalHours;
+        } else if (hoursCell) {
+          // Calcular horas si no están guardadas
+          const originalStartDate = this.parseDateTime(originalStart);
+          const originalFinishDate = this.parseDateTime(originalFinish);
+
+          if (originalStartDate && originalFinishDate) {
+            const calculatedHours = this.calculateHoursFromDates(
+              originalStartDate,
+              originalFinishDate
+            );
+            hoursCell.textContent = calculatedHours;
+          }
+        }
+      } else {
+        // Si no hay valores originales, mostrar estado por defecto
+        console.warn("⚠️ No original values found for line sampling cancellation");
+        startCell.innerHTML = '<span class="text-muted">Select start time...</span>';
+        finishCell.innerHTML = '<span class="text-muted">Select finish time...</span>';
+        if (hoursCell) {
+          hoursCell.textContent = "6";
         }
       }
 
       // 🆕 RESTAURAR ESTADO ORIGINAL DE TODAS LAS LÍNEAS
       this.restoreOriginalLineState();
 
-      // Limpiar atributos temporales
-      startCell.removeAttribute("data-original-value");
-      finishCell.removeAttribute("data-original-value");
+      // 🧹 LIMPIAR ATRIBUTOS DEL TR DESPUÉS DE LA RESTAURACIÓN
+      row.removeAttribute("data-original-start");
+      row.removeAttribute("data-original-start-text");
+      row.removeAttribute("data-original-finish");
+      row.removeAttribute("data-original-finish-text");
+      row.removeAttribute("data-original-hours");
 
       console.log(
         `✅ Line Sampling edit cancelled and original state restored`

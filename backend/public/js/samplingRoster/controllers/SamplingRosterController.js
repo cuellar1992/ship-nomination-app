@@ -1540,6 +1540,9 @@ export class SamplingRosterController {
       showNotification: false,
     });
 
+    // 🔍 DEBUG: Verificar si es fila 0 desde el inicio
+    console.log("🔍 DEBUG: editLineSampler called for rowId:", rowId, "Is line-sampler-row-0?", rowId === "line-sampler-row-0");
+
     const row = document.querySelector(`tr[data-row-id="${rowId}"]`);
     if (!row) return;
 
@@ -1548,6 +1551,51 @@ export class SamplingRosterController {
     const editButton = actionCell.querySelector('button[data-action="edit"]');
 
     if (!samplerCell || !editButton) return;
+
+    // 🆕 GUARDAR VALORES ORIGINALES INMEDIATAMENTE (ANTES DE CUALQUIER ASYNC)
+    const currentSampler = samplerCell.textContent.trim();
+    samplerCell.setAttribute("data-original-value", currentSampler);
+    
+    if (rowId === "line-sampler-row-0") {
+      const startCell = row.querySelector("td:nth-child(2)");
+      const finishCell = row.querySelector("td:nth-child(3)");
+      const hoursCell = row.querySelector("td:nth-child(4)");
+
+      console.log("🔍 EMERGENCY SAVE: Saving original values IMMEDIATELY for rowId:", rowId);
+      
+      // 🛡️ GUARDAR EN EL TR PARA QUE NO SE PIERDAN AL MODIFICAR CELDAS
+      if (startCell && !row.hasAttribute("data-original-start")) {
+        const startHTML = startCell.innerHTML.trim();
+        if (startHTML && !startHTML.includes('Select start time')) {
+          row.setAttribute("data-original-start", startHTML);
+          row.setAttribute("data-original-start-text", startCell.textContent.trim());
+          console.log("🔍 EMERGENCY SAVED to TR - startCell:", startHTML);
+        }
+      }
+      
+      if (finishCell && !row.hasAttribute("data-original-finish")) {
+        const finishHTML = finishCell.innerHTML.trim();
+        if (finishHTML && !finishHTML.includes('Select finish time')) {
+          row.setAttribute("data-original-finish", finishHTML);
+          row.setAttribute("data-original-finish-text", finishCell.textContent.trim());
+          console.log("🔍 EMERGENCY SAVED to TR - finishCell:", finishHTML);
+        }
+      }
+      
+      if (hoursCell && !row.hasAttribute("data-original-hours")) {
+        const hoursText = hoursCell.textContent.trim();
+        if (hoursText && hoursText !== "0") {
+          row.setAttribute("data-original-hours", hoursText);
+          console.log("🔍 EMERGENCY SAVED to TR - hoursCell:", hoursText);
+        }
+      }
+
+      console.log("🔍 FINAL CHECK - Original values saved to TR:", {
+        start: row.getAttribute("data-original-start"),
+        finish: row.getAttribute("data-original-finish"), 
+        hours: row.getAttribute("data-original-hours")
+      });
+    }
 
     try {
       // Obtener lista de samplers
@@ -1562,9 +1610,7 @@ export class SamplingRosterController {
         return;
       }
 
-      // Guardar valor actual del sampler
-      const currentSampler = samplerCell.textContent.trim();
-      samplerCell.setAttribute("data-original-value", currentSampler);
+      // Ya se guardaron los valores originales arriba
 
       // Crear contenedor y agregarlo al DOM PRIMERO
       const dropdown = this.createLineSamplerDropdown(
@@ -2669,8 +2715,24 @@ export class SamplingRosterController {
         }
       }
 
+      // 🆕 STEP 3B: CANCELAR DATETIMEPICKERS (para fila 0 de Line Sampling)
       if (rowId === "line-sampler-row-0") {
-        this.tableManager.cancelLineSamplingDateTimeEdit(rowId);
+        Logger.info("Debug: Cancelling DateTimePickers for line-sampler-row-0", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { rowId: rowId },
+          showNotification: false,
+        });
+        
+        const dateTimeCancelled = this.tableManager.cancelLineSamplingDateTimeEdit(rowId);
+        
+        Logger.info("Debug: Line DateTimePickers cancellation result", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            rowId: rowId,
+            dateTimeCancelled: dateTimeCancelled !== false
+          },
+          showNotification: false,
+        });
       }
 
       // STEP 4: RESTAURAR BOTÓN SAVE → EDIT
