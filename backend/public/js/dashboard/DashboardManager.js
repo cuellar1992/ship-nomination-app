@@ -2517,7 +2517,14 @@ class DashboardManager {
                 return nominationDate.getMonth() === currentMonth && nominationDate.getFullYear() === currentYear;
             }) || [];
             
-            this.renderNominationsList(monthlyNominations);
+            // Ordenar por fecha ascendente (fechas más próximas/tempranas primero)
+            const sortedMonthlyNominations = monthlyNominations.sort((a, b) => {
+                const dateA = new Date(a.etb || a.etc || a.createdAt || a.date || a.arrivalDate || new Date());
+                const dateB = new Date(b.etb || b.etc || b.createdAt || b.date || b.arrivalDate || new Date());
+                return dateA - dateB; // Orden ascendente (fechas más tempranas primero)
+            });
+            
+            this.renderNominationsList(sortedMonthlyNominations);
             
         } catch (error) {
             console.error('❌ Error cargando nominaciones del mes:', error);
