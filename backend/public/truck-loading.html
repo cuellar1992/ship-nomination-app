@@ -154,7 +154,7 @@
               <div class="ship-form-grid" style="grid-template-columns: 1fr auto; gap: 0.75rem; align-items: center;">
                 <div class="ship-form-field">
                   <div style="position: relative;">
-                    <input id="truckSearchInput" type="text" class="ship-form-input" placeholder="Search (date, terminal, surveyor)" style="padding-left: 3.2rem;" />
+                    <input id="truckSearchInput" type="text" class="ship-form-input" placeholder="Search (date, terminal, surveyor)" style="padding-left: 3.8rem;" />
                     <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); margin-right: 0.5rem;"></i>
                   </div>
                 </div>
@@ -241,6 +241,23 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+            <div class="truck-pagination minimal d-flex align-items-center" style="gap: 0.5rem; margin-top: 0.5rem; justify-content: flex-end;">
+              <button id="truckPrevPageBtn" class="icon-btn" type="button" title="Previous">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <div id="truckPageNumbers" class="page-numbers d-flex" style="gap: 0.25rem;"></div>
+              <button id="truckNextPageBtn" class="icon-btn" type="button" title="Next">
+                <i class="fas fa-chevron-right"></i>
+              </button>
+              <div class="d-flex align-items-center" style="gap: 0.25rem; margin-left: 0.5rem;">
+                <select id="truckPageSizeSelect" class="ship-form-input minimal-select" style="width: auto; padding: 0.3rem 0.6rem; min-height: auto;">
+                  <option value="5">5</option>
+                  <option value="10" selected>10</option>
+                  <option value="15">15</option>
+                </select>
+                <span class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">/ page</span>
+              </div>
             </div>
           </div>
         </div>

@@ -6,6 +6,9 @@
         editId: null,
         autoUpdatingIds: new Set(),
         debounceTimer: null,
+        rows: [],
+        pagination: { pageSize: 10, currentPage: 1 },
+        searchTerm: '',
     };
 
     function log(level, message, extra = {}) {
@@ -244,7 +247,10 @@
             const resp = await fetch(url);
             const json = await resp.json();
             const rows = Array.isArray(json.data) ? json.data : [];
-            renderList(rows);
+            state.rows = rows;
+            // Reset to first page when dataset changes
+            state.pagination.currentPage = 1;
+            renderList(state.rows);
             // Auto-complete status where applicable
             evaluateAutoComplete(rows);
         } catch (e) {
@@ -259,17 +265,114 @@
         return d.toLocaleString();
     }
 
-    function renderList(rows) {
-        const tbody = document.getElementById('truckWorkDaysTbody');
-        if (!tbody) return;
-        // Apply sort if active
+    function getSortedRows(rows) {
         const sortDir = state.sortDirection || 'desc';
         const sorted = [...rows].sort((a,b) => {
             const da = new Date(a.operationDate || a.createdAt || 0);
             const db = new Date(b.operationDate || b.createdAt || 0);
             return sortDir === 'asc' ? da - db : db - da;
         });
-        if (!rows.length) {
+        return sorted;
+    }
+
+    function getFilteredRows(rows) {
+        const sorted = getSortedRows(rows);
+        const term = (state.searchTerm || '').toLowerCase();
+        if (!term) return sorted;
+        return sorted.filter(r => {
+            const loadsText = (r.loads || [])
+                .filter(l => l && (l.startTime || l.product))
+                .map(l => `L${l.loadNo || ''}`)
+                .join(', ');
+            const parts = [
+                new Date(r.operationDate).toLocaleDateString(),
+                r.terminal || '',
+                loadsText || '',
+                r.samplerName || '',
+                r.status || ''
+            ].join(' ').toLowerCase();
+            return parts.includes(term);
+        });
+    }
+
+    function updatePaginationControls(totalItems, pageStart, pageEnd, currentPage, totalPages) {
+        const info = document.getElementById('truckPageInfo');
+        const prevBtn = document.getElementById('truckPrevPageBtn');
+        const nextBtn = document.getElementById('truckNextPageBtn');
+        const numbersContainer = document.getElementById('truckPageNumbers');
+        if (info) {
+            if (totalItems === 0) {
+                info.textContent = 'No records';
+            } else {
+                info.textContent = `${pageStart}-${pageEnd} / ${totalItems}`;
+            }
+        }
+        if (prevBtn) prevBtn.disabled = currentPage <= 1 || totalPages <= 1;
+        if (nextBtn) nextBtn.disabled = currentPage >= totalPages || totalPages <= 1;
+
+        if (numbersContainer) {
+            numbersContainer.innerHTML = '';
+            const createPageBtn = (page, isActive = false, isEllipsis = false) => {
+                if (isEllipsis) {
+                    const span = document.createElement('span');
+                    span.className = 'page-dot';
+                    span.textContent = '…';
+                    numbersContainer.appendChild(span);
+                    return;
+                }
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = isActive ? 'icon-btn page-btn active' : 'icon-btn page-btn';
+                btn.textContent = String(page);
+                btn.addEventListener('click', () => {
+                    if (state.pagination.currentPage !== page) {
+                        state.pagination.currentPage = page;
+                        renderList(state.rows || []);
+                    }
+                });
+                numbersContainer.appendChild(btn);
+            };
+            const windowSize = 5; // show 1-5 style around current
+            const pages = [];
+            if (totalPages <= 7) {
+                for (let p = 1; p <= totalPages; p++) pages.push(p);
+            } else {
+                const start = Math.max(2, currentPage - 2);
+                const end = Math.min(totalPages - 1, currentPage + 2);
+                pages.push(1);
+                if (start > 2) pages.push('...');
+                for (let p = start; p <= end; p++) pages.push(p);
+                if (end < totalPages - 1) pages.push('...');
+                pages.push(totalPages);
+            }
+            pages.forEach(p => {
+                if (p === '...') {
+                    createPageBtn(0, false, true);
+                } else {
+                    createPageBtn(p, p === currentPage, false);
+                }
+            });
+        }
+    }
+
+    function renderList(rows) {
+        const tbody = document.getElementById('truckWorkDaysTbody');
+        if (!tbody) return;
+        const filtered = getFilteredRows(rows);
+        // Pagination
+        const pageSize = Number(state.pagination?.pageSize || 10) || 10;
+        const totalItems = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        if (!state.pagination || typeof state.pagination.currentPage !== 'number') {
+            state.pagination = { pageSize, currentPage: 1 };
+        }
+        if (state.pagination.currentPage > totalPages) state.pagination.currentPage = totalPages;
+        if (state.pagination.currentPage < 1) state.pagination.currentPage = 1;
+        const currentPage = state.pagination.currentPage;
+        const startIndex = (currentPage - 1) * pageSize;
+        const pageRows = filtered.slice(startIndex, startIndex + pageSize);
+
+        if (!filtered.length) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="empty-state text-center">
@@ -277,9 +380,10 @@
                         No records yet. Use the form above to create one.
                     </td>
                 </tr>`;
+            updatePaginationControls(0, 0, 0, 1, 1);
             return;
         }
-        const html = sorted.map(r => {
+        const html = pageRows.map(r => {
             const loadsText = (r.loads || [])
                 .filter(l => l && (l.startTime || l.product))
                 .map(l => `L${l.loadNo || ''}`)
@@ -299,6 +403,9 @@
                 </tr>`;
         }).join('');
         tbody.innerHTML = html;
+        const pageStart = totalItems === 0 ? 0 : startIndex + 1;
+        const pageEnd = Math.min(startIndex + pageSize, totalItems);
+        updatePaginationControls(totalItems, pageStart, pageEnd, currentPage, totalPages);
         // Wire view
         tbody.querySelectorAll('button[data-action="view"]').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -556,10 +663,44 @@
             e.preventDefault();
             setQuickDateFilter('month');
         });
+        // Search integrated with pagination
         document.getElementById('truckSearchInput')?.addEventListener('input', (e) => {
-            const term = (e.target.value || '').toLowerCase().trim();
-            filterTableBySearch(term);
+            state.searchTerm = (e.target.value || '').toLowerCase().trim();
+            state.pagination.currentPage = 1;
+            renderList(state.rows || []);
         });
+
+        // Pagination controls
+        const pageSizeSelect = document.getElementById('truckPageSizeSelect');
+        if (pageSizeSelect) {
+            state.pagination.pageSize = Number(pageSizeSelect.value) || 10;
+            pageSizeSelect.addEventListener('change', (ev) => {
+                state.pagination.pageSize = Number(ev.target.value) || 10;
+                state.pagination.currentPage = 1;
+                renderList(state.rows || []);
+            });
+        }
+        const prevBtn = document.getElementById('truckPrevPageBtn');
+        const nextBtn = document.getElementById('truckNextPageBtn');
+        if (prevBtn && nextBtn) {
+            prevBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (state.pagination.currentPage > 1) {
+                    state.pagination.currentPage -= 1;
+                    renderList(state.rows || []);
+                }
+            });
+            nextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Compute total pages based on current filters
+                const totalItems = getFilteredRows(state.rows || []).length;
+                const totalPages = Math.max(1, Math.ceil(totalItems / (Number(state.pagination.pageSize) || 10)));
+                if (state.pagination.currentPage < totalPages) {
+                    state.pagination.currentPage += 1;
+                    renderList(state.rows || []);
+                }
+            });
+        }
 
         // Date sort toggle
         const sortBtn = document.getElementById('truckDateSortToggle');
@@ -583,18 +724,7 @@
         }
     });
 
-    function filterTableBySearch(term) {
-        const tbody = document.getElementById('truckWorkDaysTbody');
-        if (!tbody) return;
-        const rows = tbody.querySelectorAll('tr');
-        rows.forEach(tr => {
-            const tds = tr.querySelectorAll('td');
-            if (tds.length < 5) return; // skip empty-state
-            const text = Array.from(tds).slice(0,5).map(td => (td.textContent || '').toLowerCase()).join(' ');
-            const show = term === '' || text.includes(term);
-            tr.style.display = show ? '' : 'none';
-        });
-    }
+    function filterTableBySearch(term) { /* replaced by integrated search */ }
 
     function setQuickDateFilter(period) {
         const now = new Date();

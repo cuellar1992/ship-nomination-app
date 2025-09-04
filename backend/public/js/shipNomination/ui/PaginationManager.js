@@ -7,7 +7,7 @@ class PaginationManager {
   constructor(tableManager) {
     this.tableManager = tableManager;
     this.currentPage = 1;
-    this.pageSize = 25; // Registros por página
+    this.pageSize = 10; // Registros por página (consistente con Molekulis)
     this.totalRecords = 0;
     this.currentData = []; // Datos actuales (con filtros aplicados)
     this.paginatedData = []; // Datos de la página actual
@@ -34,17 +34,22 @@ class PaginationManager {
     // Previous button
     const prevBtn = document.getElementById("prevPage");
     if (prevBtn) {
-      prevBtn.addEventListener("click", () =>
-        this.goToPage(this.currentPage - 1)
-      );
+      prevBtn.addEventListener("click", () => this.goToPage(this.currentPage - 1));
     }
 
     // Next button
     const nextBtn = document.getElementById("nextPage");
     if (nextBtn) {
-      nextBtn.addEventListener("click", () =>
-        this.goToPage(this.currentPage + 1)
-      );
+      nextBtn.addEventListener("click", () => this.goToPage(this.currentPage + 1));
+    }
+
+    // Page size select
+    const sizeSelect = document.getElementById("pageSizeSelect");
+    if (sizeSelect) {
+      sizeSelect.addEventListener("change", (e) => {
+        const newSize = Number(e.target.value) || 10;
+        this.setPageSize(newSize);
+      });
     }
   }
 
@@ -135,11 +140,11 @@ class PaginationManager {
     const infoElement = document.getElementById("paginationInfo");
     if (infoElement) {
       if (this.totalRecords === 0) {
-        infoElement.textContent = "No results found";
+        infoElement.textContent = "No results";
       } else {
         const start = startIndex + 1;
         const end = endIndex;
-        infoElement.textContent = `Showing ${start}-${end} of ${this.totalRecords} results`;
+        infoElement.textContent = `${start}-${end} / ${this.totalRecords}`;
       }
     }
   }
@@ -153,17 +158,17 @@ class PaginationManager {
 
     if (prevBtn) {
       if (this.currentPage <= 1) {
-        prevBtn.classList.add("disabled");
+        prevBtn.setAttribute("disabled", "disabled");
       } else {
-        prevBtn.classList.remove("disabled");
+        prevBtn.removeAttribute("disabled");
       }
     }
 
     if (nextBtn) {
       if (this.currentPage >= totalPages) {
-        nextBtn.classList.add("disabled");
+        nextBtn.setAttribute("disabled", "disabled");
       } else {
-        nextBtn.classList.remove("disabled");
+        nextBtn.removeAttribute("disabled");
       }
     }
   }
@@ -172,46 +177,43 @@ class PaginationManager {
    * 🔢 Generar números de página
    */
   generatePageNumbers(totalPages) {
-    const controlsContainer = document.getElementById("paginationControls");
-    if (!controlsContainer) return;
+    const numbersContainer = document.getElementById("pageNumbers");
+    if (!numbersContainer) return;
+    numbersContainer.innerHTML = "";
 
-    // Remover números existentes
-    const existingNumbers = controlsContainer.querySelectorAll(".page-number");
-    existingNumbers.forEach((num) => num.remove());
-
-    // Generar nuevos números (máximo 5 páginas visibles)
-    const maxVisible = 5;
-    let startPage = Math.max(1, this.currentPage - 2);
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-
-    // Ajustar si hay menos páginas al inicio
-    if (endPage - startPage < maxVisible - 1) {
-      startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-
-    // Buscar el botón Next para insertar antes de él
-    const nextBtn = document.getElementById("nextPage");
-
-    for (let i = startPage; i <= endPage; i++) {
-      const pageItem = document.createElement("li");
-      pageItem.className = `page-item page-number ${
-        i === this.currentPage ? "active" : ""
-      }`;
-
-      const pageButton = document.createElement("button");
-      pageButton.className = "page-link";
-      pageButton.type = "button";
-      pageButton.textContent = i;
-
-      pageButton.addEventListener("click", () => this.goToPage(i));
-
-      pageItem.appendChild(pageButton);
-
-      // Insertar antes del botón Next
-      if (nextBtn) {
-        controlsContainer.insertBefore(pageItem, nextBtn);
+    const createBtn = (page, isActive = false, isEllipsis = false) => {
+      if (isEllipsis) {
+        const span = document.createElement("span");
+        span.className = "page-dot";
+        span.textContent = "…";
+        numbersContainer.appendChild(span);
+        return;
       }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = isActive ? "icon-btn page-btn active" : "icon-btn page-btn";
+      btn.textContent = String(page);
+      btn.addEventListener("click", () => this.goToPage(page));
+      numbersContainer.appendChild(btn);
+    };
+
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let p = 1; p <= totalPages; p++) pages.push(p);
+    } else {
+      const start = Math.max(2, this.currentPage - 2);
+      const end = Math.min(totalPages - 1, this.currentPage + 2);
+      pages.push(1);
+      if (start > 2) pages.push("...");
+      for (let p = start; p <= end; p++) pages.push(p);
+      if (end < totalPages - 1) pages.push("...");
+      pages.push(totalPages);
     }
+
+    pages.forEach((p) => {
+      if (p === "...") createBtn(0, false, true);
+      else createBtn(p, p === this.currentPage, false);
+    });
   }
 
   /**
@@ -242,15 +244,8 @@ class PaginationManager {
     const container = document.getElementById("paginationContainer");
     if (!container) return;
 
-    // Mostrar paginación solo si hay más de una página O hay filtros activos
-    const totalPages = Math.ceil(this.totalRecords / this.pageSize);
-    const shouldShow = totalPages > 1 || this.hasActiveFilters();
-
-    if (shouldShow) {
-      container.style.display = "block";
-    } else {
-      container.style.display = "none";
-    }
+    // Mostrar siempre los controles (diseño consistente).
+    container.style.display = "block";
   }
 
   /**

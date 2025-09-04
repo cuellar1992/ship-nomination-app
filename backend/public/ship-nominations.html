@@ -681,40 +681,26 @@
             </table>
           </div>
 
-          <!-- ⭐ NUEVO: Controles de Paginación -->
-          <div
-            class="pagination-container mt-3"
-            id="paginationContainer"
-            style="display: none"
-          >
-            <div class="row align-items-center">
-              <!-- Información de resultados -->
-              <div class="col-md-6">
-                <span class="text-muted" id="paginationInfo">
-                  Showing 1-25 of 0 results
-                </span>
-              </div>
-
-              <!-- Controles de navegación -->
-              <div class="col-md-6">
-                <nav aria-label="Table pagination">
-                  <ul
-                    class="pagination pagination-sm justify-content-end mb-0"
-                    id="paginationControls"
-                  >
-                    <li class="page-item" id="prevPage">
-                      <button class="page-link" type="button">
-                        <i class="fas fa-chevron-left"></i> Previous
-                      </button>
-                    </li>
-                    <!-- Los números de página se generan dinámicamente -->
-                    <li class="page-item" id="nextPage">
-                      <button class="page-link" type="button">
-                        Next <i class="fas fa-chevron-right"></i>
-                      </button>
-                    </li>
-                  </ul>
-                </nav>
+          <!-- ⭐ Controles de Paginación - Minimal y consistente con Molekulis -->
+          <div class="mt-3" id="paginationContainer" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center" style="gap: 0.75rem;">
+              <span class="text-muted" id="paginationInfo">—</span>
+              <div class="truck-pagination minimal d-flex align-items-center" style="gap: 0.5rem;">
+                <button id="prevPage" class="icon-btn" type="button" title="Previous">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div id="pageNumbers" class="page-numbers d-flex" style="gap: 0.25rem;"></div>
+                <button id="nextPage" class="icon-btn" type="button" title="Next">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+                <div class="d-flex align-items-center" style="gap: 0.25rem; margin-left: 0.5rem;">
+                  <select id="pageSizeSelect" class="ship-form-input minimal-select" style="width: auto; padding: 0.3rem 0.6rem; min-height: auto;">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                  </select>
+                  <span class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">/ page</span>
+                </div>
               </div>
             </div>
           </div>

@@ -766,3 +766,107 @@ input[type="datetime-local"]#pilotOnBoard:invalid {
 .filters-compact #truckAdvancedPanel {
     border: 0 !important;
 }
+
+/* ==================== MOLEKULIS LOADING SEARCH FIX ==================== */
+/* Asegura que el texto no se superponga con la lupa y que el ícono no intercepte clics */
+#truckSearchInput {
+    padding-left: 3.8rem !important;
+}
+
+#truckSearchInput + i {
+    pointer-events: none !important;
+}
+
+/* ==================== MINIMAL PAGINATION (TRUCK) ==================== */
+.truck-pagination.minimal {
+    border: 1px solid var(--border-dark);
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 0.3rem 0.5rem;
+}
+
+.truck-pagination .page-info {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    min-width: 120px;
+    text-align: center;
+}
+
+.truck-pagination .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-secondary);
+    color: var(--text-secondary);
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+}
+
+.truck-pagination .icon-btn:hover:enabled {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.truck-pagination .icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.truck-pagination .minimal-select {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-secondary) !important;
+    color: var(--text-primary) !important;
+    padding: 0.25rem 0.5rem !important;
+    border-radius: 8px !important;
+    min-height: auto !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+}
+
+.truck-pagination .minimal-select:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: none !important;
+}
+
+/* Dropdown options: dark theme */
+.truck-pagination .minimal-select option,
+#pageSizeSelect option,
+#truckPageSizeSelect option {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Windows/Edge adjustments */
+select::-ms-expand {
+    display: none;
+}
+
+/* Page numbers */
+.truck-pagination .page-numbers .page-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    min-width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.truck-pagination .page-numbers .page-btn:hover {
+    border-color: var(--border-secondary);
+}
+
+.truck-pagination .page-numbers .page-btn.active {
+    border-color: var(--accent-primary);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 2px rgba(31, 181, 212, 0.15);
+}
+
+.truck-pagination .page-numbers .page-dot {
+    color: var(--text-secondary);
+    padding: 0 4px;
+}

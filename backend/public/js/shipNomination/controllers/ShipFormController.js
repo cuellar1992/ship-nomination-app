@@ -308,17 +308,31 @@ class ShipFormController {
     if (this.tableManager) {
       this.paginationManager = new PaginationManager(this.tableManager);
 
+      // Asegurar que el contenedor se vea desde el inicio
+      const container = document.getElementById('paginationContainer');
+      if (container) container.style.display = 'block';
+
+      // Vincular selector de tamaño de página (5/10/15)
+      const sizeSelect = document.getElementById('pageSizeSelect');
+      if (sizeSelect) {
+        // Inicializar valor actual
+        sizeSelect.value = String(this.paginationManager.pageSize);
+        sizeSelect.addEventListener('change', (e) => {
+          const newSize = Number(e.target.value) || 10;
+          this.paginationManager.setPageSize(newSize);
+        });
+      }
+
       // ⭐ CONEXIÓN SIMPLE Y DIRECTA
       setTimeout(() => {
         const allData = this.tableManager.getAllNominations();
-        if (allData && allData.length > 0) {
-          this.paginationManager.updateData(allData);
-          Logger.debug("Pagination force-updated with records", {
-            module: "ShipForm",
-            data: { recordCount: allData.length },
-            showNotification: false,
-          });
-        }
+        // Actualizar siempre (aunque no haya registros) para renderizar controles y info
+        this.paginationManager.updateData(Array.isArray(allData) ? allData : []);
+        Logger.debug("Pagination force-updated", {
+          module: "ShipForm",
+          data: { recordCount: allData?.length || 0 },
+          showNotification: false,
+        });
       }, 1500); // Más tiempo para asegurar carga completa
 
       Logger.success("Pagination initialized", {
