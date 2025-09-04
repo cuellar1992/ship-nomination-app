@@ -311,8 +311,8 @@ class DashboardManager {
             noDataDiv.innerHTML = `
                 <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                     <i class="fas fa-chart-line" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                    <div>No hay datos disponibles para mostrar tendencias</div>
-                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los datos aparecerán cuando se creen nominaciones y rosters</div>
+                    <div>No data available to show trends</div>
+                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">Data will appear when nominations and rosters are created</div>
                 </div>
             `;
             ctx.parentElement.appendChild(noDataDiv);
@@ -434,8 +434,8 @@ class DashboardManager {
             noDataDiv.innerHTML = `
                 <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                     <i class="fas fa-industry" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                    <div>No hay nominaciones asignadas a terminales</div>
-                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los datos aparecerán cuando se creen nominaciones con terminales asignados</div>
+                    <div>No nominations assigned to terminals</div>
+                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">Data will appear when nominations with assigned terminals are created</div>
                 </div>
             `;
             ctx.parentElement.appendChild(noDataDiv);
@@ -1895,8 +1895,8 @@ class DashboardManager {
                 <div class="roster-status-empty">
                     <i class="fas fa-clipboard-list" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; color: var(--text-secondary);"></i>
                     <div style="color: var(--text-secondary); text-align: center;">
-                        <div>No hay rosters para mostrar</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los estados aparecerán cuando se creen rosters</div>
+                        <div>No rosters to display</div>
+                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Status will appear when rosters are created</div>
                     </div>
                 </div>
             `;
@@ -2104,8 +2104,8 @@ class DashboardManager {
                 <div class="nominations-status-empty">
                     <i class="fas fa-clipboard-list" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; color: var(--text-secondary);"></i>
                     <div style="color: var(--text-secondary); text-align: center;">
-                        <div>No hay rosters para mostrar</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Los estados aparecerán cuando se creen rosters</div>
+                        <div>No rosters to display</div>
+                        <div style="font-size: 0.875rem; margin-top: 0.5rem;">Status will appear when rosters are created</div>
                     </div>
                 </div>
             `;
