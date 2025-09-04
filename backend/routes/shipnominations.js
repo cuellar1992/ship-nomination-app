@@ -89,8 +89,15 @@ router.get("/stats/summary", async (req, res) => {
     thisMonth.setDate(1);
     thisMonth.setHours(0, 0, 0, 0);
 
+    // Obtener el final del mes para el rango completo
+    const nextMonth = new Date(thisMonth);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
     const thisMonthCount = await ShipNomination.countDocuments({
-      createdAt: { $gte: thisMonth },
+      etb: { 
+        $gte: thisMonth,
+        $lt: nextMonth
+      },
     });
 
     res.json({
@@ -577,6 +584,81 @@ router.get("/check-clientref/:clientRef", async (req, res) => {
   } catch (error) {
     console.error("❌ Error checking clientRef:", error);
     res.status(500).json({ exists: false, error: "Internal server error" });
+  }
+});
+
+// ===============================
+// ✅ ACTUALIZACIÓN AUTOMÁTICA DE STATUS
+// ===============================
+
+// PUT /api/shipnominations/update-statuses - Actualizar status automáticamente
+router.put("/update-statuses", async (req, res) => {
+  try {
+    console.log("🔄 Iniciando actualización automática de status...");
+
+    // Obtener todas las nominations que no están canceladas
+    const nominations = await ShipNomination.find({ 
+      status: { $ne: 'cancelled' },
+      etb: { $exists: true },
+      etc: { $exists: true }
+    });
+
+    let updated = 0;
+    const now = new Date();
+    const updates = [];
+
+    for (const nomination of nominations) {
+      const etbDate = new Date(nomination.etb);
+      const etcDate = new Date(nomination.etc);
+      let newStatus = nomination.status;
+
+      // Determinar el nuevo status basado en fechas
+      if (now >= etcDate) {
+        newStatus = 'completed';
+      } else if (now >= etbDate && now < etcDate) {
+        newStatus = 'in_progress';
+      } else if (now < etbDate) {
+        newStatus = 'confirmed';
+      }
+
+      // Actualizar solo si el status cambió
+      if (newStatus !== nomination.status) {
+        await ShipNomination.findByIdAndUpdate(nomination._id, { 
+          status: newStatus,
+          updatedAt: new Date()
+        });
+        
+        updates.push({
+          id: nomination._id,
+          vesselName: nomination.vesselName,
+          amspecRef: nomination.amspecRef,
+          oldStatus: nomination.status,
+          newStatus: newStatus
+        });
+        
+        updated++;
+      }
+    }
+
+    console.log(`✅ Proceso completado. ${updated} nominaciones actualizadas de ${nominations.length} revisadas.`);
+
+    res.json({
+      success: true,
+      message: `${updated} nominaciones actualizadas de ${nominations.length} revisadas`,
+      data: {
+        totalReviewed: nominations.length,
+        totalUpdated: updated,
+        updates: updates
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error updating status:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error updating nomination statuses",
+      details: error.message
+    });
   }
 });
 

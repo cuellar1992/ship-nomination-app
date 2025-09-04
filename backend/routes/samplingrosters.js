@@ -582,4 +582,82 @@ async function findSamplerConflicts(samplerId, timeRange, excludeRosterId = null
   return conflictingRosters; // Simplificado por ahora
 }
 
+// ===============================
+// ✅ ACTUALIZACIÓN AUTOMÁTICA DE STATUS
+// ===============================
+
+// PUT /api/sampling-rosters/update-statuses - Actualizar status automáticamente
+router.put("/update-statuses", async (req, res) => {
+  try {
+    console.log("🔄 Iniciando actualización automática de status de rosters...");
+
+    // Obtener todos los rosters que no están cancelados
+    const rosters = await SamplingRoster.find({ 
+      status: { $ne: 'cancelled' },
+      startDischarge: { $exists: true },
+      etcTime: { $exists: true }
+    });
+
+    let updated = 0;
+    const now = new Date();
+    const updates = [];
+
+    for (const roster of rosters) {
+      const startDate = new Date(roster.startDischarge);
+      const endDate = new Date(roster.etcTime);
+      let newStatus = roster.status;
+
+      // Determinar el nuevo status basado en fechas
+      if (now >= endDate) {
+        newStatus = 'completed';
+      } else if (now >= startDate && now < endDate) {
+        newStatus = 'in_progress';
+      } else if (now < startDate) {
+        newStatus = 'confirmed';
+      }
+
+      // Actualizar solo si el status cambió
+      if (newStatus !== roster.status) {
+        await SamplingRoster.findByIdAndUpdate(roster._id, { 
+          status: newStatus,
+          updatedAt: new Date(),
+          lastModifiedBy: 'api_update'
+        });
+        
+        updates.push({
+          id: roster._id,
+          vesselName: roster.vesselName,
+          amspecRef: roster.amspecRef,
+          oldStatus: roster.status,
+          newStatus: newStatus,
+          startDischarge: startDate.toISOString(),
+          etcTime: endDate.toISOString()
+        });
+        
+        updated++;
+      }
+    }
+
+    console.log(`✅ Proceso completado. ${updated} rosters actualizados de ${rosters.length} revisados.`);
+
+    res.json({
+      success: true,
+      message: `${updated} rosters actualizados de ${rosters.length} revisados`,
+      data: {
+        totalReviewed: rosters.length,
+        totalUpdated: updated,
+        updates: updates
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error updating roster statuses:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error updating roster statuses",
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

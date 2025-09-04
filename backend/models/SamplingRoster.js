@@ -263,6 +263,29 @@ SamplingRosterSchema.pre('save', function(next) {
     this.version += 1;
   }
 
+  // ========================================
+  // ✅ ACTUALIZACIÓN AUTOMÁTICA DE STATUS BASADA EN FECHAS
+  // ========================================
+  if (this.startDischarge && this.etcTime) {
+    const now = new Date();
+    const startDate = new Date(this.startDischarge);
+    const endDate = new Date(this.etcTime);
+
+    // Solo actualizar si no es 'cancelled' (respeta cancelaciones manuales)
+    if (this.status !== 'cancelled') {
+      if (now >= endDate) {
+        // Si la fecha actual es posterior o igual a ETC → completed
+        this.status = 'completed';
+      } else if (now >= startDate && now < endDate) {
+        // Si la fecha actual está entre startDischarge y etcTime → in_progress
+        this.status = 'in_progress';
+      } else if (now < startDate) {
+        // Si la fecha actual es anterior a startDischarge → confirmed (listo para empezar)
+        this.status = 'confirmed';
+      }
+    }
+  }
+
   next();
 });
 

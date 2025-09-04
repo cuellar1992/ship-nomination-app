@@ -302,7 +302,7 @@ class DashboardManager {
         console.log('📈 Inicializando gráfico de tendencias mensuales con datos reales:', monthlyData);
         
         // Validar que hay datos para mostrar
-        const hasData = monthlyData.nominations.some(count => count > 0) || monthlyData.rosters.some(count => count > 0);
+        const hasData = monthlyData.nominations.some(count => count > 0) || monthlyData.completedOperations.some(count => count > 0);
         if (!hasData) {
             console.warn('⚠️ No hay datos reales para mostrar en el gráfico de tendencias');
             // Mostrar mensaje de "Sin datos" en el canvas
@@ -339,8 +339,8 @@ class DashboardManager {
                         pointHoverRadius: 8
                     },
                     {
-                        label: 'Generated Rosters',
-                        data: monthlyData.rosters,
+                        label: 'Completed Operations',
+                        data: monthlyData.completedOperations,
                         borderColor: this.chartColors[1],
                         backgroundColor: this.chartColors[1] + '20',
                         borderWidth: 3,
@@ -1226,7 +1226,7 @@ class DashboardManager {
         months.forEach((month, index) => {
             monthlyData[index] = {
                 nominations: 0,
-                rosters: 0
+                completedOperations: 0
             };
         });
         
@@ -1234,7 +1234,8 @@ class DashboardManager {
         if (this.data.nominations) {
             this.data.nominations.forEach(nomination => {
                 try {
-                    const nominationDate = new Date(nomination.createdAt || nomination.date || nomination.arrivalDate || new Date());
+                    // Usar ETB (fecha de operación) para agrupar por mes de operación
+                    const nominationDate = new Date(nomination.etb || nomination.date || new Date());
                     if (!isNaN(nominationDate.getTime()) && nominationDate.getFullYear() === currentYear) {
                         const monthIndex = nominationDate.getMonth();
                         monthlyData[monthIndex].nominations++;
@@ -1245,17 +1246,21 @@ class DashboardManager {
             });
         }
         
-        // Procesar rosters reales
-        if (this.data.rosters) {
-            this.data.rosters.forEach(roster => {
+        // Procesar operaciones completadas (nominations con status completed)
+        if (this.data.nominations) {
+            this.data.nominations.forEach(nomination => {
                 try {
-                    const rosterDate = new Date(roster.createdAt || roster.date || roster.samplingDate || new Date());
-                    if (!isNaN(rosterDate.getTime()) && rosterDate.getFullYear() === currentYear) {
-                        const monthIndex = rosterDate.getMonth();
-                        monthlyData[monthIndex].rosters++;
+                    // Solo contar nominaciones completadas
+                    if (nomination.status === 'completed') {
+                        // Usar ETC (fecha de finalización real) para operaciones completadas
+                        const completionDate = new Date(nomination.etc || nomination.etb || new Date());
+                        if (!isNaN(completionDate.getTime()) && completionDate.getFullYear() === currentYear) {
+                            const monthIndex = completionDate.getMonth();
+                            monthlyData[monthIndex].completedOperations++;
+                        }
                     }
                 } catch (error) {
-                    console.warn('⚠️ Error procesando fecha de roster:', roster, error);
+                    console.warn('⚠️ Error procesando fecha de operación completada:', nomination, error);
                 }
             });
         }
@@ -1263,17 +1268,17 @@ class DashboardManager {
         // Preparar datos para el gráfico
         const labels = months;
         const nominations = months.map((_, index) => monthlyData[index].nominations);
-        const rosters = months.map((_, index) => monthlyData[index].rosters);
+        const completedOperations = months.map((_, index) => monthlyData[index].completedOperations);
         
         console.log('📊 Datos de tendencias mensuales REALES:', {
             labels,
             nominations,
-            rosters,
+            completedOperations,
             totalNominations: nominations.reduce((a, b) => a + b, 0),
-            totalRosters: rosters.reduce((a, b) => a + b, 0)
+            totalCompletedOperations: completedOperations.reduce((a, b) => a + b, 0)
         });
         
-        return { labels, nominations, rosters };
+        return { labels, nominations, completedOperations };
     }
 
     /**
@@ -2359,10 +2364,10 @@ class DashboardManager {
                 console.log('🔄 Actualizando gráfico de tendencias con datos reales:', monthlyData);
                 
                 // Validar que hay datos antes de actualizar
-                const hasData = monthlyData.nominations.some(count => count > 0) || monthlyData.rosters.some(count => count > 0);
+                const hasData = monthlyData.nominations.some(count => count > 0) || monthlyData.completedOperations.some(count => count > 0);
                 if (hasData) {
                     this.charts.trends.data.datasets[0].data = monthlyData.nominations;
-                    this.charts.trends.data.datasets[1].data = monthlyData.rosters;
+                    this.charts.trends.data.datasets[1].data = monthlyData.completedOperations;
                     this.charts.trends.update('none');
                 } else {
                     console.warn('⚠️ No hay datos reales para actualizar el gráfico de tendencias');
@@ -2513,8 +2518,9 @@ class DashboardManager {
             const currentYear = new Date().getFullYear();
             
             const monthlyNominations = this.data.nominations?.filter(nomination => {
-                const nominationDate = new Date(nomination.createdAt || nomination.date || nomination.arrivalDate || new Date());
-                return nominationDate.getMonth() === currentMonth && nominationDate.getFullYear() === currentYear;
+                // Usar ETB (fecha de operación) para consistencia con el KPI
+                const operationDate = new Date(nomination.etb || nomination.date || new Date());
+                return operationDate.getMonth() === currentMonth && operationDate.getFullYear() === currentYear;
             }) || [];
             
             // Ordenar por fecha ascendente (fechas más próximas/tempranas primero)
@@ -2807,9 +2813,10 @@ class DashboardManager {
                 const currentYear = new Date().getFullYear();
                 
                 const currentMonthNominations = data.nominations.filter(nomination => {
-                    const nominationDate = new Date(nomination.createdAt || nomination.date || Date.now());
-                    return nominationDate.getMonth() === currentMonth && 
-                           nominationDate.getFullYear() === currentYear;
+                    // Usar ETB (fecha de operación) en lugar de createdAt (fecha de creación)
+                    const operationDate = new Date(nomination.etb || nomination.date || Date.now());
+                    return operationDate.getMonth() === currentMonth && 
+                           operationDate.getFullYear() === currentYear;
                 });
                 
                 // Mostrar solo nominaciones del mes actual
@@ -2823,9 +2830,10 @@ class DashboardManager {
                     const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
                     
                     const previousMonthNominations = data.nominations.filter(nomination => {
-                        const nominationDate = new Date(nomination.createdAt || nomination.date || Date.now());
-                        return nominationDate.getMonth() === previousMonth && 
-                               nominationDate.getFullYear() === previousYear;
+                        // Usar ETB (fecha de operación) para consistencia
+                        const operationDate = new Date(nomination.etb || nomination.date || Date.now());
+                        return operationDate.getMonth() === previousMonth && 
+                               operationDate.getFullYear() === previousYear;
                     });
                     
                     if (previousMonthNominations.length > 0) {

@@ -323,6 +323,29 @@ shipNominationSchema.pre("save", async function (next) {
       return next(error);
     }
 
+    // ========================================
+    // ✅ ACTUALIZACIÓN AUTOMÁTICA DE STATUS BASADA EN FECHAS
+    // ========================================
+    if (this.etb && this.etc) {
+      const now = new Date();
+      const etbDate = new Date(this.etb);
+      const etcDate = new Date(this.etc);
+
+      // Solo actualizar si no es 'cancelled' (respeta cancelaciones manuales)
+      if (this.status !== 'cancelled') {
+        if (now >= etcDate) {
+          // Si la fecha actual es posterior o igual a ETC -> completed
+          this.status = 'completed';
+        } else if (now >= etbDate && now < etcDate) {
+          // Si la fecha actual está entre ETB y ETC -> in_progress
+          this.status = 'in_progress';
+        } else if (now < etbDate) {
+          // Si la fecha actual es anterior a ETB -> confirmed
+          this.status = 'confirmed';
+        }
+      }
+    }
+
     next();
   } catch (error) {
     next(error);
