@@ -65,16 +65,16 @@ class ShipFormController {
         // ETB sort toggle on header
         const etbSortBtn = document.getElementById('etbSortToggle');
         if (etbSortBtn) {
-          window.__etbSortDir = window.__etbSortDir || 'asc';
+          window.__etbSortDir = window.__etbSortDir || 'desc';
           const icon = etbSortBtn.querySelector('i');
           if (icon) {
-            icon.className = window.__etbSortDir === 'asc' ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+            icon.className = window.__etbSortDir === 'desc' ? 'fas fa-sort-amount-down' : 'fas fa-sort-amount-up';
           }
           etbSortBtn.addEventListener('click', () => {
             window.__etbSortDir = window.__etbSortDir === 'asc' ? 'desc' : 'asc';
             const icon = etbSortBtn.querySelector('i');
             if (icon) {
-              icon.className = window.__etbSortDir === 'asc' ? 'fas fa-sort-amount-up' : 'fas fa-sort-amount-down';
+              icon.className = window.__etbSortDir === 'desc' ? 'fas fa-sort-amount-down' : 'fas fa-sort-amount-up';
             }
             if (this.tableManager && Array.isArray(this.tableManager.shipNominations)) {
               this.tableManager.renderShipNominationsTable(this.tableManager.shipNominations);

@@ -263,7 +263,7 @@
         const tbody = document.getElementById('truckWorkDaysTbody');
         if (!tbody) return;
         // Apply sort if active
-        const sortDir = state.sortDirection || 'asc';
+        const sortDir = state.sortDirection || 'desc';
         const sorted = [...rows].sort((a,b) => {
             const da = new Date(a.operationDate || a.createdAt || 0);
             const db = new Date(b.operationDate || b.createdAt || 0);
@@ -564,7 +564,12 @@
         // Date sort toggle
         const sortBtn = document.getElementById('truckDateSortToggle');
         if (sortBtn) {
-            state.sortDirection = 'asc';
+            state.sortDirection = 'desc';
+            // Establecer ícono inicial
+            const icon = sortBtn.querySelector('i');
+            if (icon) {
+                icon.className = 'fas fa-sort-amount-down';
+            }
             sortBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';

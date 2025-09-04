@@ -338,13 +338,13 @@ shipNominationSchema.statics.findByDateRange = function (startDate, endDate) {
       $gte: startDate,
       $lte: endDate,
     },
-  }).sort({ etb: 1 });
+  }).sort({ etb: -1 });
 };
 
 shipNominationSchema.statics.findByVessel = function (vesselName) {
   return this.find({
     vesselName: new RegExp(vesselName, "i"),
-  }).sort({ etb: 1 });
+  }).sort({ etb: -1 });
 };
 
 shipNominationSchema.statics.findByAmspecRef = function (amspecRef) {

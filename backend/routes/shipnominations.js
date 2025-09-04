@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
       startDate,
       endDate,
       sortBy = "etb",
-      sortOrder = "asc",
+      sortOrder = "desc",
     } = req.query;
 
     // Construir filtros

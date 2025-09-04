@@ -2793,22 +2793,24 @@ class DashboardManager {
             
             const data = this.data;
             
-            // Actualizar Total Nominaciones
+            // Actualizar Total Nominaciones (solo del mes actual)
             const totalNominationsElement = document.getElementById('totalNominations');
             if (totalNominationsElement && data.nominations) {
-                totalNominationsElement.textContent = data.nominations.length;
+                const currentMonth = new Date().getMonth();
+                const currentYear = new Date().getFullYear();
+                
+                const currentMonthNominations = data.nominations.filter(nomination => {
+                    const nominationDate = new Date(nomination.createdAt || nomination.date || Date.now());
+                    return nominationDate.getMonth() === currentMonth && 
+                           nominationDate.getFullYear() === currentYear;
+                });
+                
+                // Mostrar solo nominaciones del mes actual
+                totalNominationsElement.textContent = currentMonthNominations.length;
                 
                 // Actualizar el cambio porcentual (comparar con mes anterior)
                 const nominationsChangeElement = document.getElementById('nominationsChange');
                 if (nominationsChangeElement) {
-                    const currentMonth = new Date().getMonth();
-                    const currentYear = new Date().getFullYear();
-                    
-                    const currentMonthNominations = data.nominations.filter(nomination => {
-                        const nominationDate = new Date(nomination.createdAt || nomination.date || Date.now());
-                        return nominationDate.getMonth() === currentMonth && 
-                               nominationDate.getFullYear() === currentYear;
-                    });
                     
                     const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
                     const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;

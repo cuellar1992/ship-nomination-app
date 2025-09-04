@@ -25,7 +25,7 @@ class TableManager {
     try {
       // Mostrar indicador de carga en la tabla
       // Hacer fetch a la API
-      const response = await fetch("/api/shipnominations");
+      const response = await fetch("/api/shipnominations?sortBy=etb&sortOrder=desc&limit=100");
       const result = await response.json();
 
       Logger.debug("API Response", {
@@ -97,7 +97,7 @@ class TableManager {
     }
 
     // Orden por ETB si hay preferencia de orden
-    const sortDir = window.__etbSortDir || 'asc';
+    const sortDir = window.__etbSortDir || 'desc';
     const sorted = [...shipNominations].sort((a,b) => {
       const da = new Date(a.etb || a.createdAt || 0);
       const db = new Date(b.etb || b.createdAt || 0);
@@ -380,7 +380,7 @@ class TableManager {
    * @param {string} column - Nombre de la columna
    * @param {string} direction - 'asc' o 'desc'
    */
-  sortTable(column, direction = "asc") {
+  sortTable(column, direction = "desc") {
     if (!this.filteredData || this.filteredData.length === 0) return;
 
     const sortedData = [...this.filteredData].sort((a, b) => {
