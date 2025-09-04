@@ -305,6 +305,17 @@ router.post("/", async (req, res) => {
     }
 
     const shipNomination = new ShipNomination(nominationData);
+    // Auto status: completed if ETC está en el pasado (a menos que se envíe status explícito)
+    if (!shipNomination.status) {
+      try {
+        const now = new Date();
+        const etcCutoff = etbDate && etcDate ? etcDate : etbDate || pilotDate;
+        if (etcCutoff && now > etcCutoff) {
+          shipNomination.status = 'completed';
+        }
+      } catch {}
+    }
+
     const savedShipNomination = await shipNomination.save();
 
     console.log("✅ Ship nomination saved with ID:", savedShipNomination._id);

@@ -35,6 +35,24 @@ async function enrichSampler(body = {}) {
 router.post('/', async (req, res) => {
   try {
     const body = await enrichSampler(req.body || {});
+    // Auto-complete status for past records unless explicitly provided
+    if (!body.status) {
+      try {
+        const now = new Date();
+        const shiftEnd = body?.shift?.endTime ? new Date(body.shift.endTime) : null;
+        const lastLoadStart = Array.isArray(body?.loads)
+          ? body.loads
+              .filter(l => l && l.startTime)
+              .map(l => new Date(l.startTime))
+              .sort((a, b) => b - a)[0] || null
+          : null;
+        const operationDate = body?.operationDate ? new Date(body.operationDate) : null;
+        const cutoff = shiftEnd || lastLoadStart || operationDate;
+        if (cutoff && now > cutoff) {
+          body.status = 'completed';
+        }
+      } catch {}
+    }
     const doc = await TruckWorkDay.create(body);
     res.status(201).json({ success: true, data: doc });
   } catch (err) {

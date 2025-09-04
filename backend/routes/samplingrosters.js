@@ -90,9 +90,13 @@ router.post('/', async (req, res) => {
     }
 
     // Crear nuevo roster
+    const now = new Date();
+    const cutoff = rosterData?.etcTime || rosterData?.startDischarge || now;
+    const status = rosterData?.status || (cutoff && now > new Date(cutoff) ? 'completed' : 'draft');
+
     const newRoster = new SamplingRoster({
       ...rosterData,
-      status: 'draft',
+      status,
       createdBy: 'user', // TODO: Implementar autenticación
       lastModifiedBy: 'user'
     });
