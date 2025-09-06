@@ -159,10 +159,12 @@ class DashboardManager {
      */
     async fetchShipNominations() {
         try {
-            const response = await fetch('/api/shipnominations');
+            // Traer TODAS las nominaciones sin límite de paginación
+            const response = await fetch('/api/shipnominations?limit=1000&page=1');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
-            console.log('🚢 Nominaciones cargadas:', data.data || []);
+            console.log('🚢 Nominaciones cargadas (TODAS):', data.data || []);
+            console.log('🔍 DEBUG - Paginación:', data.pagination || 'No pagination info');
             
             // Log adicional para debugging de estados
             if (data.data && data.data.length > 0) {
@@ -172,6 +174,16 @@ class DashboardManager {
                     statusCounts[status] = (statusCounts[status] || 0) + 1;
                 });
                 console.log('📊 Distribución de estados en nominaciones:', statusCounts);
+                
+                // Log de fechas para debugging
+                console.log('📅 DEBUG - Rango de fechas en nominaciones:');
+                const dates = data.data.map(n => ({ 
+                    vessel: n.vesselName, 
+                    amspec: n.amspecRef,
+                    etb: new Date(n.etb).toLocaleDateString(),
+                    created: new Date(n.createdAt).toLocaleDateString()
+                }));
+                console.table(dates);
             }
             
             return data.data || [];
@@ -520,6 +532,12 @@ class DashboardManager {
                         ticks: {
                             color: '#9ca3af',
                             beginAtZero: true,
+                            stepSize: 1,
+                            precision: 0,
+                            callback: function(value) {
+                                // Mostrar solo números enteros
+                                return Number.isInteger(value) ? value : '';
+                            },
                             font: {
                                 size: 11,
                                 weight: '600'
@@ -1290,29 +1308,69 @@ class DashboardManager {
             return { labels: [], values: [] };
         }
 
+        console.log('🔍 DEBUG Terminal Distribution - Iniciando cálculo...');
+        console.log('🔍 Total nominaciones disponibles:', this.data.nominations.length);
+        console.log('🔍 Total terminales disponibles:', this.data.terminals.length);
+
         const terminalCounts = {};
         let totalNominations = 0;
+        let nominationsWithoutTerminal = 0;
         
-        // Procesar nominaciones reales y contar por terminal
-        this.data.nominations.forEach(nomination => {
+        // Log detallado de cada nominación para debugging
+        console.log('🔍 DEBUG - Procesando nominaciones por terminal:');
+        this.data.nominations.forEach((nomination, index) => {
             try {
+                console.log(`${index + 1}. ${nomination.vesselName} (${nomination.amspecRef})`);
+                console.log(`   Status: ${nomination.status}`);
+                console.log(`   Terminal Object:`, nomination.terminal);
+                console.log(`   Terminal ID:`, nomination.terminalId);
+                
                 // Verificar si la nominación tiene terminal asignado
                 if (nomination.terminal && nomination.terminal.name) {
                     const terminalName = nomination.terminal.name;
                     terminalCounts[terminalName] = (terminalCounts[terminalName] || 0) + 1;
                     totalNominations++;
+                    console.log(`   ✅ Terminal: ${terminalName} (contador: ${terminalCounts[terminalName]})`);
+                } else if (nomination.terminal && nomination.terminal.id) {
+                    // Buscar terminal por ID en el objeto terminal
+                    const terminal = this.data.terminals.find(t => t._id === nomination.terminal.id);
+                    if (terminal && terminal.name) {
+                        terminalCounts[terminal.name] = (terminalCounts[terminal.name] || 0) + 1;
+                        totalNominations++;
+                        console.log(`   ✅ Terminal (por terminal.id): ${terminal.name} (contador: ${terminalCounts[terminal.name]})`);
+                    } else {
+                        console.log(`   ❌ Terminal ID en objeto no encontrado: ${nomination.terminal.id}`);
+                        nominationsWithoutTerminal++;
+                    }
                 } else if (nomination.terminalId) {
                     // Si solo tenemos el ID, buscar el nombre del terminal
                     const terminal = this.data.terminals.find(t => t._id === nomination.terminalId);
                     if (terminal && terminal.name) {
                         terminalCounts[terminal.name] = (terminalCounts[terminal.name] || 0) + 1;
                         totalNominations++;
+                        console.log(`   ✅ Terminal (por terminalId): ${terminal.name} (contador: ${terminalCounts[terminal.name]})`);
+                    } else {
+                        console.log(`   ❌ Terminal ID no encontrado: ${nomination.terminalId}`);
+                        nominationsWithoutTerminal++;
                     }
+                } else {
+                    console.log(`   ❌ Sin terminal asignado`);
+                    console.log(`   Estructura completa terminal:`, JSON.stringify(nomination.terminal, null, 2));
+                    nominationsWithoutTerminal++;
                 }
+                console.log('');
             } catch (error) {
                 console.warn('⚠️ Error procesando nominación para distribución por terminal:', nomination, error);
+                nominationsWithoutTerminal++;
             }
         });
+
+        console.log('🏭 RESUMEN DE CONTEO POR TERMINAL:');
+        Object.entries(terminalCounts).forEach(([terminal, count]) => {
+            console.log(`   ${terminal}: ${count} nominaciones`);
+        });
+        console.log(`📊 Total con terminal: ${totalNominations}`);
+        console.log(`⚠️ Sin terminal: ${nominationsWithoutTerminal}`);
 
         // Ordenar por cantidad de nominaciones (descendente)
         const sortedTerminals = Object.entries(terminalCounts)
@@ -1322,12 +1380,13 @@ class DashboardManager {
         const labels = sortedTerminals.map(t => t.name);
         const values = sortedTerminals.map(t => t.count);
 
-        console.log('🏭 Datos de distribución por terminal REALES:', {
+        console.log('🏭 Datos FINALES de distribución por terminal:', {
             labels,
             values,
             totalNominations,
             terminalCounts,
-            totalTerminals: this.data.terminals.length
+            totalTerminals: this.data.terminals.length,
+            sortedTerminals
         });
 
         return { labels, values, totalNominations };
