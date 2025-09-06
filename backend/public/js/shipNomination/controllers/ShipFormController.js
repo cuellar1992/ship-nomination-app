@@ -233,7 +233,7 @@ class ShipFormController {
       }
 
       // Crear instancia de TableFilters
-      this.tableFilters = new TableFilters(this.tableManager, this.apiManager);
+      this.tableFilters = new TableFilters(this.tableManager, this.apiManager, this.paginationManager);
 
       // Configurar integración bidireccional
       this.tableFilters.integrateWithTableManager(this.tableManager);
@@ -275,7 +275,7 @@ class ShipFormController {
       }
 
       // Crear instancia de TableFilters
-      this.tableFilters = new TableFilters(this.tableManager, this.apiManager);
+      this.tableFilters = new TableFilters(this.tableManager, this.apiManager, this.paginationManager);
 
       // Configurar integración bidireccional
       this.tableFilters.integrateWithTableManager(this.tableManager);

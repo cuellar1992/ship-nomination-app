@@ -5,9 +5,10 @@
  */
 
 class TableFilters {
-  constructor(tableManager, apiManager) {
+  constructor(tableManager, apiManager, paginationManager = null) {
     this.tableManager = tableManager;
     this.apiManager = apiManager;
+    this.paginationManager = paginationManager;
     this.isAdvancedOpen = false;
     this.activeFilters = {};
     this.originalNominations = [];
@@ -876,7 +877,13 @@ class TableFilters {
       if (Object.keys(this.activeFilters).length > 0) {
         this.renderFilteredResults(this.filteredNominations);
       } else {
-        this.tableManager.loadShipNominations();
+        // ⭐ USAR PAGINACIÓN CUANDO NO HAY BÚSQUEDA
+        if (this.paginationManager) {
+          const allNominations = this.getAllNominations();
+          this.paginationManager.updateData(allNominations);
+        } else {
+          this.tableManager.loadShipNominations();
+        }
         this.updateResultsSummary();
       }
       return;
@@ -1022,7 +1029,14 @@ class TableFilters {
     if (Object.keys(this.activeFilters).length === 0) {
       // No filters, show all nominations
       this.filteredNominations = this.getAllNominations();
-      this.tableManager.loadShipNominations();
+      
+      // ⭐ USAR PAGINACIÓN TAMBIÉN CUANDO NO HAY FILTROS
+      if (this.paginationManager) {
+        this.paginationManager.updateData(this.filteredNominations);
+      } else {
+        this.tableManager.loadShipNominations();
+      }
+      
       this.updateResultsSummary();
       return;
     }
@@ -1154,15 +1168,26 @@ class TableFilters {
       showNotification: false,
     });
 
-    // Usar el método existente del TableManager
-    if (
-      this.tableManager &&
-      typeof this.tableManager.renderShipNominationsTable === "function"
-    ) {
-      this.tableManager.renderShipNominationsTable(nominations);
+    // ⭐ NUEVA LÓGICA: Usar paginación si está disponible
+    if (this.paginationManager) {
+      // Actualizar datos en el paginador con los resultados filtrados
+      this.paginationManager.updateData(nominations);
+      Logger.debug("Updated pagination with filtered data", {
+        module: "TableFilters",
+        data: { filteredCount: nominations.length },
+        showNotification: false,
+      });
     } else {
-      // Fallback: renderizar directamente en la tabla
-      this.renderTableDirectly(nominations);
+      // Fallback: usar el método existente del TableManager
+      if (
+        this.tableManager &&
+        typeof this.tableManager.renderShipNominationsTable === "function"
+      ) {
+        this.tableManager.renderShipNominationsTable(nominations);
+      } else {
+        // Último fallback: renderizar directamente en la tabla
+        this.renderTableDirectly(nominations);
+      }
     }
   }
 
@@ -1425,7 +1450,12 @@ class TableFilters {
     this.filteredNominations = [];
 
     // Show all nominations
-    this.tableManager.loadShipNominations();
+    if (this.paginationManager) {
+      const allNominations = this.getAllNominations();
+      this.paginationManager.updateData(allNominations);
+    } else {
+      this.tableManager.loadShipNominations();
+    }
     this.updateResultsSummary();
     this.updateFilterChips();
 
