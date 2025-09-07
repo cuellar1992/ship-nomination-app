@@ -6,17 +6,37 @@ import { SAMPLING_ROSTER_CONSTANTS } from '../utils/Constants.js';
 
 export class ApiService {
   /**
-   * Cargar ship nominations desde la API
+   * Cargar ship nominations con soporte para búsqueda
    */
-  static async loadShipNominations() {
+  static async loadShipNominations(searchTerm = '', mode = 'recent') {
     try {
-      const response = await fetch(SAMPLING_ROSTER_CONSTANTS.API_ENDPOINTS.SHIP_NOMINATIONS);
+      let url = SAMPLING_ROSTER_CONSTANTS.API_ENDPOINTS.SHIP_NOMINATIONS;
+      const params = new URLSearchParams();
+      
+      if (searchTerm.trim()) {
+        params.append('search', searchTerm.trim());
+        params.append('limit', '50'); // Más resultados para búsqueda
+      } else {
+        params.append('mode', mode);
+        if (mode === 'recent') {
+          params.append('limit', '5'); // Solo 5 más recientes
+        }
+      }
+      
+      if (params.toString()) {
+        url += '?' + params.toString();
+      }
+
+      const response = await fetch(url);
       const result = await response.json();
 
       if (result.success && result.data) {
         return {
           success: true,
-          data: result.data
+          data: result.data,
+          hasMore: result.pagination?.hasMore || false,
+          isSearchMode: result.searchMode || false,
+          mode: result.mode || 'recent'
         };
       } else {
         throw new Error(result.message || "Failed to load ship nominations");
@@ -25,7 +45,9 @@ export class ApiService {
       return {
         success: false,
         error: error.message,
-        data: []
+        data: [],
+        hasMore: false,
+        isSearchMode: false
       };
     }
   }

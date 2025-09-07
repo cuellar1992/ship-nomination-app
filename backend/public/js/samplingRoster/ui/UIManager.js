@@ -9,6 +9,7 @@ export class UIManager {
   constructor() {
     this.dateTimeInstances = {};
     this.shipNominationSelector = null;
+    this.currentSearchItems = [];
   }
 
   /**
@@ -74,36 +75,253 @@ export class UIManager {
   }
 
   /**
-   * Crear selector de ship nominations
-   */
-  createShipNominationSelector(shipNominationsData, onSelectionChange) {
-    const selectorItems = shipNominationsData.map((nomination) => {
-      const displayText = nomination.amspecRef
-        ? `${nomination.vesselName} (${nomination.amspecRef})`
-        : nomination.vesselName;
+ * Crear selector de ship nominations con búsqueda dinámica
+ */
+createShipNominationSelector(shipNominationsData, onSelectionChange) {
+  const selectorItems = shipNominationsData.map((nomination) => {
+    const displayText = nomination.amspecRef
+      ? `${nomination.vesselName} (${nomination.amspecRef})`
+      : nomination.vesselName;
 
-      return {
-        id: nomination._id,
-        displayText: displayText,
-        originalData: nomination,
-      };
-    });
+    return {
+      id: nomination._id,
+      displayText: displayText,
+      originalData: nomination,
+    };
+  });
 
-    this.shipNominationSelector = new SingleSelect("shipNominationSelector", {
-      items: selectorItems.map((item) => item.displayText),
-      icon: "fas fa-ship",
-      label: "Ship Nomination",
-      placeholder: "Select ship nomination...",
-      searchPlaceholder: "Search by vessel name or AmSpec...",
-      modalTitle: "Ship Nominations Available",
-      showManageOption: false,
-      onSelectionChange: (selectedDisplayText) => {
-        onSelectionChange(selectedDisplayText, selectorItems);
-      },
-    });
+  // Inicializar currentSearchItems con los items originales
+  this.currentSearchItems = selectorItems;
 
-    return this.shipNominationSelector;
+  this.shipNominationSelector = new SingleSelect("shipNominationSelector", {
+    items: selectorItems.map((item) => item.displayText),
+    icon: "fas fa-ship",
+    label: "Ship Nomination",
+    placeholder: "Select ship nomination...",
+    searchPlaceholder: "Search by vessel name or AmSpec...",
+    modalTitle: "Ship Nominations Available",
+    showManageOption: false,
+    onSelectionChange: (selectedDisplayText) => {
+      // Usar currentSearchItems (que pueden ser originales o de búsqueda)
+      onSelectionChange(selectedDisplayText, this.currentSearchItems);
+    },
+  });
+
+  // Configurar búsqueda dinámica
+  this.setupDynamicSearch(onSelectionChange);
+  this.setupDropdownCleanup();
+
+  return this.shipNominationSelector;
+}
+
+/**
+ * Configurar búsqueda dinámica
+ */
+setupDynamicSearch(onSelectionChange) {
+  // PASO 1: Interceptar apertura del dropdown para configurar búsqueda dinámica
+  const originalOpenDropdown = this.shipNominationSelector.openDropdown;
+  this.shipNominationSelector.openDropdown = async () => {
+    // Llamar al método original
+    originalOpenDropdown.call(this.shipNominationSelector);
+    
+    // Configurar búsqueda dinámica después de que se cree el dropdown
+    setTimeout(() => {
+      this.configureSearchInput();
+    }, 100);
+    
+    // Solo restaurar si no hay búsqueda activa
+    setTimeout(async () => {
+      const currentSearchInput = document.querySelector('#shipNominationSelector_search');
+      if (currentSearchInput && currentSearchInput.value.trim() === '') {
+        await this.restoreOriginalItems();
+      }
+    }, 150);
+  };
+}
+
+/**
+ * Configurar el input de búsqueda para búsqueda dinámica
+ */
+configureSearchInput() {
+  const searchInput = document.querySelector('#shipNominationSelector_search');
+  
+  if (!searchInput) {
+    console.warn('Search input not found for dynamic search configuration');
+    return;
   }
+  
+  console.log('Configuring dynamic search input...');
+  
+  // PASO 1: Deshabilitar función filterItems del SingleSelect
+  if (this.shipNominationSelector && this.shipNominationSelector.filterItems) {
+    this.shipNominationSelector.filterItems = () => {
+      console.log('Local filter disabled - using dynamic search');
+    };
+  }
+  
+  // PASO 2: Remover todos los event listeners existentes clonando el input
+  const newInput = searchInput.cloneNode(true);
+  searchInput.parentNode.replaceChild(newInput, searchInput);
+  
+  let searchTimeout;
+  
+  // PASO 3: Configurar nuevo event listener para búsqueda dinámica
+  newInput.addEventListener('input', async (e) => {
+    const searchTerm = e.target.value.trim();
+    
+    console.log('Dynamic search triggered:', searchTerm);
+    
+    clearTimeout(searchTimeout);
+    
+    if (searchTerm.length >= 2) {
+      // Búsqueda al servidor con debounce
+      searchTimeout = setTimeout(async () => {
+        console.log('Performing server search for:', searchTerm);
+        await this.performDynamicSearch(searchTerm);
+      }, 500);
+      
+    } else if (searchTerm.length === 0) {
+      // Campo vacío - restaurar originales
+      console.log('Empty search - restoring original items');
+      await this.restoreOriginalItems();
+      
+    } else {
+      // 1 carácter - filtrar localmente en items actuales
+      this.filterCurrentItems(searchTerm);
+    }
+  });
+  
+  // PASO 4: Evitar que el input cierre el dropdown
+  newInput.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+  
+  // PASO 5: Auto-focus después de configurar
+  setTimeout(() => newInput.focus(), 50);
+  
+  console.log('Dynamic search configured successfully');
+}
+
+/**
+ * Configurar limpieza al cerrar dropdown
+ */
+setupDropdownCleanup() {
+  if (this.shipNominationSelector) {
+    const originalCloseDropdown = this.shipNominationSelector.closeDropdown;
+    this.shipNominationSelector.closeDropdown = () => {
+      // Limpiar búsqueda al cerrar
+      setTimeout(() => {
+        const searchInput = document.querySelector('#shipNominationSelector_search');
+        if (searchInput) {
+          searchInput.value = '';
+        }
+      }, 100);
+      
+      // Llamar al método original
+      originalCloseDropdown.call(this.shipNominationSelector);
+    };
+  }
+}
+
+/**
+ * Realizar búsqueda dinámica al servidor
+ */
+async performDynamicSearch(searchTerm) {
+  try {
+    console.log('Performing dynamic search for:', searchTerm);
+    
+    const result = await window.samplingRosterController.apiService.loadShipNominations(searchTerm);
+    
+    if (result.success && result.data.length > 0) {
+      // Convertir a formato SingleSelect
+      const searchItems = result.data.map((nomination) => {
+        const displayText = nomination.amspecRef
+          ? `${nomination.vesselName} (${nomination.amspecRef})`
+          : nomination.vesselName;
+
+        return {
+          id: nomination._id,
+          displayText: displayText,
+          originalData: nomination,
+        };
+      });
+      
+      // Actualizar items del SingleSelect
+      this.shipNominationSelector.updateItems(
+        searchItems.map(item => item.displayText)
+      );
+      
+      // Guardar items de búsqueda
+      this.currentSearchItems = searchItems;
+      
+      console.log(`Found ${result.data.length} results for "${searchTerm}"`);
+    } else {
+      // No hay resultados
+      this.shipNominationSelector.updateItems([]);
+      this.currentSearchItems = [];
+      console.log(`No results found for "${searchTerm}"`);
+    }
+  } catch (error) {
+    console.error('Error in dynamic search:', error);
+  }
+}
+
+/**
+ * Restaurar items originales (5 más recientes)
+ */
+async restoreOriginalItems() {
+  try {
+    const result = await window.samplingRosterController.apiService.loadShipNominations('', 'recent');
+    
+    if (result.success) {
+      const originalItems = result.data.map((nomination) => {
+        const displayText = nomination.amspecRef
+          ? `${nomination.vesselName} (${nomination.amspecRef})`
+          : nomination.vesselName;
+
+        return {
+          id: nomination._id,
+          displayText: displayText,
+          originalData: nomination,
+        };
+      });
+      
+      this.shipNominationSelector.updateItems(
+        originalItems.map(item => item.displayText)
+      );
+      
+      this.currentSearchItems = originalItems;
+      window.samplingRosterController.shipNominationsData = result.data;
+      
+      console.log('Restored original 5 items');
+    }
+  } catch (error) {
+    console.error('Error restoring original items:', error);
+  }
+}
+
+/**
+ * Filtrar items actuales localmente
+ */
+filterCurrentItems(searchTerm) {
+  if (!searchTerm) {
+    // Mostrar todos los items actuales
+    this.shipNominationSelector.updateItems(
+      this.currentSearchItems.map(item => item.displayText)
+    );
+    return;
+  }
+  
+  const filtered = this.currentSearchItems.filter(item => 
+    item.displayText.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  console.log(`Local filter: "${searchTerm}" found ${filtered.length} items`);
+  
+  this.shipNominationSelector.updateItems(
+    filtered.map(item => item.displayText)
+  );
+}
 
   /**
    * Establecer valor de un campo

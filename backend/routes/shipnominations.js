@@ -18,14 +18,28 @@ router.get("/", async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit,  // Sin valor por defecto
       status,
       terminal,
       startDate,
       endDate,
       sortBy = "etb",
       sortOrder = "desc",
+      search,  // NUEVO: parámetro de búsqueda
+      mode = "recent"  // NUEVO: modo de operación
     } = req.query;
+
+    // LÓGICA INTELIGENTE DE LÍMITE
+    let actualLimit;
+    if (limit) {
+      actualLimit = parseInt(limit);
+    } else if (search) {
+      actualLimit = 50; // Más resultados para búsqueda
+    } else if (mode === "recent") {
+      actualLimit = 5;  // Solo 5 más recientes por ETB
+    } else {
+      actualLimit = 100; // Fallback general
+    }
 
     // Construir filtros
     const filters = {};
@@ -44,6 +58,14 @@ router.get("/", async (req, res) => {
       if (endDate) filters.etb.$lte = new Date(endDate);
     }
 
+    // NUEVO: Filtro de búsqueda por vessel name o AmSpec
+    if (search) {
+      filters.$or = [
+        { vesselName: new RegExp(search, "i") },
+        { amspecRef: new RegExp(search, "i") }
+      ];
+    }
+
     // Configurar ordenamiento
     const sort = {};
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
@@ -51,8 +73,8 @@ router.get("/", async (req, res) => {
     // Ejecutar consulta con paginación
     const shipNominations = await ShipNomination.find(filters)
       .sort(sort)
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(actualLimit)
+      .skip((page - 1) * actualLimit)
       .exec();
 
     // Contar total para paginación
@@ -63,10 +85,14 @@ router.get("/", async (req, res) => {
       data: shipNominations,
       pagination: {
         currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / actualLimit),
         totalItems: total,
-        itemsPerPage: parseInt(limit),
+        itemsPerPage: actualLimit,
+        hasMore: total > (page * actualLimit)
       },
+      searchMode: !!search,
+      mode: mode,
+      sortBy: sortBy  // Para debugging
     });
   } catch (error) {
     console.error("Error fetching ship nominations:", error);
