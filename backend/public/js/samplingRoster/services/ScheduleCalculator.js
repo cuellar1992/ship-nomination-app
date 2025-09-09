@@ -431,11 +431,24 @@ export class ScheduleCalculator {
    */
   static calculateTurnDuration(currentStartTime, remainingHours) {
     const currentHour = currentStartTime.getHours();
+    const currentMinute = currentStartTime.getMinutes();
     const isAtBlockBoundary =
-      currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START ||
-      currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START;
+      (currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START && currentMinute === 0) ||
+      (currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START && currentMinute === 0);
 
     let turnHours;
+
+    // 🔧 DEBUG: Log para debugging del problema de 0.5 horas
+    console.log('🔍 DEBUG calculateTurnDuration:', {
+      currentStartTime: currentStartTime.toISOString(),
+      currentHour: currentHour,
+      currentMinute: currentMinute,
+      isAtBlockBoundary: isAtBlockBoundary,
+      remainingHours: remainingHours,
+      DAY_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START,
+      NIGHT_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START,
+      MAX_SAMPLER_HOURS: SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+    });
 
     if (
       isAtBlockBoundary &&
@@ -443,12 +456,14 @@ export class ScheduleCalculator {
     ) {
       // ✅ Turno perfecto de 12h
       turnHours = SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS;
+      console.log('🔍 Case 1: Perfect 12h turn at block boundary');
     } else if (
       isAtBlockBoundary &&
       remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
     ) {
       // ✅ Último turno con horas restantes
       turnHours = remainingHours;
+      console.log('🔍 Case 2: Last turn with remaining hours:', turnHours);
     } else {
       // ⚠️ Ir hasta próximo bloque
       const nextBlockTime = this.getNextBlockTime(currentStartTime);
@@ -456,15 +471,31 @@ export class ScheduleCalculator {
         currentStartTime,
         nextBlockTime
       );
+      
+      // 🔧 CORRECCIÓN: Asegurar mínimo 1 hora por turno
+      const minTurnHours = Math.max(1, hoursToNextBlock);
+      
       turnHours = Math.min(
-        hoursToNextBlock,
+        minTurnHours,
         remainingHours,
         SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
       );
+      
+      console.log('🔍 Case 3: Go to next block', {
+        nextBlockTime: nextBlockTime.toISOString(),
+        hoursToNextBlock: hoursToNextBlock,
+        minTurnHours: minTurnHours,
+        finalTurnHours: turnHours
+      });
     }
 
     const turnEndTime = new Date(currentStartTime);
     turnEndTime.setHours(turnEndTime.getHours() + turnHours);
+
+    console.log('🔍 Final result:', {
+      turnHours: turnHours,
+      turnEndTime: turnEndTime.toISOString()
+    });
 
     return {
       turnHours: turnHours,

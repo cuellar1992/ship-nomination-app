@@ -108,7 +108,7 @@ const SamplingRosterSchema = new mongoose.Schema({
     hours: {
       type: Number,
       required: true,
-      min: 1,
+      min: 0.5, // 🔧 TEMPORAL: Cambiado de 1 a 0.5 para permitir medias horas mientras se debuggea
       max: 12
     },
     blockType: {

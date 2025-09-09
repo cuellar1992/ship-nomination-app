@@ -729,6 +729,95 @@ export class SamplingRosterController {
     }
   }
 
+  // 🆕 Detectar si el producto es Base Oils
+  isBaseOils(nomination) {
+    try {
+      // Verificar si productTypes contiene "Base Oils"
+      const productTypes = nomination?.productTypes || [];
+      
+      // Buscar en el array de productos
+      const hasBaseOils = productTypes.some(product => {
+        const productName = (product?.name || product || '').toString().toLowerCase();
+        return productName.includes('base oil') || productName.includes('baseoil') || productName.includes('base-oil');
+      });
+
+      Logger.debug('Base Oils detection', {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          hasBaseOils: hasBaseOils,
+          productTypes: productTypes.map(p => p?.name || p).join(', ')
+        },
+        showNotification: false,
+      });
+
+      return hasBaseOils;
+    } catch (error) {
+      Logger.warn('Error detecting Base Oils', {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false,
+      });
+      return false;
+    }
+  }
+
+  // 🆕 Helper para generar una sola línea de Line Sampling (usado por Ampol Kurnell y Base Oils)
+  generateSingleLineSamplingRow(caseType) {
+    const nomination = this.selectedShipNomination;
+    const samplerName = nomination?.sampler?.name || 'No Sampler Assigned';
+
+    const etcFromPicker = this.uiManager.getDateTimeInstances()?.etcTime?.getDateTime?.();
+    const etcFromNomination = nomination?.etc ? new Date(nomination.etc) : null;
+    const startDate = etcFromPicker || etcFromNomination;
+
+    if (!startDate || isNaN(startDate.getTime())) {
+      Logger.warn('ETC not available. Please set ETC first.', {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: 'Please set ETC time before Auto Generate'
+      });
+      return false;
+    }
+
+    const finishDate = new Date(startDate);
+    finishDate.setHours(finishDate.getHours() + 4);
+
+    const startTime = this.tableManager.formatDateTime(startDate);
+    const finishTime = this.tableManager.formatDateTime(finishDate);
+
+    this.tableManager.clearLineSamplingTable();
+    this.tableManager.populateLineSamplingTable([
+      { samplerName, startTime, finishTime, hours: 4 }
+    ]);
+    this.setupTableEventListeners();
+
+    this.autoSaveService.trigger('autoGenerate', {
+      lineSampling: [
+        {
+          sampler: { id: nomination?.sampler?.id || null, name: samplerName },
+          startTime: startDate,
+          finishTime: finishDate,
+          hours: 4,
+          blockType: 'day',
+          turnOrder: 0
+        }
+      ],
+      dischargeTimeHours: parseInt(document.getElementById('dischargeTimeHours')?.value) || 0
+    }, { immediate: true });
+
+    const message = caseType === 'Ampol Kurnell' 
+      ? 'Line Sampling initialized: ETC → ETC + 4h'
+      : 'Line Sampling initialized: ETC → ETC + 4h (Base Oils)';
+
+    Logger.success(`Generated single Line Sampling row for ${caseType}`, {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      showNotification: true,
+      notificationMessage: message
+    });
+
+    return true;
+  }
+
   /**
    * Setup event listeners para tablas
    */
@@ -921,56 +1010,20 @@ export class SamplingRosterController {
         showNotification: false,
       });
 
-      // Special case: Ampol Kurnell → only create first Line Sampling row (start=ETC, finish=ETC+4h)
-      if (this.selectedShipNomination && this.isAmpolKurnell(this.selectedShipNomination)) {
-        const nomination = this.selectedShipNomination;
-        const samplerName = nomination?.sampler?.name || 'No Sampler Assigned';
-
-        const etcFromPicker = this.uiManager.getDateTimeInstances()?.etcTime?.getDateTime?.();
-        const etcFromNomination = nomination?.etc ? new Date(nomination.etc) : null;
-        const startDate = etcFromPicker || etcFromNomination;
-
-        if (!startDate || isNaN(startDate.getTime())) {
-          Logger.warn('ETC not available. Please set ETC first.', {
-            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-            showNotification: true,
-            notificationMessage: 'Please set ETC time before Auto Generate'
-          });
-          return;
+      // 🔧 Special cases: Ampol Kurnell o Base Oils → solo crear primera línea (start=ETC, finish=ETC+4h)
+      if (this.selectedShipNomination) {
+        const isKurnell = this.isAmpolKurnell(this.selectedShipNomination);
+        const isBaseOil = this.isBaseOils(this.selectedShipNomination);
+        
+        if (isKurnell || isBaseOil) {
+          const caseType = isKurnell ? 'Ampol Kurnell' : 'Base Oils';
+          const success = this.generateSingleLineSamplingRow(caseType);
+          
+          if (success) {
+            return; // Salir aquí para evitar la lógica normal
+          }
+          // Si falló (ej: no hay ETC), continuar con el flujo normal será bloqueado por validaciones
         }
-
-        const finishDate = new Date(startDate);
-        finishDate.setHours(finishDate.getHours() + 4);
-
-        const startTime = this.tableManager.formatDateTime(startDate);
-        const finishTime = this.tableManager.formatDateTime(finishDate);
-
-        this.tableManager.clearLineSamplingTable();
-        this.tableManager.populateLineSamplingTable([
-          { samplerName, startTime, finishTime, hours: 4 }
-        ]);
-        this.setupTableEventListeners();
-
-        this.autoSaveService.trigger('autoGenerate', {
-          lineSampling: [
-            {
-              sampler: { id: nomination?.sampler?.id || null, name: samplerName },
-              startTime: startDate,
-              finishTime: finishDate,
-              hours: 4,
-              blockType: 'day',
-              turnOrder: 0
-            }
-          ],
-          dischargeTimeHours: parseInt(document.getElementById('dischargeTimeHours')?.value) || 0
-        }, { immediate: true });
-
-        Logger.success('Generated single Line Sampling row for Ampol Kurnell', {
-          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
-          showNotification: true,
-          notificationMessage: 'Line Sampling initialized: ETC → ETC + 4h'
-        });
-        return;
       }
 
       // 🔧 MEJORADO: Guardar cambios pendientes antes de generar el roster
