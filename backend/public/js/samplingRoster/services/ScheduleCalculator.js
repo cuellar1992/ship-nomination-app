@@ -472,19 +472,29 @@ export class ScheduleCalculator {
         nextBlockTime
       );
       
-      // 🔧 CORRECCIÓN: Asegurar mínimo 1 hora por turno
-      const minTurnHours = Math.max(1, hoursToNextBlock);
+      // 🔧 CORRECCIÓN: Asegurar mínimo 1 hora por turno, pero mejor lógica
+      // Si las horas hasta el próximo bloque son menos de 1, usar un turno más largo
+      let targetTurnHours;
       
-      turnHours = Math.min(
-        minTurnHours,
-        remainingHours,
-        SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
-      );
+      if (hoursToNextBlock < 1) {
+        // Si el tiempo hasta el próximo bloque es muy poco, 
+        // mejor hacer un turno de duración mínima reasonable
+        targetTurnHours = Math.min(remainingHours, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+      } else {
+        targetTurnHours = Math.min(
+          hoursToNextBlock,
+          remainingHours,
+          SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+        );
+      }
+      
+      // Asegurar que nunca sea menor a 1 hora
+      turnHours = Math.max(1, targetTurnHours);
       
       console.log('🔍 Case 3: Go to next block', {
         nextBlockTime: nextBlockTime.toISOString(),
         hoursToNextBlock: hoursToNextBlock,
-        minTurnHours: minTurnHours,
+        targetTurnHours: targetTurnHours,
         finalTurnHours: turnHours
       });
     }
