@@ -3215,7 +3215,7 @@ export class SamplingRosterController {
 
   async recalculateLineSamplingFromFirstRow(firstLineData) {
     try {
-      Logger.info("Recalculating Line Sampling from first row", {
+      Logger.info("🔄 Smart recalculation: Line Sampling from first row", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: firstLineData,
         showNotification: false,
@@ -3237,152 +3237,150 @@ export class SamplingRosterController {
       if (!etcFromForm) {
         return {
           success: false,
-          message:
-            "ETC not found in form. Please set ETC time in the vessel information.",
+          message: "ETC not found in form. Please set ETC time in the vessel information.",
         };
       }
 
-      // 3️⃣ CREAR ETCDATE ANTES DE CUALQUIER LOG
       const etcDate = new Date(etcFromForm);
 
-      // 4️⃣ DEBUG LOGS (AHORA etcDate YA EXISTE)
-      console.log(`🔍 ETC Debug:`, {
-        etcFromShipNomination: this.selectedShipNomination?.etc,
-        etcFromFormPicker: etcFromForm?.toISOString(),
-        etcDateUsed: etcDate.toISOString(),
-        firstLineFinish: firstLineData.finishDate?.toISOString(),
-      });
+      // 3️⃣ CALCULAR HORAS RESTANTES DESPUÉS DE LA PRIMERA LÍNEA
+      const firstLineEnd = new Date(firstLineData.finishDate);
+      const totalRemainingHours = Math.round((etcDate - firstLineEnd) / (1000 * 60 * 60));
 
-      console.log(`📅 Using ETC from form DateTimePicker:`, {
-        etcFromForm: etcFromForm.toISOString(),
+      console.log(`🔍 SMART RECALC: Initial analysis:`, {
         etcDate: etcDate.toISOString(),
+        firstLineEnd: firstLineEnd.toISOString(),
+        totalRemainingHours: totalRemainingHours,
+        currentTurnsCount: currentTurns.length,
+        firstLineHours: firstLineData.hours
       });
 
-      // 5️⃣ INICIALIZAR RECÁLCULO
-      let currentEndTime = firstLineData.finishDate; // Hora final de primera línea modificada
+      // 4️⃣ VALIDACIONES BÁSICAS
+      if (totalRemainingHours < 0) {
+        return {
+          success: false,
+          message: `First line ends after ETC. First line ends at ${firstLineEnd.toLocaleString()} but ETC is ${etcDate.toLocaleString()}`,
+        };
+      }
 
-      // Recalcular cada turno siguiente manteniendo samplers
+      if (totalRemainingHours === 0) {
+        // Solo necesitamos la primera línea
+        const finalTurns = [{
+          samplerName: currentTurns[0].samplerName,
+          startTime: this.tableManager.formatDateTime(firstLineData.startDate),
+          finishTime: this.tableManager.formatDateTime(firstLineData.finishDate),
+          hours: firstLineData.hours,
+        }];
+
+        this.tableManager.populateLineSamplingTable(finalTurns);
+        this.setupTableEventListeners();
+
+        Logger.success("Line Sampling optimized to single turn", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: "Schedule optimized: Only first turn needed"
+        });
+
+        return { success: true, data: finalTurns };
+      }
+
+      // 5️⃣ ESTRATEGIA INTELIGENTE: CALCULAR TURNOS ÓPTIMOS
+      const optimalStrategy = this.calculateOptimalTurnStrategy(
+        totalRemainingHours, 
+        currentTurns.slice(1), // Samplers disponibles (sin la primera línea)
+        firstLineEnd
+      );
+
+      console.log(`🔍 SMART RECALC: Optimal strategy:`, optimalStrategy);
+
+      // 6️⃣ CONSTRUIR TURNOS FINALES
       const recalculatedTurns = [
-        // Primera línea ya está actualizada, mantener sampler
+        // Primera línea (ya modificada)
         {
           samplerName: currentTurns[0].samplerName,
           startTime: this.tableManager.formatDateTime(firstLineData.startDate),
-          finishTime: this.tableManager.formatDateTime(
-            firstLineData.finishDate
-          ),
+          finishTime: this.tableManager.formatDateTime(firstLineData.finishDate),
           hours: firstLineData.hours,
-        },
+        }
       ];
 
-      // 6️⃣ RECALCULAR RESTO DE TURNOS
-      for (let i = 1; i < currentTurns.length; i++) {
-        const isLastTurn = i === currentTurns.length - 1;
-        let turnStartTime = new Date(currentEndTime);
+      // 7️⃣ AGREGAR TURNOS RESTANTES SEGÚN ESTRATEGIA
+      let currentStartTime = new Date(firstLineEnd);
+
+      for (let i = 0; i < optimalStrategy.turns.length; i++) {
+        const turnInfo = optimalStrategy.turns[i];
+        const isLastTurn = i === optimalStrategy.turns.length - 1;
+        
         let turnEndTime;
-        let turnHours;
-
-        console.log(`🔍 DEBUG: Processing turn ${i}:`, {
-          isLastTurn: isLastTurn,
-          currentEndTime: currentEndTime.toISOString(),
-          samplerName: currentTurns[i].samplerName,
-        });
-
         if (isLastTurn) {
-          // Último turno: termina en ETC
+          // Último turno termina exactamente en ETC
           turnEndTime = new Date(etcDate);
-          turnHours = Math.round(
-            (turnEndTime - turnStartTime) / (1000 * 60 * 60)
-          );
-
-          console.log(`🔍 DEBUG: Last turn ${i} calculated:`, {
-            turnStartTime: turnStartTime.toISOString(),
-            turnEndTime: turnEndTime.toISOString(),
-            turnHours: turnHours,
-            etcDate: etcDate.toISOString(),
-          });
-
-          // Validar que último turno tenga al menos 1 hora
-          if (turnHours < 1) {
-            return {
-              success: false,
-              message: `Recalculation would result in last turn being too short (${turnHours} hours, minimum 1 hour required)`,
-            };
-          }
         } else {
-          // Turnos intermedios: 12 horas estándar
-          turnEndTime = new Date(turnStartTime);
-          turnEndTime.setHours(turnEndTime.getHours() + 12);
-          turnHours = 12;
-
-          console.log(`🔍 DEBUG: Intermediate turn ${i} calculated:`, {
-            turnStartTime: turnStartTime.toISOString(),
-            turnEndTime: turnEndTime.toISOString(),
-            turnHours: turnHours,
-            etcDate: etcDate.toISOString(),
-            wouldExceedETC: turnEndTime > etcDate,
-            timeDifferenceHours:
-              (turnEndTime.getTime() - etcDate.getTime()) / (1000 * 60 * 60),
-          });
-
-          // Validar que no exceda ETC
-          if (turnEndTime > etcDate) {
-            const exceedsBy = Math.round(
-              (turnEndTime.getTime() - etcDate.getTime()) / (1000 * 60 * 60)
-            );
-            return {
-              success: false,
-              message: `Recalculation would exceed ETC time by ${exceedsBy} hours. Turn ${i} would end at ${turnEndTime.toLocaleString()} but ETC is ${etcDate.toLocaleString()}`,
-            };
-          }
+          // Turnos intermedios
+          turnEndTime = new Date(currentStartTime);
+          turnEndTime.setHours(turnEndTime.getHours() + turnInfo.hours);
         }
 
+        const actualHours = Math.round((turnEndTime - currentStartTime) / (1000 * 60 * 60));
+
         recalculatedTurns.push({
-          samplerName: currentTurns[i].samplerName, // Mantener sampler existente
-          startTime: this.tableManager.formatDateTime(turnStartTime),
+          samplerName: turnInfo.samplerName,
+          startTime: this.tableManager.formatDateTime(currentStartTime),
           finishTime: this.tableManager.formatDateTime(turnEndTime),
-          hours: turnHours,
+          hours: actualHours,
         });
 
-        currentEndTime = turnEndTime;
+        currentStartTime = new Date(turnEndTime);
       }
 
-      console.log(`🔍 DEBUG: Recalculation completed successfully:`, {
-        totalTurns: recalculatedTurns.length,
-        allTurns: recalculatedTurns.map((turn, idx) => ({
+      // 8️⃣ VALIDACIÓN FINAL
+      const totalHours = recalculatedTurns.reduce((sum, turn) => sum + turn.hours, 0);
+      const expectedHours = Math.round((etcDate - new Date(firstLineData.startDate)) / (1000 * 60 * 60));
+
+      console.log(`🔍 SMART RECALC: Final validation:`, {
+        totalCalculatedHours: totalHours,
+        expectedTotalHours: expectedHours,
+        finalTurns: recalculatedTurns.map((turn, idx) => ({
           index: idx,
           sampler: turn.samplerName,
           start: turn.startTime,
           finish: turn.finishTime,
           hours: turn.hours,
         })),
+        turnsEliminated: currentTurns.length - recalculatedTurns.length
       });
 
-      // 7️⃣ ACTUALIZAR LA TABLA CON LOS NUEVOS HORARIOS
+      // 9️⃣ ACTUALIZAR LA TABLA
       this.tableManager.populateLineSamplingTable(recalculatedTurns);
-      this.setupTableEventListeners(); // Re-setup event listeners
+      this.setupTableEventListeners();
 
-      Logger.success("Line Sampling recalculated successfully", {
+      const message = currentTurns.length > recalculatedTurns.length 
+        ? `Schedule optimized: ${currentTurns.length - recalculatedTurns.length} turns eliminated`
+        : `Schedule recalculated (${recalculatedTurns.length} turns)`;
+
+      Logger.success("Smart Line Sampling recalculation completed", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
-          totalTurns: recalculatedTurns.length,
-          firstLineTurn: recalculatedTurns[0],
-          lastLineTurn: recalculatedTurns[recalculatedTurns.length - 1],
+          originalTurns: currentTurns.length,
+          finalTurns: recalculatedTurns.length,
+          turnsEliminated: currentTurns.length - recalculatedTurns.length,
+          totalHours: totalHours
         },
         showNotification: true,
-        notificationMessage: `Line Sampling schedule recalculated (${recalculatedTurns.length} turns)`,
+        notificationMessage: message
       });
 
       return { success: true, data: recalculatedTurns };
+
     } catch (error) {
-      console.error(`🔍 DEBUG: Detailed error in recalculation:`, {
+      console.error(`🔍 SMART RECALC ERROR:`, {
         errorMessage: error.message,
         errorStack: error.stack,
-        errorName: error.name,
         firstLineData: firstLineData,
         selectedShipNomination: this.selectedShipNomination,
       });
 
-      Logger.error("Error recalculating Line Sampling", {
+      Logger.error("Error in smart Line Sampling recalculation", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         error: error,
         showNotification: false,
@@ -3390,9 +3388,118 @@ export class SamplingRosterController {
 
       return {
         success: false,
-        message: `Recalculation error: ${error.message}`,
+        message: `Smart recalculation error: ${error.message}`,
       };
     }
+  }
+
+  /**
+   * 🧠 ESTRATEGIA INTELIGENTE: Calcular distribución óptima de turnos
+   */
+  calculateOptimalTurnStrategy(remainingHours, availableSamplers, startTime) {
+    console.log(`🧠 CALCULATING OPTIMAL STRATEGY:`, {
+      remainingHours: remainingHours,
+      availableSamplersCount: availableSamplers.length,
+      availableSamplerNames: availableSamplers.map(s => s.samplerName),
+      startTime: startTime.toISOString()
+    });
+
+    // Constantes para la estrategia
+    const IDEAL_TURN_HOURS = 12;
+    const MIN_TURN_HOURS = 1;
+    const MAX_TURN_HOURS = 18;
+
+    // CASO 1: Horas muy pocas (1-6 horas) → Un solo turno
+    if (remainingHours <= 6) {
+      return {
+        strategy: 'single_turn',
+        turns: [{
+          samplerName: availableSamplers[0].samplerName,
+          hours: remainingHours
+        }],
+        eliminated: availableSamplers.length - 1
+      };
+    }
+
+    // CASO 2: Horas ideales para un turno (7-18 horas) → Un solo turno
+    if (remainingHours <= MAX_TURN_HOURS) {
+      return {
+        strategy: 'single_optimal',
+        turns: [{
+          samplerName: availableSamplers[0].samplerName,
+          hours: remainingHours
+        }],
+        eliminated: availableSamplers.length - 1
+      };
+    }
+
+    // CASO 3: Necesitamos múltiples turnos
+    // Calcular cuántos turnos necesitamos idealmente
+    const idealTurns = Math.ceil(remainingHours / IDEAL_TURN_HOURS);
+    const maxPossibleTurns = availableSamplers.length;
+    const actualTurns = Math.min(idealTurns, maxPossibleTurns);
+
+    console.log(`🧠 MULTI-TURN ANALYSIS:`, {
+      idealTurns: idealTurns,
+      maxPossibleTurns: maxPossibleTurns,
+      actualTurns: actualTurns,
+      avgHoursPerTurn: remainingHours / actualTurns
+    });
+
+    // Distribuir horas entre los turnos de manera inteligente
+    const turns = [];
+    let hoursLeft = remainingHours;
+
+    for (let i = 0; i < actualTurns; i++) {
+      const isLastTurn = i === actualTurns - 1;
+      let turnHours;
+
+      if (isLastTurn) {
+        // Último turno toma todas las horas restantes
+        turnHours = hoursLeft;
+      } else {
+        // Turnos intermedios: intentar 12h pero ajustar si es necesario
+        const remainingTurns = actualTurns - i;
+        const avgHoursForRemainingTurns = hoursLeft / remainingTurns;
+        
+        if (avgHoursForRemainingTurns <= IDEAL_TURN_HOURS) {
+          // Si el promedio es ≤12h, usar el promedio
+          turnHours = Math.round(avgHoursForRemainingTurns);
+        } else {
+          // Si el promedio es >12h, usar 12h para este turno
+          turnHours = IDEAL_TURN_HOURS;
+        }
+      }
+
+      // Validar límites
+      turnHours = Math.max(MIN_TURN_HOURS, Math.min(MAX_TURN_HOURS, turnHours));
+
+      turns.push({
+        samplerName: availableSamplers[i].samplerName,
+        hours: turnHours
+      });
+
+      hoursLeft -= turnHours;
+    }
+
+    // Ajuste final: si quedaron horas, agregar al último turno
+    if (hoursLeft > 0) {
+      turns[turns.length - 1].hours += hoursLeft;
+    } else if (hoursLeft < 0) {
+      // Si nos pasamos, reducir del último turno
+      turns[turns.length - 1].hours += hoursLeft; // hoursLeft es negativo
+    }
+
+    const strategy = {
+      strategy: actualTurns === 1 ? 'single_adjusted' : 'multi_turn_optimized',
+      turns: turns,
+      eliminated: availableSamplers.length - actualTurns,
+      totalHours: turns.reduce((sum, t) => sum + t.hours, 0)
+    };
+
+    console.log(`🧠 FINAL STRATEGY:`, strategy);
+
+    return strategy;
   }
 
   /**
