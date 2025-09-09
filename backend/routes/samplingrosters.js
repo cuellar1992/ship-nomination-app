@@ -370,20 +370,72 @@ router.get('/:id', async (req, res) => {
 // GET /api/sampling-rosters
 router.get('/', async (req, res) => {
   try {
-    const { status, vessel, limit = 50, skip = 0 } = req.query;
+    const { status, vessel, limit = 50, skip = 0, from, to } = req.query;
 
     // Construir filtro dinámico
     const filter = {};
     if (status) filter.status = status;
     if (vessel) filter.vesselName = new RegExp(vessel, 'i');
 
+    // 🆕 FILTRO POR RANGO DE FECHAS POB (Pilot On Board)
+    if (from || to) {
+      // Crear filtro que busque por POB en ship nomination
+      const dateFilter = {};
+      if (from) dateFilter.$gte = new Date(from);
+      if (to) {
+        // Incluir todo el día hasta las 23:59:59
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        dateFilter.$lte = toDate;
+      }
+      
+      // Primero obtener ship nominations que tengan POB en el rango
+      const shipNominations = await ShipNomination.find({
+        pilotOnBoard: dateFilter
+      }).select('_id');
+      
+      const nominationIds = shipNominations.map(sn => sn._id);
+      
+      // Luego filtrar rosters que tengan esas ship nominations
+      if (nominationIds.length > 0) {
+        filter.shipNomination = { $in: nominationIds };
+      } else {
+        // Si no hay ship nominations en el rango, no retornar nada
+        filter._id = { $in: [] };
+      }
+
+      console.log(`🔍 Filtering rosters by POB date range: ${from || 'start'} to ${to || 'end'} (found ${nominationIds.length} nominations)`);
+    }
+
+    // 🔧 SIMPLIFICADO: Usar el mismo populate que funciona en exportación individual
     const rosters = await SamplingRoster.find(filter)
-      .populate('shipNomination', 'vesselName amspecRef')
-      .sort({ createdAt: -1 })
+      .populate('shipNomination')
+      .sort({ startDischarge: -1, etcTime: -1, createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(skip));
 
     const total = await SamplingRoster.countDocuments(filter);
+
+    console.log(`✅ Found ${rosters.length} rosters (${total} total) with filter:`, {
+      status, vessel, from, to, hasDateFilter: !!(from || to)
+    });
+
+    // 🔧 DEBUG: Log primer roster para verificar populate
+    if (rosters.length > 0) {
+      const firstRoster = rosters[0];
+      console.log('🔍 First roster data sample:', {
+        vesselName: firstRoster.vesselName,
+        shipNomination: {
+          exists: !!firstRoster.shipNomination,
+          berth: firstRoster.shipNomination?.berth,
+          terminal: firstRoster.shipNomination?.terminal,
+          surveyor: firstRoster.shipNomination?.surveyor,
+          chemist: firstRoster.shipNomination?.chemist,
+          productTypes: firstRoster.shipNomination?.productTypes?.length,
+          pilotOnBoard: firstRoster.shipNomination?.pilotOnBoard
+        }
+      });
+    }
 
     res.json({
       success: true,
@@ -394,7 +446,8 @@ router.get('/', async (req, res) => {
         skip: parseInt(skip),
         hasMore: (parseInt(skip) + rosters.length) < total
       },
-      message: `Found ${rosters.length} rosters`
+      message: `Found ${rosters.length} rosters`,
+      dateRange: from || to ? { from, to } : null
     });
 
   } catch (error) {

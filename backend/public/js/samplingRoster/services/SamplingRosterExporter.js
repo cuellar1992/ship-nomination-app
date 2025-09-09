@@ -50,6 +50,24 @@ export class SamplingRosterExporter {
         showNotification: false
       });
     }
+
+    // 🆕 Inicializar botón de export por rango de fechas
+    this.initializeRangeExportButton();
+  }
+
+  /**
+   * 🆕 Inicializar botón de export por rango de fechas
+   */
+  initializeRangeExportButton() {
+    const rangeExportBtn = document.getElementById('exportRangeBtn');
+    if (rangeExportBtn) {
+      rangeExportBtn.addEventListener('click', () => this.handleRangeExportClick());
+      
+      Logger.debug("Range export button initialized", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: false
+      });
+    }
   }
 
   /**
@@ -527,19 +545,24 @@ export class SamplingRosterExporter {
    * 🚢 Agregar información del barco
    */
   addShipInformation(worksheet, startRow, rosterData) {
+    // 🔧 COPIA EXACTA: Usar la misma lógica que exportación individual
+    // Para exportación individual: usa this.controller.selectedShipNomination
+    // Para exportación por rango: usa rosterData.shipNomination
+    const shipNomination = this.controller.selectedShipNomination || rosterData.shipNomination;
+    
     const shipInfo = [
       ['Vessel:', rosterData.vesselName || ''],
-      ['Berth:', this.controller.selectedShipNomination.berth?.name || ''],
+      ['Berth:', shipNomination?.berth?.name || 'N/A'],
       ['Amspec Ref:', rosterData.amspecRef || ''],
-      ['POB:', this.formatDateTime(this.controller.selectedShipNomination.pilotOnBoard)],
-      ['ETB:', this.formatDateTime(this.controller.selectedShipNomination.etb)],
+      ['POB:', this.formatDateTime(shipNomination?.pilotOnBoard)],
+      ['ETB:', this.formatDateTime(shipNomination?.etb)],
       ['Start Discharge:', this.formatDateTime(rosterData.startDischarge)],
       ['ETC:', this.formatDateTime(rosterData.etcTime)],
       ['Discharge Time (Hrs):', rosterData.dischargeTimeHours || ''],
-      ['Cargo:', this.formatProductTypes(this.controller.selectedShipNomination.productTypes)],
-      ['Surveyor:', this.controller.selectedShipNomination.surveyor?.name || ''],
-      ['Pre Discharge Testing:', this.controller.selectedShipNomination.chemist?.name || ''],
-      ['Post Discharge Testing:', this.controller.selectedShipNomination.chemist?.name || '']
+      ['Cargo:', this.formatProductTypes(shipNomination?.productTypes)],
+      ['Surveyor:', shipNomination?.surveyor?.name || 'N/A'],
+      ['Pre Discharge Testing:', shipNomination?.chemist?.name || 'N/A'],
+      ['Post Discharge Testing:', shipNomination?.chemist?.name || 'N/A']
     ];
 
     let currentRow = startRow;
@@ -866,5 +889,740 @@ export class SamplingRosterExporter {
    */
   updateVisibility() {
     this.updateButtonVisibility();
+  }
+
+  // ========================================
+  // 🆕 NUEVOS MÉTODOS PARA EXPORTACIÓN POR RANGO DE FECHAS
+  // ========================================
+
+  /**
+   * 🖱️ Manejar click del botón export por rango
+   */
+  async handleRangeExportClick() {
+    try {
+      Logger.info("Range export initiated", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: "Setting up date range selection..."
+      });
+
+      // Mostrar modal de selección de fechas
+      await this.showDateRangeModal();
+
+    } catch (error) {
+      Logger.error("Error initiating range export", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: true,
+        notificationMessage: "Failed to start range export. Please try again."
+      });
+    }
+  }
+
+  /**
+   * 📅 Mostrar modal de selección de rango de fechas
+   */
+  async showDateRangeModal() {
+    return new Promise((resolve) => {
+      // Crear modal dinámicamente si no existe
+      let modal = document.getElementById('dateRangeModal');
+      if (!modal) {
+        modal = this.createDateRangeModal();
+        document.body.appendChild(modal);
+      }
+
+      // Inicializar DatePickers
+      this.initializeDatePickers(modal);
+
+      // Configurar fechas por defecto (mes anterior)
+      const today = new Date();
+      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+      this.fromDatePicker.setDate(lastMonth);
+      this.toDatePicker.setDate(lastMonthEnd);
+
+      // Configurar botones rápidos
+      this.setupQuickDateButtons(modal);
+
+      // Configurar botones
+      const exportBtn = modal.querySelector('#confirmRangeExport');
+      const cancelBtn = modal.querySelector('#cancelRangeExport');
+
+      const handleExport = async () => {
+        const fromDate = this.fromDatePicker.getDate();
+        const toDate = this.toDatePicker.getDate();
+
+        if (!fromDate || !toDate) {
+          Logger.warn("Please select both from and to dates", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            showNotification: true,
+            notificationMessage: "Please select both from and to dates"
+          });
+          return;
+        }
+
+        if (fromDate > toDate) {
+          Logger.warn("From date must be before to date", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            showNotification: true,
+            notificationMessage: "From date must be before to date"
+          });
+          return;
+        }
+
+        // Cerrar modal
+        const modalElement = modal.querySelector('.modal');
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        
+        // Ejecutar exportación
+        await this.executeRangeExport(this.formatDateForInput(fromDate), this.formatDateForInput(toDate));
+        resolve();
+      };
+
+      const handleCancel = () => {
+        const modalElement = modal.querySelector('.modal');
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        resolve();
+      };
+
+      // Limpiar listeners anteriores
+      exportBtn.replaceWith(exportBtn.cloneNode(true));
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+
+      // Agregar nuevos listeners
+      modal.querySelector('#confirmRangeExport').addEventListener('click', handleExport);
+      modal.querySelector('#cancelRangeExport').addEventListener('click', handleCancel);
+
+      // Mostrar modal con efecto fade
+      const modalElement = modal.querySelector('.modal');
+      modalElement.style.display = 'block';
+      modalElement.classList.add('show');
+      
+      // Aplicar backdrop
+      modalElement.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    });
+  }
+
+  /**
+   * 🏗️ Crear modal de selección de fechas con diseño de settings
+   */
+  createDateRangeModal() {
+    const modal = document.createElement('div');
+    modal.id = 'dateRangeModal';
+    modal.innerHTML = `
+      <!-- Date Range Export Modal -->
+      <div class="modal fade" tabindex="-1" aria-labelledby="dateRangeModalLabel" aria-hidden="true" style="display: none;">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content settings-modal">
+            <div class="modal-header settings-header">
+              <h5 class="modal-title settings-title" id="dateRangeModalLabel">
+                <i class="fas fa-calendar-alt me-3"></i>Export Rosters by Date Range
+              </h5>
+              <button type="button" class="btn-close settings-close" aria-label="Close" onclick="this.closest('.modal').style.display='none'"></button>
+            </div>
+            <div class="modal-body settings-body">
+              <div class="settings-section">
+                <h6 class="settings-section-title">
+                  <i class="fas fa-calendar me-2"></i>Select Date Range
+                </h6>
+                
+                <!-- Quick Date Range Buttons - Using ship nomination preset design -->
+                <div class="mb-3">
+                  <label class="form-label fw-semibold mb-2" style="
+                    color: var(--text-primary);
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.375rem;
+                  ">
+                    <i class="fas fa-bolt me-2" style="color: var(--accent-primary);"></i>Quick Selection
+                  </label>
+                  <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-preset" id="quickLastMonth" style="
+                      min-width: 90px;
+                      padding: 0.5rem 0.75rem;
+                      font-size: 0.8rem;
+                    ">
+                      <i class="fas fa-calendar-minus me-1"></i>Last Month
+                    </button>
+                    <button type="button" class="btn btn-preset" id="quickThisMonth" style="
+                      min-width: 90px;
+                      padding: 0.5rem 0.75rem;
+                      font-size: 0.8rem;
+                    ">
+                      <i class="fas fa-calendar me-1"></i>This Month
+                    </button>
+                    <button type="button" class="btn btn-preset" id="quickThisWeek" style="
+                      min-width: 90px;
+                      padding: 0.5rem 0.75rem;
+                      font-size: 0.8rem;
+                    ">
+                      <i class="fas fa-calendar-week me-1"></i>This Week
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Date Range using shared DatePickers -->
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label style="
+                      display: block;
+                      color: var(--text-secondary);
+                      font-size: 0.7rem;
+                      margin-bottom: 0.25rem;
+                      text-transform: uppercase;
+                      font-weight: 500;
+                    ">From Date</label>
+                    <div id="fromDatePicker"></div>
+                  </div>
+                  <div class="col-md-6">
+                    <label style="
+                      display: block;
+                      color: var(--text-secondary);
+                      font-size: 0.7rem;
+                      margin-bottom: 0.25rem;
+                      text-transform: uppercase;
+                      font-weight: 500;
+                    ">To Date</label>
+                    <div id="toDatePicker"></div>
+                  </div>
+                </div>
+
+                <div class="alert alert-info mt-3" style="
+                  background: rgba(31, 181, 212, 0.1);
+                  border: 1px solid rgba(31, 181, 212, 0.2);
+                  border-radius: 12px;
+                  padding: 1rem;
+                ">
+                  <div class="d-flex align-items-start">
+                    <i class="fas fa-info-circle me-3 mt-1" style="color: var(--accent-primary);"></i>
+                    <div>
+                      <p class="mb-2 fw-semibold" style="color: var(--text-primary);">
+                        Export by POB (Port Operations)
+                      </p>
+                      <p class="mb-1 small" style="color: var(--text-secondary);">
+                        • All rosters with operational dates within the selected range will be exported
+                      </p>
+                      <p class="mb-0 small" style="color: var(--text-secondary);">
+                        • Use quick buttons above or select custom date range
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer settings-footer">
+              <button type="button" id="cancelRangeExport" class="btn btn-outline-danger">
+                <i class="fas fa-times me-2"></i>Cancel
+              </button>
+              <button type="button" id="confirmRangeExport" class="btn btn-secondary-premium">
+                <i class="fas fa-file-excel me-2"></i>Export Range
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    return modal;
+  }
+
+  /**
+   * 📊 Ejecutar exportación por rango de fechas
+   */
+  async executeRangeExport(fromDate, toDate) {
+    if (this.isExporting) {
+      Logger.warn("Export already in progress", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: "Export is already in progress. Please wait."
+      });
+      return;
+    }
+
+    try {
+      this.isExporting = true;
+      this.showRangeExportLoading(true);
+
+      Logger.info("Starting range export", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: { fromDate, toDate },
+        showNotification: true,
+        notificationMessage: `Fetching rosters from ${fromDate} to ${toDate}...`
+      });
+
+      // Obtener rosters del backend
+      const rosters = await this.fetchRostersByDateRange(fromDate, toDate);
+
+      if (!rosters || rosters.length === 0) {
+        Logger.warn("No rosters found in date range", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: true,
+          notificationMessage: `No rosters found between ${fromDate} and ${toDate}`
+        });
+        return;
+      }
+
+      Logger.info("Generating multi-sheet Excel", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: { rosterCount: rosters.length },
+        showNotification: true,
+        notificationMessage: `Generating Excel with ${rosters.length} rosters...`
+      });
+
+      // Generar Excel multi-sheet
+      await this.generateMultiSheetExcel(rosters, fromDate, toDate);
+
+    } catch (error) {
+      Logger.error("Error during range export", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: true,
+        notificationMessage: "Failed to export rosters by date range. Please try again."
+      });
+    } finally {
+      this.isExporting = false;
+      this.showRangeExportLoading(false);
+    }
+  }
+
+  /**
+   * 🌐 Obtener rosters por rango de fechas desde el backend
+   */
+  async fetchRostersByDateRange(fromDate, toDate) {
+    try {
+      const baseURL = this.getBaseURL();
+      const url = `${baseURL}/api/sampling-rosters?from=${fromDate}&to=${toDate}&limit=100`;
+
+      const response = await fetch(url);
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to fetch rosters');
+      }
+
+      Logger.info("Rosters fetched successfully", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          count: result.data.length,
+          total: result.pagination?.total
+        },
+        showNotification: false
+      });
+
+      return result.data;
+
+    } catch (error) {
+      Logger.error("Error fetching rosters by date range", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 📊 Generar Excel multi-sheet con múltiples rosters
+   */
+  async generateMultiSheetExcel(rosters, fromDate, toDate) {
+    try {
+      // Crear workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Line Sampling Roster System - Range Export';
+      workbook.lastModifiedBy = 'Export System';
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      // Crear hoja resumen
+      await this.createSummarySheet(workbook, rosters, fromDate, toDate);
+
+      // Crear hoja para cada roster
+      for (let i = 0; i < rosters.length; i++) {
+        const roster = rosters[i];
+        const rosterData = this.transformRosterData(roster);
+        
+        // 🔧 DEBUG: Log para verificar datos transformados
+        Logger.debug(`Processing roster ${i + 1}`, {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            vesselName: rosterData.vesselName,
+            shipNomination: {
+              berth: rosterData.shipNomination?.berth?.name,
+              pob: rosterData.shipNomination?.pilotOnBoard,
+              surveyor: rosterData.shipNomination?.surveyor?.name,
+              chemist: rosterData.shipNomination?.chemist?.name,
+              productTypes: rosterData.shipNomination?.productTypes?.length
+            }
+          },
+          showNotification: false
+        });
+        
+        // Nombre de hoja seguro (máximo 31 caracteres, sin caracteres especiales)
+        const sheetName = this.generateSafeSheetName(rosterData.vesselName, i + 1);
+        
+        const worksheet = workbook.addWorksheet(sheetName, {
+          pageSetup: {
+            paperSize: 9, // A4
+            orientation: 'portrait',
+            margins: {
+              left: 0.7, right: 0.7,
+              top: 0.75, bottom: 0.75,
+              header: 0.3, footer: 0.3
+            }
+          },
+          views: [{
+            showGridLines: false
+          }]
+        });
+
+        // Construir layout usando el método existente
+        await this.buildLineSamplingRosterLayout(worksheet, rosterData);
+
+        Logger.debug(`Sheet created for vessel: ${rosterData.vesselName}`, {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          showNotification: false
+        });
+      }
+
+      // Generar archivo
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+
+      // 🇦🇺 Formato de fecha australiano para el nombre del archivo
+      const fromDateAU = this.formatDateAustralian(new Date(fromDate));
+      const toDateAU = this.formatDateAustralian(new Date(toDate));
+      const fileName = `Line_Sampling_Roster_${fromDateAU}_to_${toDateAU}.xlsx`;
+
+      Logger.success("Multi-sheet Excel generated successfully", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          fileName: fileName,
+          rosterCount: rosters.length,
+          sheetsCount: rosters.length + 1 // +1 for summary
+        },
+        showNotification: true,
+        notificationMessage: `Excel generated: ${fileName} (${rosters.length} rosters)`
+      });
+
+      // Descargar archivo
+      this.downloadBlob(blob, fileName);
+
+    } catch (error) {
+      Logger.error("Error generating multi-sheet Excel", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        showNotification: false
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 📋 Crear hoja resumen con lista de todos los rosters
+   */
+  async createSummarySheet(workbook, rosters, fromDate, toDate) {
+    const worksheet = workbook.addWorksheet('Summary', {
+      pageSetup: {
+        paperSize: 9,
+        orientation: 'landscape'
+      }
+    });
+
+    // Título con formato australiano
+    const fromDateAU = this.formatDateAustralian(new Date(fromDate));
+    const toDateAU = this.formatDateAustralian(new Date(toDate));
+    
+    worksheet.mergeCells('A1:H2');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = `Line Sampling Rosters Summary\n${fromDateAU} to ${toDateAU}`;
+    titleCell.style = {
+      font: { size: 16, bold: true, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } },
+      alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+      border: {
+        top: { style: 'thin' }, bottom: { style: 'thin' },
+        left: { style: 'thin' }, right: { style: 'thin' }
+      }
+    };
+
+    // Headers
+    const headers = ['#', 'Vessel Name', 'AMSPEC Ref', 'Status', 'Start Discharge', 'ETC Time', 'Office Sampler', 'Line Turns'];
+    worksheet.addRow([]);
+    const headerRow = worksheet.addRow(headers);
+    
+    headerRow.eachCell((cell) => {
+      cell.style = {
+        font: { bold: true, color: { argb: 'FFFFFFFF' } },
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF366092' } },
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        border: {
+          top: { style: 'thin' }, bottom: { style: 'thin' },
+          left: { style: 'thin' }, right: { style: 'thin' }
+        }
+      };
+    });
+
+    // Datos
+    rosters.forEach((roster, index) => {
+      const row = worksheet.addRow([
+        index + 1,
+        roster.vesselName || 'N/A',
+        roster.shipNomination?.amspecRef || 'N/A',
+        roster.status || 'draft',
+        roster.startDischarge ? DateUtils.formatDateTime(roster.startDischarge) : 'N/A',
+        roster.etcTime ? DateUtils.formatDateTime(roster.etcTime) : 'N/A',
+        roster.officeSampling?.sampler?.name || 'N/A',
+        roster.lineSampling?.length || 0
+      ]);
+
+      // Aplicar estilos alternados
+      row.eachCell((cell) => {
+        cell.style = {
+          alignment: { horizontal: 'center', vertical: 'middle' },
+          border: {
+            top: { style: 'thin' }, bottom: { style: 'thin' },
+            left: { style: 'thin' }, right: { style: 'thin' }
+          },
+          fill: {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: index % 2 === 0 ? 'FFF2F2F2' : 'FFFFFFFF' }
+          }
+        };
+      });
+
+      // Color por status
+      const statusCell = row.getCell(4);
+      const statusColors = {
+        'completed': 'FF90EE90',
+        'in_progress': 'FFFFFFE0',
+        'draft': 'FFFFA500'
+      };
+      if (statusColors[roster.status]) {
+        statusCell.style.fill.fgColor = { argb: statusColors[roster.status] };
+      }
+    });
+
+    // Ajustar anchos de columna
+    worksheet.columns = [
+      { width: 5 },   // #
+      { width: 25 },  // Vessel Name
+      { width: 15 },  // AMSPEC Ref
+      { width: 12 },  // Status
+      { width: 18 },  // Start Discharge
+      { width: 18 },  // ETC Time
+      { width: 15 },  // Office Sampler
+      { width: 12 }   // Line Turns
+    ];
+  }
+
+  /**
+   * 🔄 Usar roster data directamente como lo hace la exportación individual
+   */
+  transformRosterData(roster) {
+    // 🔧 SIMPLIFICADO: Pasar todos los datos del roster incluyendo shipNomination completo
+    return {
+      vesselName: roster.vesselName || roster.shipNomination?.vesselName || 'Unknown Vessel',
+      amspecRef: roster.shipNomination?.amspecRef || 'N/A',
+      status: roster.status || 'draft',
+      startDischarge: roster.startDischarge,
+      etcTime: roster.etcTime,
+      dischargeTimeHours: roster.dischargeTimeHours || 0,
+      
+      // 🆕 Pasar shipNomination completo para que addShipInformation tenga acceso
+      shipNomination: roster.shipNomination,
+      
+      // Office Sampling - usar datos directos
+      officeSampling: roster.officeSampling,
+      
+      // Line Sampling - usar datos directos  
+      lineSampling: roster.lineSampling || []
+    };
+  }
+
+  /**
+   * 🏷️ Generar nombre seguro para hoja de Excel
+   */
+  generateSafeSheetName(vesselName, index) {
+    // Remover caracteres no permitidos y limitar longitud
+    let safeName = vesselName
+      .replace(/[\\\/\*\?\[\]]/g, '') // Remover caracteres especiales
+      .substring(0, 25); // Máximo 25 caracteres para dejar espacio al índice
+    
+    return `${index}. ${safeName}`;
+  }
+
+  /**
+   * 📅 Formatear fecha para input HTML
+   */
+  formatDateForInput(date) {
+    return date.toISOString().split('T')[0];
+  }
+
+  /**
+   * 🇦🇺 Formatear fecha en formato australiano (dd-mm-yyyy)
+   */
+  formatDateAustralian(date) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+
+  /**
+   * 🌐 Obtener URL base
+   */
+  getBaseURL() {
+    const { hostname, protocol } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//${hostname}:3000`;
+    }
+    return '';
+  }
+
+  /**
+   * ⏳ Mostrar/ocultar loading en botón de rango
+   */
+  showRangeExportLoading(show) {
+    const rangeBtn = document.getElementById('exportRangeBtn');
+    if (!rangeBtn) return;
+
+    if (show) {
+      rangeBtn.disabled = true;
+      rangeBtn.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        EXPORTING RANGE...
+      `;
+    } else {
+      rangeBtn.disabled = false;
+      rangeBtn.innerHTML = `
+        <i class="fas fa-calendar-alt"></i>
+        EXPORT RANGE
+      `;
+    }
+  }
+
+  /**
+   * ⚡ Configurar botones rápidos de selección de fechas
+   */
+  setupQuickDateButtons(modal) {
+    const today = new Date();
+    
+    // Last Month
+    const lastMonthBtn = modal.querySelector('#quickLastMonth');
+    if (lastMonthBtn) {
+      lastMonthBtn.addEventListener('click', () => {
+        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        
+        this.fromDatePicker.setDate(lastMonthStart);
+        this.toDatePicker.setDate(lastMonthEnd);
+        
+        // Highlight button temporarily
+        this.highlightQuickButton(lastMonthBtn);
+      });
+    }
+
+    // This Month
+    const thisMonthBtn = modal.querySelector('#quickThisMonth');
+    if (thisMonthBtn) {
+      thisMonthBtn.addEventListener('click', () => {
+        const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        this.fromDatePicker.setDate(thisMonthStart);
+        this.toDatePicker.setDate(thisMonthEnd);
+        
+        // Highlight button temporarily
+        this.highlightQuickButton(thisMonthBtn);
+      });
+    }
+
+    // This Week
+    const thisWeekBtn = modal.querySelector('#quickThisWeek');
+    if (thisWeekBtn) {
+      thisWeekBtn.addEventListener('click', () => {
+        const startOfWeek = new Date(today);
+        const dayOfWeek = today.getDay();
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Monday as start of week
+        startOfWeek.setDate(today.getDate() + diff);
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday as end of week
+        
+        this.fromDatePicker.setDate(startOfWeek);
+        this.toDatePicker.setDate(endOfWeek);
+        
+        // Highlight button temporarily
+        this.highlightQuickButton(thisWeekBtn);
+      });
+    }
+  }
+
+  /**
+   * ✨ Destacar botón rápido temporalmente usando clase active
+   */
+  highlightQuickButton(button) {
+    // Remover highlight de otros botones
+    const allQuickBtns = button.parentElement.querySelectorAll('.btn-preset');
+    allQuickBtns.forEach(btn => {
+      btn.classList.remove('active');
+    });
+
+    // Agregar highlight al botón actual
+    button.classList.add('active');
+
+    // Remover highlight después de 1.5 segundos
+    setTimeout(() => {
+      button.classList.remove('active');
+    }, 1500);
+  }
+
+  /**
+   * 🎯 Inicializar DatePickers del modal
+   */
+  initializeDatePickers(modal) {
+    // Verificar que DatePicker esté disponible
+    if (typeof DatePicker === 'undefined') {
+      Logger.error("DatePicker not available", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        showNotification: true,
+        notificationMessage: "DatePicker component not loaded"
+      });
+      return;
+    }
+
+    // Inicializar From DatePicker
+    this.fromDatePicker = new DatePicker('fromDatePicker', {
+      placeholder: 'Select from date...',
+      label: 'From Date',
+      icon: 'fas fa-calendar-plus',
+      modalTitle: 'Select From Date',
+      clearable: true,
+      theme: 'dark'
+    });
+
+    // Inicializar To DatePicker
+    this.toDatePicker = new DatePicker('toDatePicker', {
+      placeholder: 'Select to date...',
+      label: 'To Date',
+      icon: 'fas fa-calendar-minus',
+      modalTitle: 'Select To Date',
+      clearable: true,
+      theme: 'dark'
+    });
+
+    Logger.debug("DatePickers initialized for range export modal", {
+      module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+      showNotification: false
+    });
   }
 }
