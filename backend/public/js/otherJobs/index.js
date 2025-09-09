@@ -322,7 +322,7 @@
             if (totalItems === 0) {
                 info.textContent = 'No records';
             } else {
-                info.textContent = `${pageStart}-${pageEnd} / ${totalItems}`;
+                info.textContent = `Showing ${pageStart}-${pageEnd} of ${totalItems} records`;
             }
         }
         if (prevBtn) prevBtn.disabled = currentPage <= 1 || totalPages <= 1;
@@ -415,7 +415,7 @@
                     <td title="${r.jobDescription || ''}">${(r.jobDescription || '').substring(0, 50)}${(r.jobDescription || '').length > 50 ? '...' : ''}</td>
                     <td>${r.samplerName || ''}</td>
                     <td>${hours}h</td>
-                    <td><span class="badge ${r.status === 'completed' ? 'bg-success' : 'bg-primary'}">${r.status || ''}</span></td>
+                    <td>${r.status || ''}</td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary" data-action="view" title="View"><i class="fas fa-eye"></i></button>
                         <button class="btn btn-sm btn-outline-warning" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>

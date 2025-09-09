@@ -140,11 +140,11 @@ class PaginationManager {
     const infoElement = document.getElementById("paginationInfo");
     if (infoElement) {
       if (this.totalRecords === 0) {
-        infoElement.textContent = "No results";
+        infoElement.textContent = "No records";
       } else {
         const start = startIndex + 1;
         const end = endIndex;
-        infoElement.textContent = `${start}-${end} / ${this.totalRecords}`;
+        infoElement.textContent = `Showing ${start}-${end} of ${this.totalRecords} records`;
       }
     }
   }

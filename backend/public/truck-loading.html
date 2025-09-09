@@ -242,7 +242,9 @@
                 </tbody>
               </table>
             </div>
-            <div class="truck-pagination minimal d-flex align-items-center" style="gap: 0.5rem; margin-top: 0.5rem; justify-content: flex-end;">
+            <div class="truck-pagination minimal d-flex align-items-center" style="gap: 0.5rem; margin-top: 0.5rem; justify-content: space-between;">
+              <div id="truckPageInfo" class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">No records</div>
+              <div class="d-flex align-items-center" style="gap: 0.5rem;">
               <button id="truckPrevPageBtn" class="icon-btn" type="button" title="Previous">
                 <i class="fas fa-chevron-left"></i>
               </button>
@@ -256,8 +258,8 @@
                   <option value="10" selected>10</option>
                   <option value="15">15</option>
                 </select>
-                <span class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">/ page</span>
               </div>
+            </div>
             </div>
           </div>
         </div>

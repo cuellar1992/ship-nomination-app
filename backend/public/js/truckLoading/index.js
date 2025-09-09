@@ -304,7 +304,7 @@
             if (totalItems === 0) {
                 info.textContent = 'No records';
             } else {
-                info.textContent = `${pageStart}-${pageEnd} / ${totalItems}`;
+                info.textContent = `Showing ${pageStart}-${pageEnd} of ${totalItems} records`;
             }
         }
         if (prevBtn) prevBtn.disabled = currentPage <= 1 || totalPages <= 1;
