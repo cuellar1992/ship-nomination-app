@@ -50,10 +50,12 @@ export class ValidationCacheService {
       }
 
       // Load all data in parallel - this is the key optimization
-      const [activeRosters, shipNominations, samplersData] = await Promise.all([
+      const [activeRosters, shipNominations, samplersData, truckWorkDays, otherJobs] = await Promise.all([
         this.loadActiveRostersForWeek(startDate, endDate),
         this.loadShipNominationsForWeek(startDate, endDate),
-        this.loadSamplersData()
+        this.loadSamplersData(),
+        this.loadTruckWorkDaysForWeek(startDate, endDate),
+        this.loadOtherJobsForWeek(startDate, endDate)
       ]);
 
       // Calculate all validations in memory
@@ -61,6 +63,8 @@ export class ValidationCacheService {
         activeRosters,
         shipNominations,
         samplersData,
+        truckWorkDays,
+        otherJobs,
         startDate,
         endDate
       );
@@ -70,6 +74,8 @@ export class ValidationCacheService {
         activeRosters,
         weekNominations: shipNominations,
         samplersData,
+        truckWorkDays,
+        otherJobs,
         validationData: weekValidationData,
         startDate,
         endDate
@@ -167,9 +173,73 @@ export class ValidationCacheService {
   }
 
   /**
+   * 🚛 Load truck work days for the week
+   */
+  async loadTruckWorkDaysForWeek(startDate, endDate) {
+    try {
+      // Obtener URL base dinámicamente
+      const getBaseURL = () => {
+        const { hostname, protocol } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}:3000`;
+        }
+        return '';
+      };
+      
+      const baseURL = getBaseURL();
+      const fromDate = startDate.toISOString().split('T')[0];
+      const toDate = endDate.toISOString().split('T')[0];
+      
+      const response = await fetch(`${baseURL}/api/truckworkdays?from=${fromDate}&to=${toDate}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      
+      if (result && result.success && Array.isArray(result.data)) return result.data;
+      return [];
+    } catch (error) {
+      if (window.Logger) {
+        window.Logger.error("Failed to load truck work days", { error: error.message, module: "ValidationCacheService" });
+      }
+      return [];
+    }
+  }
+
+  /**
+   * ⚡ Load other jobs for the week
+   */
+  async loadOtherJobsForWeek(startDate, endDate) {
+    try {
+      // Obtener URL base dinámicamente
+      const getBaseURL = () => {
+        const { hostname, protocol } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}:3000`;
+        }
+        return '';
+      };
+      
+      const baseURL = getBaseURL();
+      const fromDate = startDate.toISOString().split('T')[0];
+      const toDate = endDate.toISOString().split('T')[0];
+      
+      const response = await fetch(`${baseURL}/api/otherjobs?from=${fromDate}&to=${toDate}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json();
+      
+      if (result && result.success && Array.isArray(result.data)) return result.data;
+      return [];
+    } catch (error) {
+      if (window.Logger) {
+        window.Logger.error("Failed to load other jobs", { error: error.message, module: "ValidationCacheService" });
+      }
+      return [];
+    }
+  }
+
+  /**
    * 🧮 Calculate per-sampler validations for the week (indexed by samplerName)
    */
-  calculateAllValidations(activeRosters, shipNominations, samplersData, startDate, endDate) {
+  calculateAllValidations(activeRosters, shipNominations, samplersData, truckWorkDays, otherJobs, startDate, endDate) {
     // Build fast lookup maps
     const nameToSampler = new Map();
     samplersData.forEach((s) => {
@@ -179,6 +249,8 @@ export class ValidationCacheService {
     // Helper to collect schedule entries for a sampler
     const buildSamplerSchedule = (samplerName) => {
       const schedule = [];
+      
+      // 1. Sampling Roster entries
       activeRosters.forEach((roster) => {
         // Office
         if (roster.officeSampling && roster.officeSampling.sampler?.name === samplerName) {
@@ -187,6 +259,7 @@ export class ValidationCacheService {
             end: new Date(roster.officeSampling.finishTime),
             type: "office",
             vesselName: roster.vesselName || "",
+            module: "SamplingRoster",
           });
         }
         // Line
@@ -198,11 +271,47 @@ export class ValidationCacheService {
                 end: new Date(turn.finishTime),
                 type: "line",
                 vesselName: roster.vesselName || "",
+                module: "SamplingRoster",
               });
             }
           });
         }
       });
+      
+      // 2. 🆕 Truck Loading entries
+      if (Array.isArray(truckWorkDays)) {
+        truckWorkDays.forEach((workDay) => {
+          if (workDay.samplerName && 
+              workDay.samplerName.toLowerCase() === samplerName.toLowerCase() &&
+              workDay.shift && workDay.shift.startTime && workDay.shift.endTime) {
+            schedule.push({
+              start: new Date(workDay.shift.startTime),
+              end: new Date(workDay.shift.endTime),
+              type: "truck",
+              vesselName: "Truck Loading",
+              module: "TruckLoading",
+            });
+          }
+        });
+      }
+      
+      // 3. 🆕 Other Jobs entries
+      if (Array.isArray(otherJobs)) {
+        otherJobs.forEach((job) => {
+          if (job.samplerName && 
+              job.samplerName.toLowerCase() === samplerName.toLowerCase() &&
+              job.shift && job.shift.startTime && job.shift.endTime) {
+            schedule.push({
+              start: new Date(job.shift.startTime),
+              end: new Date(job.shift.endTime),
+              type: "other",
+              vesselName: "Other Jobs",
+              module: "OtherJobs",
+            });
+          }
+        });
+      }
+      
       // Filter to week range
       return schedule.filter((e) => this.isDateInRange(e.start, startDate, endDate) || this.isDateInRange(e.end, startDate, endDate));
     };

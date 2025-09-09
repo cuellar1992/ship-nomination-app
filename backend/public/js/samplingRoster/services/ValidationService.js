@@ -882,15 +882,22 @@ export class ValidationService {
     excludeRosterId = null
   ) {
     let totalWeeklyHours = 0;
+    const hoursBreakdown = {
+      savedRosterHours: 0,
+      memoryHours: 0,
+      truckLoadingHours: 0,
+      otherJobsHours: 0,
+    };
 
     try {
-      // 1. HORAS DE ROSTERS GUARDADOS EN BD
+      // 1. HORAS DE ROSTERS GUARDADOS EN BD (Sampling Roster)
       const savedHours = await this.calculateSavedRosterHours(
         samplerName,
         weekStart,
         weekEnd,
         excludeRosterId
       );
+      hoursBreakdown.savedRosterHours = savedHours;
       totalWeeklyHours += savedHours;
 
       // 2. HORAS DE TURNOS EN MEMORIA (roster actual)
@@ -901,23 +908,38 @@ export class ValidationService {
           weekStart,
           weekEnd
         );
+        hoursBreakdown.memoryHours = memoryHours;
         totalWeeklyHours += memoryHours;
       }
 
-      Logger.debug("Weekly hours calculation completed", {
+      // 3. 🆕 HORAS DE TRUCK LOADING (Módulo truck workdays)
+      const truckLoadingHours = await this.calculateTruckLoadingHours(
+        samplerName,
+        weekStart,
+        weekEnd,
+        excludeRosterId
+      );
+      hoursBreakdown.truckLoadingHours = truckLoadingHours;
+      totalWeeklyHours += truckLoadingHours;
+
+      // 4. 🆕 HORAS DE OTHER JOBS (Módulo other jobs)
+      const otherJobsHours = await this.calculateOtherJobsHours(
+        samplerName,
+        weekStart,
+        weekEnd,
+        excludeRosterId
+      );
+      hoursBreakdown.otherJobsHours = otherJobsHours;
+      totalWeeklyHours += otherJobsHours;
+
+      Logger.debug("✅ COMPLETE Weekly hours calculation with all modules", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         data: {
           samplerName: samplerName,
-          savedHours: savedHours,
-          memoryHours: turnsInMemory
-            ? this.calculateMemoryTurnHours(
-                samplerName,
-                turnsInMemory,
-                weekStart,
-                weekEnd
-              )
-            : 0,
+          weekPeriod: `${weekStart.toISOString().split('T')[0]} to ${weekEnd.toISOString().split('T')[0]}`,
+          breakdown: hoursBreakdown,
           totalWeeklyHours: totalWeeklyHours,
+          modulesIncluded: ['SamplingRoster', 'TruckLoading', 'OtherJobs'],
         },
         showNotification: false,
       });
@@ -931,6 +953,68 @@ export class ValidationService {
       });
 
       return 0; // Fallback: 0 horas si hay error
+    }
+  }
+
+  /**
+   * 🧪 Método de testing para validar la nueva funcionalidad de límites semanales
+   * Este método proporciona un desglose detallado de las horas semanales
+   */
+  static async testWeeklyHoursValidation(samplerName, referenceDate = new Date()) {
+    try {
+      const weekBounds = this.getWorkWeekBounds(referenceDate);
+      
+      Logger.info("🧪 TESTING: Weekly hours validation with all modules", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          testDate: referenceDate.toISOString(),
+          weekBounds: {
+            start: weekBounds.weekStart.toISOString(),
+            end: weekBounds.weekEnd.toISOString(),
+          },
+        },
+        showNotification: true,
+      });
+
+      // Calcular horas usando el nuevo método completo
+      const totalHours = await this.calculateSamplerWeeklyHours(
+        samplerName,
+        weekBounds.weekStart,
+        weekBounds.weekEnd,
+        null, // no memory turns para testing
+        null  // no exclusions para testing
+      );
+
+      // Obtener límite semanal si aplica
+      const weeklyLimit = SAMPLING_ROSTER_CONSTANTS.SAMPLER_LIMITS.WEEKLY_LIMITS[samplerName];
+      
+      const testResult = {
+        samplerName: samplerName,
+        weekPeriod: `${weekBounds.weekStart.toISOString().split('T')[0]} to ${weekBounds.weekEnd.toISOString().split('T')[0]}`,
+        totalWeeklyHours: totalHours,
+        weeklyLimit: weeklyLimit || 'No limit',
+        limitStatus: weeklyLimit ? (totalHours <= weeklyLimit ? 'WITHIN_LIMIT' : 'EXCEEDS_LIMIT') : 'NO_LIMIT',
+        remainingHours: weeklyLimit ? Math.max(0, weeklyLimit - totalHours) : 'N/A',
+        utilizationPercentage: weeklyLimit ? Math.round((totalHours / weeklyLimit) * 100) : 'N/A',
+        modulesIncluded: ['SamplingRoster', 'TruckLoading', 'OtherJobs'],
+      };
+
+      Logger.success("🧪 TESTING: Weekly hours validation completed", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: testResult,
+        showNotification: true,
+      });
+
+      return testResult;
+    } catch (error) {
+      Logger.error("🧪 TESTING: Error in weekly hours validation test", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        data: { samplerName, referenceDate: referenceDate?.toISOString() },
+        showNotification: true,
+      });
+      return null;
     }
   }
 
@@ -1042,6 +1126,174 @@ export class ValidationService {
       Logger.error("Error calculating saved roster hours", {
         module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
         error: error,
+        showNotification: false,
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * 🆕 Calcular horas de Truck Loading para un sampler en un período
+   */
+  static async calculateTruckLoadingHours(
+    samplerName,
+    weekStart,
+    weekEnd,
+    excludeRosterId = null
+  ) {
+    try {
+      // Obtener URL base dinámicamente
+      const getBaseURL = () => {
+        const { hostname, protocol } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}:3000`;
+        }
+        return '';
+      };
+      
+      const baseURL = getBaseURL();
+      
+      // Consultar truck workdays en el rango de la semana
+      const fromDate = weekStart.toISOString().split('T')[0];
+      const toDate = weekEnd.toISOString().split('T')[0];
+      
+      const response = await fetch(
+        `${baseURL}/api/truckworkdays?from=${fromDate}&to=${toDate}&surveyor=${encodeURIComponent(samplerName)}`
+      );
+      
+      if (!response.ok) {
+        Logger.warn("Failed to fetch truck loading hours", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { status: response.status, samplerName },
+          showNotification: false,
+        });
+        return 0;
+      }
+      
+      const result = await response.json();
+      const truckWorkDays = result.success && result.data ? result.data : [];
+      
+      let totalTruckHours = 0;
+      
+      truckWorkDays.forEach((workDay) => {
+        // Verificar que el sampler coincida (case-insensitive)
+        if (workDay.samplerName && 
+            workDay.samplerName.toLowerCase() === samplerName.toLowerCase()) {
+          
+          // Verificar que la fecha esté en el rango de la semana
+          const operationDate = new Date(workDay.operationDate);
+          if (this.isDateInRange(operationDate, weekStart, weekEnd)) {
+            
+            // Sumar horas del shift si están disponibles
+            if (workDay.shift && typeof workDay.shift.hours === 'number') {
+              totalTruckHours += workDay.shift.hours;
+            }
+          }
+        }
+      });
+      
+      Logger.debug("Truck loading hours calculated", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          weekStart: weekStart.toISOString(),
+          weekEnd: weekEnd.toISOString(),
+          totalTruckHours: totalTruckHours,
+          recordsFound: truckWorkDays.length,
+        },
+        showNotification: false,
+      });
+      
+      return totalTruckHours;
+    } catch (error) {
+      Logger.error("Error calculating truck loading hours", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        data: { samplerName, weekStart: weekStart?.toISOString(), weekEnd: weekEnd?.toISOString() },
+        showNotification: false,
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * 🆕 Calcular horas de Other Jobs para un sampler en un período
+   */
+  static async calculateOtherJobsHours(
+    samplerName,
+    weekStart,
+    weekEnd,
+    excludeRosterId = null
+  ) {
+    try {
+      // Obtener URL base dinámicamente
+      const getBaseURL = () => {
+        const { hostname, protocol } = window.location;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          return `${protocol}//${hostname}:3000`;
+        }
+        return '';
+      };
+      
+      const baseURL = getBaseURL();
+      
+      // Consultar other jobs en el rango de la semana
+      const fromDate = weekStart.toISOString().split('T')[0];
+      const toDate = weekEnd.toISOString().split('T')[0];
+      
+      const response = await fetch(
+        `${baseURL}/api/otherjobs?from=${fromDate}&to=${toDate}&surveyor=${encodeURIComponent(samplerName)}`
+      );
+      
+      if (!response.ok) {
+        Logger.warn("Failed to fetch other jobs hours", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: { status: response.status, samplerName },
+          showNotification: false,
+        });
+        return 0;
+      }
+      
+      const result = await response.json();
+      const otherJobs = result.success && result.data ? result.data : [];
+      
+      let totalOtherJobsHours = 0;
+      
+      otherJobs.forEach((job) => {
+        // Verificar que el sampler coincida (case-insensitive)
+        if (job.samplerName && 
+            job.samplerName.toLowerCase() === samplerName.toLowerCase()) {
+          
+          // Verificar que la fecha esté en el rango de la semana
+          const operationDate = new Date(job.operationDate);
+          if (this.isDateInRange(operationDate, weekStart, weekEnd)) {
+            
+            // Sumar horas del shift si están disponibles
+            if (job.shift && typeof job.shift.hours === 'number') {
+              totalOtherJobsHours += job.shift.hours;
+            }
+          }
+        }
+      });
+      
+      Logger.debug("Other jobs hours calculated", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          weekStart: weekStart.toISOString(),
+          weekEnd: weekEnd.toISOString(),
+          totalOtherJobsHours: totalOtherJobsHours,
+          recordsFound: otherJobs.length,
+        },
+        showNotification: false,
+      });
+      
+      return totalOtherJobsHours;
+    } catch (error) {
+      Logger.error("Error calculating other jobs hours", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        error: error,
+        data: { samplerName, weekStart: weekStart?.toISOString(), weekEnd: weekEnd?.toISOString() },
         showNotification: false,
       });
       return 0;
@@ -2002,6 +2254,24 @@ export class ValidationService {
 
     return localDate;
   }
+}
+
+// 🧪 HELPER GLOBAL PARA TESTING EN CONSOLA
+// Exponer método de testing globalmente para debugging
+if (typeof window !== 'undefined') {
+  window.testSamplerWeeklyHours = async function(samplerName = 'Laura', date = new Date()) {
+    try {
+      console.log(`🧪 Testing weekly hours for ${samplerName} on ${date.toISOString().split('T')[0]}`);
+      const result = await ValidationService.testWeeklyHoursValidation(samplerName, date);
+      console.table(result);
+      return result;
+    } catch (error) {
+      console.error('🧪 Test failed:', error);
+      return null;
+    }
+  };
+  
+  console.log('🧪 Testing helper loaded: Use testSamplerWeeklyHours("SamplerName") in console');
 }
 
 export default ValidationService;
