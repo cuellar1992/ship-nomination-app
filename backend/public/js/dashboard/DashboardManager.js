@@ -117,12 +117,13 @@ class DashboardManager {
             console.log('📊 Cargando datos del dashboard...');
             
             // Cargar datos en paralelo para mejor performance
-            const [nominations, rosters, samplers, terminals, truckWorkDays] = await Promise.all([
+            const [nominations, rosters, samplers, terminals, truckWorkDays, otherJobs] = await Promise.all([
                 this.fetchShipNominations(),
                 this.fetchSamplingRosters(),
                 this.fetchSamplers(),
                 this.fetchTerminals(),
-                this.fetchTruckWorkDays()
+                this.fetchTruckWorkDays(),
+                this.fetchOtherJobs()
             ]);
 
             this.data = {
@@ -131,6 +132,7 @@ class DashboardManager {
                 samplers,
                 terminals,
                 truckWorkDays,
+                otherJobs,
                 lastUpdated: new Date()
             };
 
@@ -142,7 +144,8 @@ class DashboardManager {
                 rostersCount: this.data.rosters?.length || 0,
                 samplersCount: this.data.samplers?.length || 0,
                 terminalsCount: this.data.terminals?.length || 0,
-                truckWorkDaysCount: this.data.truckWorkDays?.length || 0
+                truckWorkDaysCount: this.data.truckWorkDays?.length || 0,
+                otherJobsCount: this.data.otherJobs?.length || 0
             });
             
             // Actualizar KPIs con los nuevos datos
@@ -260,6 +263,22 @@ class DashboardManager {
             return data.data || [];
         } catch (error) {
             console.error('Error fetching truck work days:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Obtener Other Jobs (trabajos adicionales)
+     */
+    async fetchOtherJobs() {
+        try {
+            const response = await fetch('/api/otherjobs');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            console.log('💼 Other Jobs cargados:', data.data || []);
+            return data.data || [];
+        } catch (error) {
+            console.error('Error fetching other jobs:', error);
             return [];
         }
     }
@@ -823,6 +842,18 @@ class DashboardManager {
             }
         });
 
+        // 💼 Procesar other jobs (trabajos adicionales) y calcular solapamiento con el mes actual
+        (this.data?.otherJobs || []).forEach(otherJob => {
+            if (otherJob.shift && otherJob.shift.startTime && otherJob.shift.endTime && otherJob.samplerName) {
+                const samplerName = otherJob.samplerName;
+                const overlap = this.getOverlapHours(otherJob.shift.startTime, otherJob.shift.endTime, monthStart, monthEnd);
+                if (overlap > 0) {
+                    monthlyHours[samplerName] = (monthlyHours[samplerName] || 0) + overlap;
+                    console.log(`📊 Monthly - ${samplerName}: +${overlap}h (Other Job overlap - ${otherJob.jobDescription?.substring(0, 30)}...)`);
+                }
+            }
+        });
+
         let labels = Object.keys(monthlyHours);
         let values = Object.values(monthlyHours);
 
@@ -865,7 +896,8 @@ class DashboardManager {
             weekStart: weekStart.toISOString(),
             weekEnd: weekEnd.toISOString(),
             totalRosters: (this.data?.rosters || []).length,
-            totalTruckWorkDays: (this.data?.truckWorkDays || []).length
+            totalTruckWorkDays: (this.data?.truckWorkDays || []).length,
+            totalOtherJobs: (this.data?.otherJobs || []).length
         });
         
         const weeklyHours = {};
@@ -912,6 +944,18 @@ class DashboardManager {
                 if (overlap > 0) {
                     weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
                     console.log(`📊 Weekly - ${samplerName}: +${overlap}h (Truck overlap - ${truckDay.terminal})`);
+                }
+            }
+        });
+
+        // 💼 Procesar other jobs (trabajos adicionales) y calcular solapamiento con la semana actual
+        (this.data?.otherJobs || []).forEach(otherJob => {
+            if (otherJob.shift && otherJob.shift.startTime && otherJob.shift.endTime && otherJob.samplerName) {
+                const samplerName = otherJob.samplerName;
+                const overlap = this.getOverlapHours(otherJob.shift.startTime, otherJob.shift.endTime, weekStart, weekEnd);
+                if (overlap > 0) {
+                    weeklyHours[samplerName] = (weeklyHours[samplerName] || 0) + overlap;
+                    console.log(`📊 Weekly - ${samplerName}: +${overlap}h (Other Job overlap - ${otherJob.jobDescription?.substring(0, 30)}...)`);
                 }
             }
         });

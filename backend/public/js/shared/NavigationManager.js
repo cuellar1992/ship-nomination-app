@@ -21,6 +21,8 @@ class NavigationManager {
             return 'sampling-roster';
         } else if (filename === 'truck-loading.html') {
             return 'truck-loading';
+        } else if (filename === 'other-jobs.html') {
+            return 'other-jobs';
         }
         return 'home';
     }
@@ -52,6 +54,9 @@ class NavigationManager {
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="truck-loading.html" data-page="truck-loading">Molekulis Loading</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="other-jobs.html" data-page="other-jobs">Other Jobs</a>
                             </li>
                         </ul>
                         

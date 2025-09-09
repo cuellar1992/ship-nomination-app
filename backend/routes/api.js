@@ -14,6 +14,7 @@ const producttypesRoutes = require('./producttypes');
 const shipnominationsRoutes = require('./shipnominations');
 const samplingRosterRoutes = require('./samplingrosters');
 const truckWorkDayRoutes = require('./truckworkdays');
+const otherJobRoutes = require('./otherjobs');
 
 // Registrar rutas
 router.use('/clients', clientRoutes);
@@ -27,6 +28,7 @@ router.use('/producttypes', producttypesRoutes);
 router.use('/shipnominations', shipnominationsRoutes); 
 router.use('/sampling-rosters', samplingRosterRoutes);   
 router.use('/truckworkdays', truckWorkDayRoutes);
+router.use('/otherjobs', otherJobRoutes);
 
 // GET /api/test - Ruta de prueba
 router.get('/test', (req, res) => {

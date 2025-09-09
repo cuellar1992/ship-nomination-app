@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Other Jobs</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/style.css" />
+    <link rel="stylesheet" href="/css/ship-nominations.css" />
+    <link rel="stylesheet" href="/css/dashboard.css" />
+  </head>
+  <body>
+    <!-- Navigation injected by NavigationManager.js -->
+
+    <main class="main-content" style="padding-top: 90px; padding-bottom: 40px;">
+      <div class="container">
+        <!-- Page Header styled like ship form -->
+        <div class="ship-form-container section-primary">
+          <div class="ship-form-header d-flex justify-content-between align-items-center">
+            <div class="ship-form-title-container">
+              <div class="ship-form-icon">
+                <i class="fas fa-briefcase"></i>
+              </div>
+              <div>
+                <div class="ship-form-title-text">Other Jobs</div>
+                <div class="ship-form-subtitle">Additional work assignments and scheduling</div>
+              </div>
+            </div>
+            <div class="d-flex align-items-center">
+              <span class="badge bg-secondary me-2">Type</span>
+              <span style="font-weight: 600;">Additional Work</span>
+            </div>
+          </div>
+          <div class="ship-form-body">
+            <!-- Job Description Section -->
+            <div class="ship-form-row">
+              <div class="ship-form-grid" style="grid-template-columns: 180px 1fr; gap: 1rem;">
+                <div class="ship-form-field">
+                  <label class="ship-form-label" for="jobDescription">Job Description</label>
+                </div>
+                <div class="ship-form-field">
+                  <textarea 
+                    id="jobDescription" 
+                    class="form-control" 
+                    rows="3" 
+                    placeholder="Describe the additional work to be performed..."
+                    style="resize: vertical; min-height: 80px;"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Who / Shift Section -->
+            <div class="ship-form-row">
+              <div class="ship-form-grid" style="grid-column: 1 / -1;">
+                <div class="ship-form-field" style="grid-column: 1 / -1;">
+                  <label class="ship-form-label"><i class="fas fa-user-clock"></i>Who / Shift</label>
+                  <div class="table-responsive">
+                    <table class="sampling-table sampling-table--who w-100">
+                      <thead>
+                        <tr>
+                          <th>WHO</th>
+                          <th>START</th>
+                          <th>END</th>
+                          <th>HOURS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>
+                            <div id="otherJobSampler" class="singleselect-container"></div>
+                          </td>
+                          <td>
+                            <div id="shiftStart" class="datetime-picker-container"></div>
+                          </td>
+                          <td>
+                            <div id="shiftEnd" class="datetime-picker-container"></div>
+                          </td>
+                          <td>
+                            <input id="shiftHours" type="number" class="ship-form-input" placeholder="Auto" disabled />
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="ship-form-actions" style="justify-content: flex-end; gap: 0.5rem;">
+                    <button class="btn btn-outline-danger ship-form-btn" id="clearOtherJobFormBtn">
+                      <i class="fas fa-broom"></i>Clear
+                    </button>
+                    <button class="btn btn-primary-premium ship-form-btn" id="saveOtherJobFormBtn">
+                      <i class="fas fa-save"></i>Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Central Search/Filters between sections -->
+        <div class="ship-form-container section-secondary mt-3 filters-compact">
+          <div class="ship-form-body">
+            <div class="ship-form-row">
+              <div class="ship-form-grid" style="grid-template-columns: 1fr auto; gap: 0.75rem; align-items: center;">
+                <div class="ship-form-field">
+                  <div style="position: relative;">
+                    <input id="otherJobSearchInput" type="text" class="ship-form-input" placeholder="Search (description, person, status)" style="padding-left: 4.5rem !important; padding-right: 1rem !important; padding-top: 0.875rem !important; padding-bottom: 0.875rem !important;" />
+                    <i class="fas fa-search" style="position: absolute !important; left: 1.2rem !important; top: 50% !important; transform: translateY(-50%) !important; color: var(--text-muted) !important; font-size: 14px !important; z-index: 10 !important;"></i>
+                  </div>
+                </div>
+                <div class="ship-form-field" style="display:flex; gap:0.5rem; justify-content:flex-end;">
+                  <button id="otherJobAdvancedToggle" class="btn btn-secondary-premium ship-form-btn" type="button">
+                    <i class="fas fa-filter"></i>Advanced
+                  </button>
+                </div>
+              </div>
+              <div id="otherJobAdvancedPanel" style="display:none; margin-top:0.75rem; background: var(--bg-secondary); border:1px solid var(--border-dark); border-radius:8px; padding:0.75rem;">
+                <!-- Quick Filter Buttons - Matching Ship Nominations preset style -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; justify-content: flex-start;">
+                  <button id="otherJobThisMonthBtn" class="btn btn-preset" type="button" style="min-width: 90px; padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+                    <i class="fas fa-calendar-month me-1"></i>This Month
+                  </button>
+                  <button id="otherJobThisWeekBtn" class="btn btn-preset" type="button" style="min-width: 90px; padding: 0.5rem 0.75rem; font-size: 0.8rem;">
+                    <i class="fas fa-calendar-week me-1"></i>This Week
+                  </button>
+                </div>
+                <div class="ship-form-grid" style="grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 0.75rem;">
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="filterFrom">From</label>
+                    <div id="filterFrom"></div>
+                  </div>
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="filterTo">To</label>
+                    <div id="filterTo"></div>
+                  </div>
+                  <div class="ship-form-field">
+                    <label class="ship-form-label" for="filterSampler">Assigned To</label>
+                    <div id="filterSampler"></div>
+                  </div>
+                </div>
+                <div class="ship-form-actions" style="justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem;">
+                  <button id="otherJobClearBtn" class="btn btn-outline-danger ship-form-btn" type="button">
+                    <i class="fas fa-broom"></i>Clear
+                  </button>
+                  <button id="otherJobExportBtn" class="btn btn-secondary-premium ship-form-btn" type="button">
+                    <i class="fas fa-file-export"></i>Export
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- List Section -->
+        <div class="ship-form-container section-secondary" style="margin-top: 1rem;">
+          <div class="ship-form-header">
+            <div class="ship-form-title-container">
+              <div class="ship-form-icon">
+                <i class="fas fa-list"></i>
+              </div>
+              <div>
+                <div class="ship-form-title-text">Other Jobs List</div>
+                <div class="ship-form-subtitle">View and manage additional work assignments</div>
+              </div>
+            </div>
+          </div>
+          <div class="ship-form-body">
+            <div class="table-responsive">
+              <table class="table table-dark ship-table align-middle">
+                <thead>
+                  <tr>
+                    <th>
+                      <span>Date</span>
+                      <button id="otherJobDateSortToggle" class="btn btn-sm btn-outline-light ms-2" type="button" title="Toggle date sort">
+                        <i class="fas fa-sort"></i>
+                      </button>
+                    </th>
+                    <th>Description</th>
+                    <th>Who</th>
+                    <th>Hours</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="otherJobsTbody">
+                  <tr>
+                    <td colspan="6" class="empty-state text-center">
+                      <i class="fas fa-briefcase"></i>
+                      No other jobs yet. Use the form above to create one.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="truck-pagination minimal d-flex align-items-center" style="gap: 0.5rem; margin-top: 0.5rem; justify-content: space-between;">
+              <div id="otherJobPageInfo" class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">0 records</div>
+              <div class="d-flex align-items-center" style="gap: 0.5rem;">
+                <button id="otherJobPrevPageBtn" class="icon-btn" type="button" title="Previous">
+                  <i class="fas fa-chevron-left"></i>
+                </button>
+                <div id="otherJobPageNumbers" class="page-numbers d-flex" style="gap: 0.25rem;"></div>
+                <button id="otherJobNextPageBtn" class="icon-btn" type="button" title="Next">
+                  <i class="fas fa-chevron-right"></i>
+                </button>
+                <div class="d-flex align-items-center" style="gap: 0.25rem; margin-left: 0.5rem;">
+                  <select id="otherJobPageSizeSelect" class="ship-form-input minimal-select" style="width: auto; padding: 0.3rem 0.6rem; min-height: auto;">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="15">15</option>
+                  </select>
+                  <span class="page-info" style="font-size: 0.85rem; color: var(--text-secondary);">/ page</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ExcelJS Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+
+    <!-- 🌐 COMPONENTES COMPARTIDOS -->
+    <script src="/js/shared/NotificationService.js"></script>
+    <script src="/js/shared/singleselect.js"></script>
+    <script src="/js/shared/DateTimePicker.js"></script>
+    <script src="/js/shared/DatePicker.js"></script>
+    <script src="/js/shared/NavigationManager.js?v=20250902"></script>
+
+    <!-- 📊 OTHER JOBS EXPORTER -->
+    <script src="/js/otherJobs/services/OtherJobsExporter.js"></script>
+
+    <!-- 🚛 OTHER JOBS MODULE -->
+    <script src="/js/otherJobs/index.js"></script>
+  </body>
+</html>
