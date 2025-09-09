@@ -3092,11 +3092,13 @@ export class SamplingRosterController {
                   <div class="row text-center mb-3">
                     <div class="col-6">
                       <strong>Previous Shift:</strong><br>
+                      <small class="text-muted">Vessel: ${previousTurn?.vesselName || 'Unknown'}</small><br>
                       <small class="text-muted">Ends at</small><br>
                       <span class="fs-6">${previousTurn ? this.formatDateTimeForDisplay(previousTurn.end) : 'N/A'}</span>
                     </div>
                     <div class="col-6">
                       <strong>New Shift:</strong><br>
+                      <small class="text-muted">Vessel: ${this.selectedShipNomination?.vesselName || 'Current Vessel'}</small><br>
                       <small class="text-muted">Starts at</small><br>
                       <span class="fs-6">${newTurn ? this.formatDateTimeForDisplay(newTurn.start) : 'N/A'}</span>
                     </div>
@@ -3357,7 +3359,7 @@ export class SamplingRosterController {
         }
       ];
 
-      // 7️⃣ AGREGAR TURNOS RESTANTES SEGÚN ESTRATEGIA
+      // 7️⃣ AGREGAR TURNOS RESTANTES CON CONTINUIDAD ESTRICTA
       let currentStartTime = new Date(firstLineEnd);
 
       for (let i = 0; i < optimalStrategy.turns.length; i++) {
@@ -3365,16 +3367,27 @@ export class SamplingRosterController {
         const isLastTurn = i === optimalStrategy.turns.length - 1;
         
         let turnEndTime;
+        let actualHours;
+        
         if (isLastTurn) {
-          // Último turno termina exactamente en ETC
+          // 🔧 ÚLTIMO TURNO: Termina exactamente en ETC (continuidad hasta el final)
           turnEndTime = new Date(etcDate);
+          actualHours = Math.round((turnEndTime - currentStartTime) / (1000 * 60 * 60));
         } else {
-          // Turnos intermedios
+          // 🔧 TURNOS INTERMEDIOS: SIEMPRE 12h continuas desde el anterior
+          actualHours = 12; // Forzar 12 horas para turnos intermedios
           turnEndTime = new Date(currentStartTime);
-          turnEndTime.setHours(turnEndTime.getHours() + turnInfo.hours);
+          turnEndTime.setHours(turnEndTime.getHours() + actualHours);
         }
 
-        const actualHours = Math.round((turnEndTime - currentStartTime) / (1000 * 60 * 60));
+        console.log(`🔧 CONTINUOUS TURN ${i}:`, {
+          type: isLastTurn ? 'last' : 'intermediate',
+          samplerName: turnInfo.samplerName,
+          startTime: currentStartTime.toISOString(),
+          endTime: turnEndTime.toISOString(),
+          hours: actualHours,
+          isContinuous: true
+        });
 
         recalculatedTurns.push({
           samplerName: turnInfo.samplerName,
@@ -3383,6 +3396,7 @@ export class SamplingRosterController {
           hours: actualHours,
         });
 
+        // 🔧 CONTINUIDAD: Próximo turno inicia exactamente donde termina este
         currentStartTime = new Date(turnEndTime);
       }
 
@@ -3486,61 +3500,40 @@ export class SamplingRosterController {
       };
     }
 
-    // CASO 3: Necesitamos múltiples turnos
-    // Calcular cuántos turnos necesitamos idealmente
-    const idealTurns = Math.ceil(remainingHours / IDEAL_TURN_HOURS);
+    // CASO 3: Necesitamos múltiples turnos  
+    // 🔧 LÓGICA SIMPLIFICADA: Calcular solo cuántos turnos necesitamos
     const maxPossibleTurns = availableSamplers.length;
-    const actualTurns = Math.min(idealTurns, maxPossibleTurns);
+    
+    // Calcular cuántos turnos intermedios de 12h podemos hacer
+    const intermediateTurns = Math.floor(remainingHours / IDEAL_TURN_HOURS);
+    const hoursAfterIntermediates = remainingHours - (intermediateTurns * IDEAL_TURN_HOURS);
+    
+    // Determinar si necesitamos un turno final
+    const needsFinalTurn = hoursAfterIntermediates > 0;
+    const totalTurnsNeeded = intermediateTurns + (needsFinalTurn ? 1 : 0);
+    
+    // Ajustar si tenemos menos samplers disponibles
+    const actualTurns = Math.min(totalTurnsNeeded, maxPossibleTurns);
 
-    console.log(`🧠 MULTI-TURN ANALYSIS:`, {
-      idealTurns: idealTurns,
+    console.log(`🧠 CONTINUOUS TURN ANALYSIS:`, {
+      remainingHours: remainingHours,
+      intermediateTurns: intermediateTurns,
+      hoursAfterIntermediates: hoursAfterIntermediates,
+      needsFinalTurn: needsFinalTurn,
+      totalTurnsNeeded: totalTurnsNeeded,
       maxPossibleTurns: maxPossibleTurns,
-      actualTurns: actualTurns,
-      avgHoursPerTurn: remainingHours / actualTurns
+      actualTurns: actualTurns
     });
 
-    // Distribuir horas entre los turnos de manera inteligente
+    // 🔧 GENERAR TURNOS SIMPLES: Solo asignar samplers
     const turns = [];
-    let hoursLeft = remainingHours;
-
     for (let i = 0; i < actualTurns; i++) {
-      const isLastTurn = i === actualTurns - 1;
-      let turnHours;
-
-      if (isLastTurn) {
-        // Último turno toma todas las horas restantes
-        turnHours = hoursLeft;
-      } else {
-        // Turnos intermedios: intentar 12h pero ajustar si es necesario
-        const remainingTurns = actualTurns - i;
-        const avgHoursForRemainingTurns = hoursLeft / remainingTurns;
-        
-        if (avgHoursForRemainingTurns <= IDEAL_TURN_HOURS) {
-          // Si el promedio es ≤12h, usar el promedio
-          turnHours = Math.round(avgHoursForRemainingTurns);
-        } else {
-          // Si el promedio es >12h, usar 12h para este turno
-          turnHours = IDEAL_TURN_HOURS;
-        }
-      }
-
-      // Validar límites
-      turnHours = Math.max(MIN_TURN_HOURS, Math.min(MAX_TURN_HOURS, turnHours));
-
       turns.push({
         samplerName: availableSamplers[i].samplerName,
-        hours: turnHours
+        index: i,
+        // Las horas se calcularán dinámicamente en el loop principal
+        // para garantizar continuidad exacta
       });
-
-      hoursLeft -= turnHours;
-    }
-
-    // Ajuste final: si quedaron horas, agregar al último turno
-    if (hoursLeft > 0) {
-      turns[turns.length - 1].hours += hoursLeft;
-    } else if (hoursLeft < 0) {
-      // Si nos pasamos, reducir del último turno
-      turns[turns.length - 1].hours += hoursLeft; // hoursLeft es negativo
     }
 
     const strategy = {
