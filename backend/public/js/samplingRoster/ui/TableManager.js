@@ -1376,6 +1376,8 @@ export class TableManager {
       return {
         isValid: true,
         message: "Valid time sequence for first line",
+        hours: hoursDiff,
+        suggestETCAdjustment: false // Por defecto no sugerir ajuste
       };
     } catch (error) {
       return {
@@ -1383,6 +1385,19 @@ export class TableManager {
         message: "Validation error",
       };
     }
+  }
+
+  /**
+   * 🆕 Detectar si es una operación especial (desde TableManager)
+   */
+  isSpecialOperation() {
+    // Acceder al controller para obtener la nomination actual
+    if (window.samplingRosterController && window.samplingRosterController.selectedShipNomination) {
+      const nomination = window.samplingRosterController.selectedShipNomination;
+      return window.samplingRosterController.isAmpolKurnell(nomination) || 
+             window.samplingRosterController.isBaseOils(nomination);
+    }
+    return false;
   }
 
   /**

@@ -3256,11 +3256,64 @@ export class SamplingRosterController {
       });
 
       // 4️⃣ VALIDACIONES BÁSICAS
+      // 🔧 EXCEPCIÓN PARA OPERACIONES ESPECIALES: Permitir que primera línea exceda ETC
+      const isSpecialOperation = this.selectedShipNomination && 
+        (this.isAmpolKurnell(this.selectedShipNomination) || this.isBaseOils(this.selectedShipNomination));
+      
       if (totalRemainingHours < 0) {
-        return {
-          success: false,
-          message: `First line ends after ETC. First line ends at ${firstLineEnd.toLocaleString()} but ETC is ${etcDate.toLocaleString()}`,
-        };
+        if (isSpecialOperation) {
+          // Para operaciones especiales: ajustar ETC automáticamente al final de la primera línea
+          const adjustedETC = new Date(firstLineEnd);
+          
+          Logger.warn("🔧 Special operation: ETC adjusted automatically", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              operationType: this.isAmpolKurnell(this.selectedShipNomination) ? 'Ampol Kurnell' : 'Base Oils',
+              originalETC: etcDate.toLocaleString(),
+              adjustedETC: adjustedETC.toLocaleString(),
+              firstLineEnd: firstLineEnd.toLocaleString()
+            },
+            showNotification: true,
+            notificationMessage: `ETC automatically adjusted for special operation: ${adjustedETC.toLocaleString()}`
+          });
+
+          // Actualizar ETC en el formulario para reflejar el ajuste
+          const dateTimeInstances = this.uiManager.getDateTimeInstances();
+          if (dateTimeInstances.etcTime?.setDateTime) {
+            dateTimeInstances.etcTime.setDateTime(adjustedETC);
+          }
+
+          // Continuar con ETC ajustado (solo primera línea necesaria)
+          const finalTurns = [{
+            samplerName: currentTurns[0].samplerName,
+            startTime: this.tableManager.formatDateTime(firstLineData.startDate),
+            finishTime: this.tableManager.formatDateTime(firstLineData.finishDate),
+            hours: firstLineData.hours,
+          }];
+
+          this.tableManager.populateLineSamplingTable(finalTurns);
+          this.setupTableEventListeners();
+
+          // Trigger auto-save con ETC actualizado
+          this.autoSaveService.trigger('timeUpdate', {
+            etcTime: adjustedETC,
+            hasCustomETC: true
+          });
+
+          Logger.success("Special operation schedule adjusted", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            showNotification: true,
+            notificationMessage: "Schedule adjusted for special operation"
+          });
+
+          return { success: true, data: finalTurns };
+        } else {
+          // Para operaciones normales: mantener validación estricta
+          return {
+            success: false,
+            message: `First line ends after ETC. First line ends at ${firstLineEnd.toLocaleString()} but ETC is ${etcDate.toLocaleString()}`,
+          };
+        }
       }
 
       if (totalRemainingHours === 0) {
