@@ -1226,21 +1226,23 @@ class TableFilters {
             <td>${nomination.chemist}</td>
             <td>${nomination.status}</td>
             <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="window.simpleShipForm.viewNomination('${
-                  nomination.id
-                }')">
-                    <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="window.simpleShipForm.editNomination('${
-                  nomination.id
-                }')">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="window.simpleShipForm.deleteNomination('${
-                  nomination.id
-                }')">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <div class="d-flex" style="gap: 0.375rem;">
+                    <button class="btn btn-sm btn-outline-info" onclick="window.simpleShipForm.viewNomination('${
+                      nomination.id
+                    }')" title="View Details">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="window.simpleShipForm.editNomination('${
+                      nomination.id
+                    }')" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="window.simpleShipForm.deleteNomination('${
+                      nomination.id
+                    }')" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
             </td>
         `;
 

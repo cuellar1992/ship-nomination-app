@@ -184,7 +184,7 @@ class TableManager {
                 ${berthName}
             </td>
             <td>
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="d-flex" style="gap: 0.375rem;">
                     <button type="button" class="btn btn-outline-info btn-sm" 
                             onclick="window.simpleShipForm.viewNomination('${nomination._id}')"
                             title="View Details">
