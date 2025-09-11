@@ -2138,6 +2138,19 @@ class DashboardManager {
                 }
             });
 
+            // 💼 Other Jobs: sumar traslape por cada trabajo adicional
+            let otherJobsCount = 0;
+            (this.data.otherJobs || []).forEach(otherJob => {
+                if (otherJob.shift && otherJob.shift.startTime && otherJob.shift.endTime && otherJob.samplerName === sampler.name) {
+                    const overlap = this.getOverlapHours(otherJob.shift.startTime, otherJob.shift.endTime, weekStart, weekEnd);
+                    if (overlap > 0) {
+                        totalHours += overlap;
+                        otherJobsCount++;
+                        console.log(`📊 ${sampler.name}: +${overlap}h (Other Job overlap - ${otherJob.jobDescription || 'Additional work'})`);
+                    }
+                }
+            });
+
             const weeklyLimit = sampler.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
             // Normalize to avoid floating artifacts in UI; hours are whole-hour based in business rules
             totalHours = Math.round(totalHours);
@@ -2148,10 +2161,11 @@ class DashboardManager {
                 limit: weeklyLimit,
                 percentage: (totalHours / weeklyLimit) * 100,
                 rosterCount: rosterCount,
-                truckWorkCount: truckWorkCount
+                truckWorkCount: truckWorkCount,
+                otherJobsCount: otherJobsCount
             };
             
-            console.log(`📊 ${sampler.name}: ${totalHours}h/${weeklyLimit}h (${result.percentage.toFixed(1)}%) - ${rosterCount} rosters + ${truckWorkCount} truck work days`);
+            console.log(`📊 ${sampler.name}: ${totalHours}h/${weeklyLimit}h (${result.percentage.toFixed(1)}%) - ${rosterCount} rosters + ${truckWorkCount} truck work days + ${otherJobsCount} other jobs`);
             
             return result;
         });
