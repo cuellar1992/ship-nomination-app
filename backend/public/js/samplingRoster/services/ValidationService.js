@@ -6,6 +6,7 @@
 import { SAMPLING_ROSTER_CONSTANTS } from "../utils/Constants.js";
 import DateUtils from "../utils/DateUtils.js";
 import ValidationCacheService from "./ValidationCacheService.js";
+import { PerformanceTracker } from "./PerformanceMonitor.js";
 
 export class ValidationService {
   // 🚀 Cache service para optimizar validaciones
@@ -143,6 +144,7 @@ export class ValidationService {
     turnsInMemory = null,
     excludeRosterId = null
   ) {
+    const startTime = performance.now();
     try {
       // Verificar si el sampler tiene límite semanal
       const weeklyLimit =
@@ -212,6 +214,14 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar métrica de performance
+      PerformanceTracker.validation('weeklyLimit', isValid, performance.now() - startTime, {
+        samplerName,
+        proposedHours,
+        weeklyLimit,
+        currentWeeklyHours
+      });
+
       return result;
     } catch (error) {
       Logger.error("Error validating weekly limit", {
@@ -220,6 +230,9 @@ export class ValidationService {
         data: { samplerName, proposedHours },
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateSamplerWeeklyLimit', error);
 
       return {
         isValid: true, // Fallback: permitir si hay error
@@ -266,13 +279,18 @@ export class ValidationService {
       const isDayRestricted = samplerData.weekDayRestrictions[dayName] || false;
 
       // 🔍 DEBUG: Log de validación de días
-      console.log(`🔍 DAY RESTRICTION VALIDATION for ${samplerName}:`, {
-        proposedDate: proposedDate.toISOString(),
-        dayOfWeek: dayOfWeek,
-        dayName: dayName,
-        weekDayRestrictions: samplerData.weekDayRestrictions,
-        isDayRestricted: isDayRestricted,
-        isValid: !isDayRestricted
+      Logger.debug("Day restriction validation", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          proposedDate: proposedDate.toISOString(),
+          dayOfWeek: dayOfWeek,
+          dayName: dayName,
+          weekDayRestrictions: samplerData.weekDayRestrictions,
+          isDayRestricted: isDayRestricted,
+          isValid: !isDayRestricted
+        },
+        showNotification: false,
       });
 
       return {
@@ -292,6 +310,9 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateSamplerDayRestriction', error);
 
       return {
         isValid: true, // Fallback: permitir si hay error
@@ -324,10 +345,15 @@ export class ValidationService {
         const foundSampler = result.data.find((s) => s.name === samplerName);
         
         // 🔍 DEBUG: Log de datos obtenidos del sampler
-        console.log(`🔍 SAMPLER DATA from API for ${samplerName}:`, {
-          found: !!foundSampler,
-          data: foundSampler,
-          weekDayRestrictions: foundSampler?.weekDayRestrictions
+        Logger.debug("Sampler data retrieved from API", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            samplerName: samplerName,
+            found: !!foundSampler,
+            data: foundSampler,
+            weekDayRestrictions: foundSampler?.weekDayRestrictions
+          },
+          showNotification: false,
         });
         
         return foundSampler;
@@ -340,6 +366,10 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'getSamplerData', error);
+
       return null;
     }
   }
@@ -460,6 +490,9 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateSamplerForGenerationWithCache', error);
+
       validations.overall = {
         isValid: false,
         message: `Cache validation error: ${error.message}`,
@@ -562,6 +595,9 @@ export class ValidationService {
         data: { samplerName, startTime: DateUtils.formatDateTime(startTime) },
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateSamplerForGeneration', error);
 
       validations.overall = {
         isValid: false,
@@ -952,6 +988,9 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'calculateSamplerWeeklyHours', error);
+
       return 0; // Fallback: 0 horas si hay error
     }
   }
@@ -1014,6 +1053,10 @@ export class ValidationService {
         data: { samplerName, referenceDate: referenceDate?.toISOString() },
         showNotification: true,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'testSamplerWeeklyHours', error);
+
       return null;
     }
   }
@@ -1073,6 +1116,10 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'calculateMemoryTurnHours', error);
+
       return 0;
     }
   }
@@ -1128,6 +1175,10 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'calculateSavedRosterHours', error);
+
       return 0;
     }
   }
@@ -1212,6 +1263,10 @@ export class ValidationService {
         data: { samplerName, weekStart: weekStart?.toISOString(), weekEnd: weekEnd?.toISOString() },
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'calculateTruckLoadingHours', error);
+
       return 0;
     }
   }
@@ -1296,6 +1351,10 @@ export class ValidationService {
         data: { samplerName, weekStart: weekStart?.toISOString(), weekEnd: weekEnd?.toISOString() },
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'calculateOtherJobsHours', error);
+
       return 0;
     }
   }
@@ -1401,9 +1460,15 @@ export class ValidationService {
           previousTurn.type !== "proposed" &&
           currentTurn.type !== "proposed"
         ) {
-          console.log(
-            `⏭️ SKIPPING validación histórica: ${previousTurn.type} → ${currentTurn.type}`
-          );
+        Logger.debug("Skipping historical validation", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            previousType: previousTurn.type,
+            currentType: currentTurn.type,
+            reason: "Historical turns don't need validation between each other"
+          },
+          showNotification: false,
+        });
           continue;
         }
 
@@ -1412,10 +1477,18 @@ export class ValidationService {
           currentTurn.start
         );
 
-        console.log(`🔍 VALIDANDO: ${previousTurn.type} → ${currentTurn.type}`);
-        console.log(`   Previous end: ${previousTurn.end.toLocaleString()}`);
-        console.log(`   Current start: ${currentTurn.start.toLocaleString()}`);
-        console.log(`   Rest hours: ${restHours}h`);
+        Logger.debug("Validating rest period between turns", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            previousType: previousTurn.type,
+            currentType: currentTurn.type,
+            previousEnd: previousTurn.end.toLocaleString(),
+            currentStart: currentTurn.start.toLocaleString(),
+            restHours: restHours,
+            minimumRequired: minimumRestHours
+          },
+          showNotification: false,
+        });
 
         if (restHours < minimumRestHours) {
           // 🔧 FIX: Usar fechas locales directamente sin DateUtils.formatDateTime
@@ -1461,6 +1534,9 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateMinimumRestWithMemory', error);
 
       return {
         isValid: true, // Fallback: permitir si hay error
@@ -1515,8 +1591,11 @@ export class ValidationService {
           excludeRosterId
         );
 
-        // 🔍 DEBUG: Log cada sampler y sus validaciones
-        console.log(`🔍 SAMPLER VALIDATION (CACHED): ${sampler.name}`, {
+      // 🔍 DEBUG: Log cada sampler y sus validaciones
+      Logger.debug("Sampler validation (cached)", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: sampler.name,
           weekly: validations.weekly?.isValid,
           weeklyMsg: validations.weekly?.message,
           dayRestriction: validations.dayRestriction?.isValid,
@@ -1527,7 +1606,9 @@ export class ValidationService {
           pobConflict: validations.pobConflict?.isValid,
           pobMsg: validations.pobConflict?.message,
           overall: validations.overall?.isValid,
-        });
+        },
+        showNotification: false,
+      });
 
         if (validations.overall.isValid) {
           availableSamplers.push({
@@ -1559,6 +1640,9 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'findAvailableSamplersForGeneration', error);
+
       // Fallback: usar validación directa si el cache falla
       return await this.findAvailableSamplersForGenerationFallback(
         startTime,
@@ -1581,11 +1665,15 @@ export class ValidationService {
     currentRosterId = null
   ) {
     try {
-      console.log("🔍 POB VALIDATION CALLED:", {
-        samplerName: samplerName,
-        proposedStart: proposedStartTime,
-        proposedEnd: proposedEndTime,
-        isSakib: samplerName === "Sakib",
+      Logger.debug("POB validation called", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          samplerName: samplerName,
+          proposedStart: proposedStartTime,
+          proposedEnd: proposedEndTime,
+          isSakib: samplerName === "Sakib",
+        },
+        showNotification: false,
       });
       // ✅ CORREGIDO: Manejar tanto Date objects como strings
       const proposedEnd =
@@ -1635,34 +1723,46 @@ export class ValidationService {
       // Check for POB conflicts
       for (const nomination of nominations) {
         // 🔍 DEBUG: Log cada nomination
-        console.log("🔍 CHECKING NOMINATION:", {
-          vessel: nomination.vesselName,
-          nominationSampler: nomination.sampler?.name,
-          targetSampler: samplerName,
-          matches: nomination.sampler?.name === samplerName,
+        Logger.debug("Checking nomination for POB conflict", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            vessel: nomination.vesselName,
+            nominationSampler: nomination.sampler?.name,
+            targetSampler: samplerName,
+            matches: nomination.sampler?.name === samplerName,
+          },
+          showNotification: false,
         });
-        console.log("🔍 NOMINATIONS FOUND:", {
-          total: nominations.length,
-          nominations: nominations.map((n) => ({
-            vessel: n.vesselName,
-            sampler: n.sampler?.name,
-            pob: n.pilotOnBoard,
-            etc: n.etc,
-          })),
+        Logger.debug("Nominations found for POB validation", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            total: nominations.length,
+            nominations: nominations.map((n) => ({
+              vessel: n.vesselName,
+              sampler: n.sampler?.name,
+              pob: n.pilotOnBoard,
+              etc: n.etc,
+            })),
+          },
+          showNotification: false,
         });
         if (nomination.sampler && nomination.sampler.name === samplerName) {
-          console.log("🔍 PARSING NOMINATION DATES:", {
-            vessel: nomination.vesselName,
-            rawPOB: nomination.pilotOnBoard,
-            rawETC: nomination.etc,
-            pobParsed:
-              nomination.pilotOnBoard instanceof Date
-                ? nomination.pilotOnBoard
-                : this.parseLocalDateTime(nomination.pilotOnBoard),
-            etcParsed:
-              nomination.etc instanceof Date
-                ? nomination.etc
-                : this.parseLocalDateTime(nomination.etc),
+          Logger.debug("Parsing nomination dates for POB validation", {
+            module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+            data: {
+              vessel: nomination.vesselName,
+              rawPOB: nomination.pilotOnBoard,
+              rawETC: nomination.etc,
+              pobParsed:
+                nomination.pilotOnBoard instanceof Date
+                  ? nomination.pilotOnBoard
+                  : this.parseLocalDateTime(nomination.pilotOnBoard),
+              etcParsed:
+                nomination.etc instanceof Date
+                  ? nomination.etc
+                  : this.parseLocalDateTime(nomination.etc),
+            },
+            showNotification: false,
           });
           const pobDate =
             nomination.pilotOnBoard instanceof Date
@@ -1675,17 +1775,21 @@ export class ValidationService {
               : new Date(nomination.etc);
 
           if (pobDate && etcDate) {
-            console.log("🔍 CHECKING OVERLAP:", {
-              vessel: nomination.vesselName,
-              samplerName: samplerName,
-              pobDate: pobDate,
-              etcDate: etcDate,
-              proposedStart: proposedStart,
-              proposedEnd: proposedEnd,
-              hasOverlap: pobDate < proposedEnd && etcDate > proposedStart,
-              pobBeforeEnd: pobDate < proposedEnd,
-              etcAfterStart: etcDate > proposedStart,
-              isSakibNomination: nomination.sampler?.name === samplerName,
+            Logger.debug("Checking POB overlap", {
+              module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+              data: {
+                vessel: nomination.vesselName,
+                samplerName: samplerName,
+                pobDate: pobDate,
+                etcDate: etcDate,
+                proposedStart: proposedStart,
+                proposedEnd: proposedEnd,
+                hasOverlap: pobDate < proposedEnd && etcDate > proposedStart,
+                pobBeforeEnd: pobDate < proposedEnd,
+                etcAfterStart: etcDate > proposedStart,
+                isSakibNomination: nomination.sampler?.name === samplerName,
+              },
+              showNotification: false,
             });
             // ✅ NUEVA LÓGICA: Detectar overlap entre nomination y turno propuesto
             // Conflict si nomination está activa durante el turno propuesto
@@ -1721,6 +1825,9 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateAgainstFutureNominations', error);
 
       return {
         isValid: true,
@@ -1813,6 +1920,9 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'validateSamplerAvailability', error);
+
       return {
         isAvailable: true, // Fallback: asumir disponible si hay error
         conflicts: [],
@@ -1877,6 +1987,9 @@ export class ValidationService {
         error: error,
         showNotification: false,
       });
+
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'loadActiveRosters', error);
 
       return []; // Fallback: array vacío
     }
@@ -2013,9 +2126,15 @@ export class ValidationService {
 
       // 🔧 SKIP: No validar turnos históricos entre sí
       if (previousTurn.type !== "proposed" && currentTurn.type !== "proposed") {
-        console.log(
-          `⏭️ SKIPPING validación histórica cross-vessel: ${previousTurn.type} → ${currentTurn.type}`
-        );
+        Logger.debug("Skipping cross-vessel historical validation", {
+          module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+          data: {
+            previousType: previousTurn.type,
+            currentType: currentTurn.type,
+            reason: "Cross-vessel historical turns don't need validation between each other"
+          },
+          showNotification: false,
+        });
         continue;
       }
 
@@ -2024,12 +2143,18 @@ export class ValidationService {
         currentTurn.start
       );
 
-      console.log(
-        `🔍 VALIDANDO cross-vessel: ${previousTurn.type} → ${currentTurn.type}`
-      );
-      console.log(`   Previous end: ${previousTurn.end.toLocaleString()}`);
-      console.log(`   Current start: ${currentTurn.start.toLocaleString()}`);
-      console.log(`   Rest hours: ${restHours}h`);
+      Logger.debug("Validating cross-vessel rest period", {
+        module: SAMPLING_ROSTER_CONSTANTS.LOG_CONFIG.MODULE_NAME,
+        data: {
+          previousType: previousTurn.type,
+          currentType: currentTurn.type,
+          previousEnd: previousTurn.end.toLocaleString(),
+          currentStart: currentTurn.start.toLocaleString(),
+          restHours: restHours,
+          minimumRequired: minimumRestHours
+        },
+        showNotification: false,
+      });
 
       if (restHours < minimumRestHours) {
         return {
@@ -2205,6 +2330,9 @@ export class ValidationService {
         showNotification: false,
       });
 
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'loadActiveRostersForExtendedPeriod', error);
+
       return [];
     }
   }
@@ -2267,6 +2395,10 @@ if (typeof window !== 'undefined') {
       return result;
     } catch (error) {
       console.error('🧪 Test failed:', error);
+      
+      // Registrar error de performance
+      PerformanceTracker.error('ValidationService', 'testSamplerWeeklyHours', error);
+      
       return null;
     }
   };

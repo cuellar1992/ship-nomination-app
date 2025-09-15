@@ -8,6 +8,9 @@ import DateUtils from "../utils/DateUtils.js";
 import ValidationService from "./ValidationService.js";
 import ValidationCacheService from "./ValidationCacheService.js";
 
+// Importar PerformanceTracker para métricas
+import { PerformanceTracker } from "./PerformanceMonitor.js";
+
 export class ScheduleCalculator {
   static samplerRotationHistory = new Map(); // Track last assignments per generation
   static samplerWeeklyHoursTracking = new Map(); // Track weekly hours distribution
@@ -24,223 +27,273 @@ export class ScheduleCalculator {
     samplersData,
     currentRosterId = null
   ) {
-    const turns = [];
-
-    // Validar datos de entrada
-    const officeFinishDate = DateUtils.parseDateTime(officeData.finishTime);
-    if (!officeFinishDate) {
-      throw new Error("Invalid Office Sampling finish time");
-    }
-
-    if (!samplersData || samplersData.length === 0) {
-      throw new Error("No samplers available");
-    }
-
-    Logger.debug("Starting Line Sampling calculation", {
-      module: "SamplingRoster",
-      data: {
-        officeFinish: officeData.finishTime,
-        officeSampler: officeData.samplerName,
-        officeHours: officeData.hours,
-        totalDischargeHours: totalHours,
-        availableSamplers: samplersData.length,
-        currentRosterId: currentRosterId,
-      },
-      showNotification: false,
-    });
-
-    // 🚀 OPTIMIZACIÓN: Precargar cache de validaciones para toda la semana (3-5 consultas)
-    let weekValidationCache = null;
+    const startTime = performance.now();
+    
     try {
-      const weekBounds = ValidationService.getWorkWeekBounds(officeFinishDate);
-      weekValidationCache = await this.cacheService.preloadWeekValidationData(
-        weekBounds.weekStart,
-        weekBounds.weekEnd,
-        currentRosterId
-      );
+      // Validar datos de entrada
+      if (!officeData || typeof officeData !== 'object') {
+        throw new Error("officeData is required and must be an object");
+      }
+
+      if (!officeData.finishTime) {
+        throw new Error("officeData.finishTime is required");
+      }
+
+      if (!officeData.samplerName) {
+        throw new Error("officeData.samplerName is required");
+      }
+
+      if (!officeData.hours || isNaN(officeData.hours) || officeData.hours <= 0) {
+        throw new Error("officeData.hours must be a positive number");
+      }
+
+      if (!totalHours || isNaN(totalHours) || totalHours <= 0) {
+        throw new Error("totalHours must be a positive number");
+      }
+
+      if (!Array.isArray(samplersData) || samplersData.length === 0) {
+        throw new Error("samplersData must be a non-empty array");
+      }
+
+      const turns = [];
+      const officeFinishDate = DateUtils.parseDateTime(officeData.finishTime);
       
-      Logger.info("Validation cache preloaded successfully", {
+      if (!officeFinishDate) {
+        throw new Error("Invalid Office Sampling finish time format");
+      }
+
+      Logger.debug("Starting Line Sampling calculation", {
         module: "SamplingRoster",
         data: {
-          weekBounds: `${DateUtils.formatDateTime(weekBounds.weekStart)} - ${DateUtils.formatDateTime(weekBounds.weekEnd)}`,
-          rostersInCache: weekValidationCache.activeRosters.length,
-          nominationsInCache: weekValidationCache.weekNominations.length,
-          samplersInCache: weekValidationCache.samplersData.length,
-        },
-        showNotification: false,
-      });
-    } catch (error) {
-      Logger.warn("Failed to preload validation cache, continuing with direct validation", {
-        module: "SamplingRoster",
-        error: error,
-        showNotification: false,
-      });
-    }
-
-    let currentStartTime = new Date(officeFinishDate);
-    let remainingHours = totalHours;
-
-    // 🎯 PASO 1: Calcular primer turno con validaciones mejoradas
-    const firstTurnResult = await this.calculateFirstTurnWithValidations(
-      officeData,
-      currentStartTime,
-      remainingHours,
-      currentRosterId
-    );
-
-    if (firstTurnResult.canContinue) {
-      turns.push(firstTurnResult.turn);
-      currentStartTime = DateUtils.parseDateTime(
-        firstTurnResult.turn.finishTime
-      );
-      remainingHours -= firstTurnResult.turn.hours;
-
-      Logger.debug("First turn: Office Sampler continues", {
-        module: "SamplingRoster",
-        data: {
-          sampler: firstTurnResult.turn.samplerName,
-          hours: firstTurnResult.turn.hours,
-          totalOfficeSamplerHours:
-            officeData.hours + firstTurnResult.turn.hours,
-          remainingHours: remainingHours,
-          weeklyValidation: firstTurnResult.weeklyValidation?.message || "N/A",
-        },
-        showNotification: false,
-      });
-    } else {
-      Logger.debug("First turn: Office Sampler cannot continue", {
-        module: "SamplingRoster",
-        data: {
-          reason: firstTurnResult.reason || "Would exceed limits",
+          officeFinish: officeData.finishTime,
+          officeSampler: officeData.samplerName,
           officeHours: officeData.hours,
-          hoursToNextBlock: firstTurnResult.hoursToNextBlock,
-          weeklyValidation: firstTurnResult.weeklyValidation?.message || "N/A",
+          totalDischargeHours: totalHours,
+          availableSamplers: samplersData.length,
+          currentRosterId: currentRosterId,
         },
         showNotification: false,
       });
-    }
 
-    // 🎯 PASO 2: Generar turnos restantes con validaciones completas
-    let attemptCount = 0;
-    const maxAttempts = remainingHours * 2; // Prevenir loops infinitos
-
-    while (remainingHours > 0 && attemptCount < maxAttempts) {
-      attemptCount++;
-
-      const nextTurnResult = await this.calculateNextTurnWithValidations(
-        currentStartTime,
-        remainingHours,
-        samplersData,
-        turns, // Pasar turnos ya generados
-        officeData,
-        currentRosterId,
-        weekValidationCache // 🚀 Pasar cache de validaciones
-      );
-
-      if (nextTurnResult.success) {
-        turns.push(nextTurnResult.turn);
-        currentStartTime = DateUtils.parseDateTime(
-          nextTurnResult.turn.finishTime
+      // 🚀 OPTIMIZACIÓN: Precargar cache de validaciones para toda la semana (3-5 consultas)
+      let weekValidationCache = null;
+      try {
+        const weekBounds = ValidationService.getWorkWeekBounds(officeFinishDate);
+        weekValidationCache = await this.cacheService.preloadWeekValidationData(
+          weekBounds.weekStart,
+          weekBounds.weekEnd,
+          currentRosterId
         );
-        remainingHours -= nextTurnResult.turn.hours;
-
-        Logger.debug(`Turn ${turns.length} calculated successfully`, {
+        
+        Logger.info("Validation cache preloaded successfully", {
           module: "SamplingRoster",
           data: {
-            sampler: nextTurnResult.turn.samplerName,
-            start: nextTurnResult.turn.startTime,
-            finish: nextTurnResult.turn.finishTime,
-            hours: nextTurnResult.turn.hours,
+            weekBounds: `${DateUtils.formatDateTime(weekBounds.weekStart)} - ${DateUtils.formatDateTime(weekBounds.weekEnd)}`,
+            rostersInCache: weekValidationCache.activeRosters.length,
+            nominationsInCache: weekValidationCache.weekNominations.length,
+            samplersInCache: weekValidationCache.samplersData.length,
+          },
+          showNotification: false,
+        });
+      } catch (error) {
+        Logger.warn("Failed to preload validation cache, continuing with direct validation", {
+          module: "SamplingRoster",
+          error: error,
+          showNotification: false,
+        });
+      }
+
+      let currentStartTime = new Date(officeFinishDate);
+      let remainingHours = totalHours;
+
+      // 🎯 PASO 1: Calcular primer turno con validaciones mejoradas
+      const firstTurnResult = await this.calculateFirstTurnWithValidations(
+        officeData,
+        currentStartTime,
+        remainingHours,
+        currentRosterId
+      );
+
+      if (firstTurnResult.canContinue) {
+        turns.push(firstTurnResult.turn);
+        currentStartTime = DateUtils.parseDateTime(
+          firstTurnResult.turn.finishTime
+        );
+        remainingHours -= firstTurnResult.turn.hours;
+
+        Logger.debug("First turn: Office Sampler continues", {
+          module: "SamplingRoster",
+          data: {
+            sampler: firstTurnResult.turn.samplerName,
+            hours: firstTurnResult.turn.hours,
+            totalOfficeSamplerHours:
+              officeData.hours + firstTurnResult.turn.hours,
             remainingHours: remainingHours,
-            validationsPassed:
-              nextTurnResult.validations?.overall.isValid || false,
-            weeklyStatus: nextTurnResult.validations?.weekly?.message || "N/A",
+            weeklyValidation: firstTurnResult.weeklyValidation?.message || "N/A",
           },
           showNotification: false,
         });
       } else {
-        Logger.warn(`Failed to assign turn (attempt ${attemptCount})`, {
+        Logger.debug("First turn: Office Sampler cannot continue", {
           module: "SamplingRoster",
           data: {
-            remainingHours: remainingHours,
-            reason: nextTurnResult.reason,
-            availableSamplers: nextTurnResult.availableSamplers || 0,
+            reason: firstTurnResult.reason || "Would exceed limits",
+            officeHours: officeData.hours,
+            hoursToNextBlock: firstTurnResult.hoursToNextBlock,
+            weeklyValidation: firstTurnResult.weeklyValidation?.message || "N/A",
           },
           showNotification: false,
         });
+      }
 
-        // Intentar con estrategia de fallback
-        const fallbackResult = await this.calculateFallbackTurn(
+      // 🎯 PASO 2: Generar turnos restantes con validaciones completas
+      let attemptCount = 0;
+      const maxAttempts = remainingHours * 2; // Prevenir loops infinitos
+
+      while (remainingHours > 0 && attemptCount < maxAttempts) {
+        attemptCount++;
+
+        const nextTurnResult = await this.calculateNextTurnWithValidations(
           currentStartTime,
           remainingHours,
           samplersData,
-          turns,
-          officeData
+          turns, // Pasar turnos ya generados
+          officeData,
+          currentRosterId,
+          weekValidationCache // 🚀 Pasar cache de validaciones
         );
 
-        if (fallbackResult.success) {
-          turns.push(fallbackResult.turn);
+        if (nextTurnResult.success) {
+          turns.push(nextTurnResult.turn);
           currentStartTime = DateUtils.parseDateTime(
-            fallbackResult.turn.finishTime
+            nextTurnResult.turn.finishTime
           );
-          remainingHours -= fallbackResult.turn.hours;
+          remainingHours -= nextTurnResult.turn.hours;
 
-          Logger.warn("Used fallback assignment", {
+          Logger.debug(`Turn ${turns.length} calculated successfully`, {
             module: "SamplingRoster",
             data: {
-              sampler: fallbackResult.turn.samplerName,
-              hours: fallbackResult.turn.hours,
-              reason: "Primary validation failed",
+              sampler: nextTurnResult.turn.samplerName,
+              start: nextTurnResult.turn.startTime,
+              finish: nextTurnResult.turn.finishTime,
+              hours: nextTurnResult.turn.hours,
+              remainingHours: remainingHours,
+              validationsPassed:
+                nextTurnResult.validations?.overall.isValid || false,
+              weeklyStatus: nextTurnResult.validations?.weekly?.message || "N/A",
             },
             showNotification: false,
           });
         } else {
-          Logger.error("Failed to assign turn even with fallback", {
+          Logger.warn(`Failed to assign turn (attempt ${attemptCount})`, {
             module: "SamplingRoster",
             data: {
               remainingHours: remainingHours,
-              attempts: attemptCount,
+              reason: nextTurnResult.reason,
+              availableSamplers: nextTurnResult.availableSamplers || 0,
             },
-            showNotification: true,
+            showNotification: false,
           });
-          break; // Salir del loop si no se puede asignar
+
+          // Intentar con estrategia de fallback
+          const fallbackResult = await this.calculateFallbackTurn(
+            currentStartTime,
+            remainingHours,
+            samplersData,
+            turns,
+            officeData
+          );
+
+          if (fallbackResult.success) {
+            turns.push(fallbackResult.turn);
+            currentStartTime = DateUtils.parseDateTime(
+              fallbackResult.turn.finishTime
+            );
+            remainingHours -= fallbackResult.turn.hours;
+
+            Logger.warn("Used fallback assignment", {
+              module: "SamplingRoster",
+              data: {
+                sampler: fallbackResult.turn.samplerName,
+                hours: fallbackResult.turn.hours,
+                reason: "Primary validation failed",
+              },
+              showNotification: false,
+            });
+          } else {
+            Logger.error("Failed to assign turn even with fallback", {
+              module: "SamplingRoster",
+              data: {
+                remainingHours: remainingHours,
+                attempts: attemptCount,
+              },
+              showNotification: true,
+            });
+            break; // Salir del loop si no se puede asignar
+          }
         }
       }
-    }
 
-    // Verificar si se completó correctamente
-    if (remainingHours > 0) {
-      Logger.warn("Could not assign all remaining hours", {
-        module: "SamplingRoster",
-        data: {
-          remainingHours: remainingHours,
-          totalTurns: turns.length,
-          attempts: attemptCount,
-        },
-        showNotification: true,
-      });
-    }
+      // Verificar si se completó correctamente
+      if (remainingHours > 0) {
+        Logger.warn("Could not assign all remaining hours", {
+          module: "SamplingRoster",
+          data: {
+            remainingHours: remainingHours,
+            totalTurns: turns.length,
+            attempts: attemptCount,
+          },
+          showNotification: true,
+        });
+      }
 
-    // 📊 Generar resumen final
-    const summary = this.generateTurnsSummary(
-      turns,
-      officeData,
-      totalHours - remainingHours
-    );
+      // 📊 Generar resumen final
+      const summary = this.generateTurnsSummary(
+        turns,
+        officeData,
+        totalHours - remainingHours
+      );
 
-    Logger.success("Line Sampling calculation completed", {
-      module: "SamplingRoster",
-      data: {
+      // Registrar métricas de performance
+      PerformanceTracker.validation('calculateLineSamplingTurns', true, performance.now() - startTime, {
         totalTurns: turns.length,
         totalHoursAssigned: totalHours - remainingHours,
         totalHours: totalHours,
         remainingHours: remainingHours,
-        summary: summary,
-      },
-      showNotification: false,
-    });
+        samplersCount: samplersData?.length || 0,
+        currentRosterId: currentRosterId
+      });
 
-    return turns;
+      Logger.success("Line Sampling calculation completed", {
+        module: "SamplingRoster",
+        data: {
+          totalTurns: turns.length,
+          totalHoursAssigned: totalHours - remainingHours,
+          totalHours: totalHours,
+          remainingHours: remainingHours,
+          summary: summary,
+        },
+        showNotification: false,
+      });
+
+      return turns;
+    } catch (error) {
+      // Registrar error de performance
+      PerformanceTracker.error('ScheduleCalculator', 'calculateLineSamplingTurns', error);
+
+      Logger.error("Error in calculateLineSamplingTurns", {
+        module: "SamplingRoster",
+        error: error,
+        data: {
+          officeData: officeData,
+          totalHours: totalHours,
+          samplersCount: samplersData?.length || 0,
+          currentRosterId: currentRosterId
+        },
+        showNotification: true,
+      });
+      throw error;
+    }
   }
 
   /**
@@ -252,6 +305,7 @@ export class ScheduleCalculator {
     remainingHours,
     currentRosterId
   ) {
+    const startTime = performance.now();
     const officeHours = parseInt(officeData.hours) || 6;
     const nextBlockTime = this.getNextBlockTime(officeFinishTime);
     const hoursToNextBlock = DateUtils.getHoursBetween(
@@ -322,6 +376,14 @@ export class ScheduleCalculator {
     const finishTime = new Date(officeFinishTime);
     finishTime.setHours(finishTime.getHours() + actualHours);
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('calculateFirstTurnWithValidations', true, performance.now() - startTime, {
+      officeSampler: officeData.samplerName,
+      actualHours: actualHours,
+      hoursToNextBlock: hoursToNextBlock,
+      canContinue: true
+    });
+
     return {
       canContinue: true,
       turn: {
@@ -347,6 +409,8 @@ export class ScheduleCalculator {
     currentRosterId,
     weekValidationCache = null
   ) {
+    const startTime = performance.now();
+    
     // Calcular duración del turno
     const turnInfo = this.calculateTurnDuration(
       currentStartTime,
@@ -391,6 +455,13 @@ export class ScheduleCalculator {
     }
 
     if (availableSamplers.length === 0) {
+      // Registrar métricas de performance
+      PerformanceTracker.validation('calculateNextTurnWithValidations', false, performance.now() - startTime, {
+        reason: "No samplers available with all validations",
+        availableSamplers: 0,
+        cacheAvailable: !!weekValidationCache
+      });
+
       return {
         success: false,
         reason: "No samplers available with all validations",
@@ -413,6 +484,14 @@ export class ScheduleCalculator {
       generationId
     );
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('calculateNextTurnWithValidations', true, performance.now() - startTime, {
+      selectedSampler: bestSampler.sampler.name,
+      turnHours: turnInfo.turnHours,
+      availableSamplers: availableSamplers.length,
+      cacheAvailable: !!weekValidationCache
+    });
+
     return {
       success: true,
       turn: {
@@ -430,95 +509,152 @@ export class ScheduleCalculator {
    * 🆕 Calcular duración del turno según reglas de negocio
    */
   static calculateTurnDuration(currentStartTime, remainingHours) {
-    const currentHour = currentStartTime.getHours();
-    const currentMinute = currentStartTime.getMinutes();
-    const isAtBlockBoundary =
-      (currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START && currentMinute === 0) ||
-      (currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START && currentMinute === 0);
+    const startTime = performance.now();
+    
+    try {
+      // Validar parámetros de entrada
+      if (!currentStartTime || !(currentStartTime instanceof Date)) {
+        throw new Error("currentStartTime must be a valid Date object");
+      }
+
+      if (!remainingHours || isNaN(remainingHours) || remainingHours <= 0) {
+        throw new Error("remainingHours must be a positive number");
+      }
+
+      const currentHour = currentStartTime.getHours();
+      const currentMinute = currentStartTime.getMinutes();
+      const isAtBlockBoundary =
+        (currentHour === SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START && currentMinute === 0) ||
+        (currentHour === SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START && currentMinute === 0);
 
     let turnHours;
 
-    // 🔧 DEBUG: Log para debugging del problema de 0.5 horas
-    console.log('🔍 DEBUG calculateTurnDuration:', {
-      currentStartTime: currentStartTime.toISOString(),
-      currentHour: currentHour,
-      currentMinute: currentMinute,
-      isAtBlockBoundary: isAtBlockBoundary,
-      remainingHours: remainingHours,
-      DAY_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START,
-      NIGHT_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START,
-      MAX_SAMPLER_HOURS: SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
-    });
-
-    if (
-      isAtBlockBoundary &&
-      remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
-    ) {
-      // ✅ Turno perfecto de 12h
-      turnHours = SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS;
-      console.log('🔍 Case 1: Perfect 12h turn at block boundary');
-    } else if (
-      isAtBlockBoundary &&
-      remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
-    ) {
-      // ✅ Último turno con horas restantes
-      turnHours = remainingHours;
-      console.log('🔍 Case 2: Last turn with remaining hours:', turnHours);
-    } else {
-      // ⚠️ Ir hasta próximo bloque
-      const nextBlockTime = this.getNextBlockTime(currentStartTime);
-      const hoursToNextBlock = DateUtils.getHoursBetween(
-        currentStartTime,
-        nextBlockTime
-      );
-      
-      // 🔧 CORRECCIÓN: Asegurar mínimo 1 hora por turno, pero mejor lógica
-      // Si las horas hasta el próximo bloque son menos de 1, usar un turno más largo
-      let targetTurnHours;
-      
-      if (hoursToNextBlock < 1) {
-        // Si el tiempo hasta el próximo bloque es muy poco, 
-        // mejor hacer un turno de duración mínima reasonable
-        targetTurnHours = Math.min(remainingHours, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
-      } else {
-        targetTurnHours = Math.min(
-          hoursToNextBlock,
-          remainingHours,
-          SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
-        );
-      }
-      
-      // Asegurar que nunca sea menor a 1 hora
-      turnHours = Math.max(1, targetTurnHours);
-      
-      console.log('🔍 Case 3: Go to next block', {
-        nextBlockTime: nextBlockTime.toISOString(),
-        hoursToNextBlock: hoursToNextBlock,
-        targetTurnHours: targetTurnHours,
-        finalTurnHours: turnHours
+      // 🔧 DEBUG: Log para debugging del problema de 0.5 horas
+      Logger.debug("Calculating turn duration", {
+        module: "SamplingRoster",
+        data: {
+          currentStartTime: currentStartTime.toISOString(),
+          currentHour: currentHour,
+          currentMinute: currentMinute,
+          isAtBlockBoundary: isAtBlockBoundary,
+          remainingHours: remainingHours,
+          DAY_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.DAY_BLOCK_START,
+          NIGHT_BLOCK_START: SAMPLING_ROSTER_CONSTANTS.NIGHT_BLOCK_START,
+          MAX_SAMPLER_HOURS: SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+        },
+        showNotification: false,
       });
+
+      if (
+        isAtBlockBoundary &&
+        remainingHours >= SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      ) {
+        // ✅ Turno perfecto de 12h
+        turnHours = SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS;
+        Logger.debug("Perfect 12h turn at block boundary", {
+          module: "SamplingRoster",
+          data: { turnHours },
+          showNotification: false,
+        });
+      } else if (
+        isAtBlockBoundary &&
+        remainingHours < SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+      ) {
+        // ✅ Último turno con horas restantes
+        turnHours = remainingHours;
+        Logger.debug("Last turn with remaining hours", {
+          module: "SamplingRoster",
+          data: { turnHours },
+          showNotification: false,
+        });
+      } else {
+        // ⚠️ Ir hasta próximo bloque
+        const nextBlockTime = this.getNextBlockTime(currentStartTime);
+        const hoursToNextBlock = DateUtils.getHoursBetween(
+          currentStartTime,
+          nextBlockTime
+        );
+        
+        // 🔧 CORRECCIÓN: Asegurar mínimo 1 hora por turno, pero mejor lógica
+        // Si las horas hasta el próximo bloque son menos de 1, usar un turno más largo
+        let targetTurnHours;
+        
+        if (hoursToNextBlock < 1) {
+          // Si el tiempo hasta el próximo bloque es muy poco, 
+          // mejor hacer un turno de duración mínima reasonable
+          targetTurnHours = Math.min(remainingHours, SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS);
+        } else {
+          targetTurnHours = Math.min(
+            hoursToNextBlock,
+            remainingHours,
+            SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
+          );
+        }
+        
+        // Asegurar que nunca sea menor a 1 hora
+        turnHours = Math.max(1, targetTurnHours);
+        
+        Logger.debug("Go to next block", {
+          module: "SamplingRoster",
+          data: {
+            nextBlockTime: nextBlockTime.toISOString(),
+            hoursToNextBlock: hoursToNextBlock,
+            targetTurnHours: targetTurnHours,
+            finalTurnHours: turnHours
+          },
+          showNotification: false,
+        });
+      }
+
+      const turnEndTime = new Date(currentStartTime);
+      turnEndTime.setHours(turnEndTime.getHours() + turnHours);
+
+      // Registrar métricas de performance
+      PerformanceTracker.validation('calculateTurnDuration', true, performance.now() - startTime, {
+        turnHours: turnHours,
+        isBlockBoundary: isAtBlockBoundary,
+        isLastTurn: remainingHours <= turnHours,
+        remainingHours: remainingHours
+      });
+
+      Logger.debug("Turn duration calculation completed", {
+        module: "SamplingRoster",
+        data: {
+          turnHours: turnHours,
+          turnEndTime: turnEndTime.toISOString()
+        },
+        showNotification: false,
+      });
+
+      return {
+        turnHours: turnHours,
+        turnEndTime: turnEndTime,
+        isBlockBoundary: isAtBlockBoundary,
+        isLastTurn: remainingHours <= turnHours,
+      };
+    } catch (error) {
+      // Registrar error de performance
+      PerformanceTracker.error('ScheduleCalculator', 'calculateTurnDuration', error);
+
+      Logger.error("Error calculating turn duration", {
+        module: "SamplingRoster",
+        error: error,
+        data: {
+          currentStartTime: currentStartTime?.toISOString(),
+          remainingHours: remainingHours
+        },
+        showNotification: false,
+      });
+      throw error;
     }
-
-    const turnEndTime = new Date(currentStartTime);
-    turnEndTime.setHours(turnEndTime.getHours() + turnHours);
-
-    console.log('🔍 Final result:', {
-      turnHours: turnHours,
-      turnEndTime: turnEndTime.toISOString()
-    });
-
-    return {
-      turnHours: turnHours,
-      turnEndTime: turnEndTime,
-      isBlockBoundary: isAtBlockBoundary,
-      isLastTurn: remainingHours <= turnHours,
-    };
   }
 
   /**
    * 🆕 Track sampler assignment for intelligent rotation
    */
   static trackSamplerAssignment(samplerName, hours, generationId = "default") {
+    const startTime = performance.now();
+    
     // Initialize if needed
     if (!this.samplerRotationHistory.has(generationId)) {
       this.samplerRotationHistory.set(generationId, []);
@@ -546,6 +682,14 @@ export class ScheduleCalculator {
       history.shift();
     }
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('trackSamplerAssignment', true, performance.now() - startTime, {
+      samplerName: samplerName,
+      hours: hours,
+      generationId: generationId,
+      totalHours: hoursTracking.get(samplerName)
+    });
+
     Logger.debug("Sampler assignment tracked", {
       module: "SamplingRoster",
       data: {
@@ -566,12 +710,25 @@ export class ScheduleCalculator {
     turnsInMemory = [],
     generationId = "default"
   ) {
+    const startTime = performance.now();
+    
     if (!availableSamplers || availableSamplers.length === 0) {
+      // Registrar métricas de performance
+      PerformanceTracker.validation('getRotatedSamplerWithMemory', false, performance.now() - startTime, {
+        reason: "No available samplers",
+        generationId: generationId
+      });
       return null;
     }
 
     // If only one sampler available, return it
     if (availableSamplers.length === 1) {
+      // Registrar métricas de performance
+      PerformanceTracker.validation('getRotatedSamplerWithMemory', true, performance.now() - startTime, {
+        selectedSampler: availableSamplers[0].sampler?.name || availableSamplers[0].name,
+        availableOptions: 1,
+        generationId: generationId
+      });
       return availableSamplers[0];
     }
 
@@ -645,6 +802,16 @@ export class ScheduleCalculator {
     scoredSamplers.sort((a, b) => b.score - a.score);
     const selected = scoredSamplers[0];
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('getRotatedSamplerWithMemory', true, performance.now() - startTime, {
+      selectedSampler: selected.samplerName,
+      score: Math.round(selected.score),
+      currentHours: selected.currentHours,
+      recentCount: selected.timesInRecent,
+      totalOptions: availableSamplers.length,
+      generationId: generationId
+    });
+
     Logger.debug("Intelligent sampler rotation", {
       module: "SamplingRoster",
       data: {
@@ -672,6 +839,8 @@ export class ScheduleCalculator {
     turnsInMemory,
     generationId = "default"
   ) {
+    const startTime = performance.now();
+    
     Logger.debug("Selecting best sampler with intelligent rotation", {
       module: "SamplingRoster",
       data: {
@@ -689,6 +858,13 @@ export class ScheduleCalculator {
     );
 
     if (!selectedSampler) {
+      // Registrar métricas de performance
+      PerformanceTracker.validation('selectBestSampler', false, performance.now() - startTime, {
+        reason: "No sampler selected by intelligent rotation, using fallback",
+        availableOptions: availableSamplers.length,
+        generationId: generationId
+      });
+
       Logger.warn(
         "No sampler selected by intelligent rotation, using fallback",
         {
@@ -713,6 +889,13 @@ export class ScheduleCalculator {
       })[0];
     }
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('selectBestSampler', true, performance.now() - startTime, {
+      selectedSampler: selectedSampler.sampler?.name || selectedSampler.name,
+      availableOptions: availableSamplers.length,
+      generationId: generationId
+    });
+
     return selectedSampler;
   }
 
@@ -726,6 +909,8 @@ export class ScheduleCalculator {
     turnsInMemory,
     officeData
   ) {
+    const startTime = performance.now();
+    
     Logger.warn("Attempting fallback turn assignment", {
       module: "SamplingRoster",
       data: {
@@ -776,6 +961,15 @@ export class ScheduleCalculator {
         dailyHours + turnInfo.turnHours <=
         SAMPLING_ROSTER_CONSTANTS.MAX_SAMPLER_HOURS
       ) {
+        // Registrar métricas de performance
+        PerformanceTracker.validation('calculateFallbackTurn', true, performance.now() - startTime, {
+          selectedSampler: sampler.name,
+          currentDailyHours: dailyHours,
+          proposedHours: turnInfo.turnHours,
+          totalDailyAfter: dailyHours + turnInfo.turnHours,
+          isFallback: true
+        });
+
         Logger.warn(`Fallback assignment to ${sampler.name}`, {
           module: "SamplingRoster",
           data: {
@@ -800,6 +994,12 @@ export class ScheduleCalculator {
       }
     }
 
+    // Registrar métricas de performance
+    PerformanceTracker.validation('calculateFallbackTurn', false, performance.now() - startTime, {
+      reason: "No samplers available even with fallback validation",
+      samplersChecked: samplersData.length
+    });
+
     return {
       success: false,
       reason: "No samplers available even with fallback validation",
@@ -810,6 +1010,7 @@ export class ScheduleCalculator {
    * 🆕 Generar resumen de turnos
    */
   static generateTurnsSummary(turns, officeData, totalHours) {
+    const startTime = performance.now();
     const samplerHours = {};
 
     // Contar horas de office sampling
@@ -824,12 +1025,22 @@ export class ScheduleCalculator {
         (samplerHours[turn.samplerName] || 0) + turn.hours;
     });
 
-    return {
+    const summary = {
       totalTurns: turns.length,
       totalHours: totalHours,
       samplerDistribution: samplerHours,
       averageHoursPerSampler: totalHours / Object.keys(samplerHours).length,
     };
+
+    // Registrar métricas de performance
+    PerformanceTracker.validation('generateTurnsSummary', true, performance.now() - startTime, {
+      totalTurns: turns.length,
+      totalHours: totalHours,
+      samplersCount: Object.keys(samplerHours).length,
+      averageHoursPerSampler: summary.averageHoursPerSampler
+    });
+
+    return summary;
   }
 
   /**
