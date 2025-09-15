@@ -1081,6 +1081,7 @@ class DashboardManager {
      */
     getWeeklyWorkloadOptions() {
         console.log('🔧 Cargando configuración semanal con labels separados');
+        const self = this; // Capturar referencia al DashboardManager
         return {
             responsive: true,
             maintainAspectRatio: false,
@@ -1129,8 +1130,16 @@ class DashboardManager {
                         afterBody: function(context) {
                             const totalHours = context.reduce((sum, item) => sum + item.parsed.y, 0);
                             const samplerName = context[0].label;
-                            const sampler = window.dashboardManager?.data?.samplers?.find(s => s.name === samplerName);
+                            const sampler = self.data?.samplers?.find(s => s.name === samplerName);
                             const weeklyLimit = sampler?.weeklyRestriction ? 24 : 38; // ✅ Límite australiano estándar
+                            
+                            // 🔍 DEBUG: Verificar datos del sampler en tooltip
+                            console.log(`🔍 TOOLTIP DEBUG - ${samplerName}:`, {
+                                sampler,
+                                weeklyRestriction: sampler?.weeklyRestriction,
+                                weeklyLimit,
+                                totalHours
+                            });
                             
                             if (totalHours > weeklyLimit) {
                                 return [
