@@ -41,6 +41,49 @@ class DateTimeValidationManager {
   }
 
   /**
+   * Precargar la fecha del campo dependiente al mismo día que la base,
+   * preservando la hora existente o usando la hora por defecto del picker,
+   * y asegurando que no viole el minDateTime calculado.
+   * @param {string} targetField - 'etb' o 'etc'
+   * @param {Date} baseDateTime - Fecha/hora base (POB o ETB)
+   * @param {Date} minDateTime - Restricción mínima ya calculada
+   */
+  preloadDependentDate(targetField, baseDateTime, minDateTime) {
+    try {
+      const targetInstance = this.dateTimeInstances[targetField];
+      if (!targetInstance || !baseDateTime) return;
+
+      const existing = targetInstance.getDateTime?.();
+      const defaultTime = targetInstance.config?.defaultTime || { hour: 9, minute: 0 };
+      const baseHour = existing ? existing.getHours() : defaultTime.hour;
+      const baseMinute = existing ? existing.getMinutes() : defaultTime.minute;
+
+      // Si ya está en el mismo día, no forzar cambio de día
+      const needsPreload = !existing || existing.toDateString() !== baseDateTime.toDateString();
+      if (!needsPreload) return;
+
+      let preload = new Date(baseDateTime);
+      preload.setHours(baseHour, baseMinute, 0, 0);
+
+      // Asegurar que cumpla el mínimo
+      if (minDateTime && preload < minDateTime) {
+        preload = new Date(minDateTime);
+      }
+
+      if (typeof targetInstance.setDateTime === 'function') {
+        targetInstance.setDateTime(preload);
+      }
+    } catch (error) {
+      Logger.warn('Error preloading dependent date', {
+        module: 'DateTimeValidationManager',
+        targetField: targetField,
+        error: error,
+        showNotification: false
+      });
+    }
+  }
+
+  /**
    * Configurar instancias de DateTimePicker
    * @param {Object} dateTimeInstances - Instancias de DateTimePicker
    */
@@ -144,6 +187,10 @@ class DateTimeValidationManager {
       
       // Recalcular restricciones para ETB
       this.updateETBRestrictions();
+
+      // Precargar fecha de ETB al mismo día que POB respetando mínimo (POB + 2h)
+      const minETBDateTime = this.calculateMinDateTime(dateTime, this.config.minOffsetHours);
+      this.preloadDependentDate('etb', dateTime, minETBDateTime);
       
       Logger.debug('Pilot On Board validation applied', {
         module: 'DateTimeValidationManager',
@@ -197,6 +244,10 @@ class DateTimeValidationManager {
       
       // Recalcular restricciones para ETC
       this.updateETCRestrictions();
+
+      // Precargar fecha de ETC al mismo día que ETB respetando mínimo (ETB + 2h)
+      const minETCDateTime = this.calculateMinDateTime(dateTime, this.config.minOffsetHours);
+      this.preloadDependentDate('etc', dateTime, minETCDateTime);
       
       Logger.debug('ETB validation applied', {
         module: 'DateTimeValidationManager',

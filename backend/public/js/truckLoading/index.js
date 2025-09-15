@@ -98,8 +98,53 @@
     function initDateTimePickers() {
         if (typeof DateTimePicker === 'undefined') return;
         // Shift
-        state.dateTimes.shiftStart = new DateTimePicker('shiftStart', { is24Hour: true, minuteStep: 15 });
-        state.dateTimes.shiftEnd = new DateTimePicker('shiftEnd', { is24Hour: true, minuteStep: 15 });
+        state.dateTimes.shiftStart = new DateTimePicker('shiftStart', { 
+            is24Hour: true, 
+            minuteStep: 15,
+            onDateTimeChange: (startDateTime) => {
+                try {
+                    // Aplicar restricción: END >= START
+                    if (state?.dateTimes?.shiftEnd?.setMinDate) {
+                        state.dateTimes.shiftEnd.setMinDate(startDateTime || null);
+                    }
+                    // Si END ya seleccionado es menor que START, limpiar END
+                    const endVal = state?.dateTimes?.shiftEnd?.getDateTime?.();
+                    if (startDateTime && endVal && endVal < startDateTime) {
+                        state.dateTimes.shiftEnd.clearSelection?.(false);
+                        window.NotificationService?.warn?.('END no puede ser menor que START');
+                    }
+                    // Precargar el mismo día en END para que el usuario solo ajuste la hora
+                    if (startDateTime && state?.dateTimes?.shiftEnd) {
+                        const endInst = state.dateTimes.shiftEnd;
+                        const existingEnd = endInst.getDateTime?.();
+                        const endDefault = endInst.config?.defaultTime || { hour: 12, minute: 0 };
+                        const baseHour = existingEnd ? existingEnd.getHours() : endDefault.hour;
+                        const baseMinute = existingEnd ? existingEnd.getMinutes() : endDefault.minute;
+                        const needPreload = !existingEnd || existingEnd.toDateString() !== startDateTime.toDateString();
+                        if (needPreload && typeof endInst.setDateTime === 'function') {
+                            const preload = new Date(startDateTime);
+                            preload.setHours(baseHour, baseMinute, 0, 0);
+                            endInst.setDateTime(preload);
+                        }
+                    }
+                } catch {}
+                updateShiftHours();
+            }
+        });
+        state.dateTimes.shiftEnd = new DateTimePicker('shiftEnd', { 
+            is24Hour: true, 
+            minuteStep: 15,
+            onDateTimeChange: () => {
+                updateShiftHours();
+            }
+        });
+        // Sincronizar restricción inicial si ya había START
+        try {
+            const maybeStart = state.dateTimes.shiftStart?.getDateTime?.();
+            if (maybeStart && state.dateTimes.shiftEnd?.setMinDate) {
+                state.dateTimes.shiftEnd.setMinDate(maybeStart);
+            }
+        } catch {}
         // Fallback events for calculation: listen to native input changes inside containers
         const bindChange = (containerId) => {
             const c = document.getElementById(containerId);
